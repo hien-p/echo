@@ -1,0 +1,82 @@
+[
+  {
+    "ruleId": "integration-tests-1",
+    "ruleTitle": "Use Vitest with inject()",
+    "type": "bad",
+    "code": "import { describe, it, expect } from 'jest'\n\nconst packageId = process.env.PACKAGE_ID!\n\ndescribe('e2e flow', () => {\n  it('should have the package', () => {\n    expect(packageId).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "uses jest and reads env vars instead of inject()"
+  },
+  {
+    "ruleId": "integration-tests-1",
+    "ruleTitle": "Use Vitest with inject()",
+    "type": "good",
+    "code": "import { describe, it, expect, inject } from 'vitest'\n\ndescribe('e2e flow', () => {\n  it('should have published the package', () => {\n    const objectChanges = inject('objectChanges')\n    const publishedChange = objectChanges.find(\n      ({ outputState }) => outputState === 'PackageWrite'\n    )\n    expect(publishedChange).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "injects shared state from globalSetup.ts"
+  },
+  {
+    "ruleId": "integration-tests-2",
+    "ruleTitle": "Access Shared State via inject()",
+    "type": "bad",
+    "code": "import { describe, it, expect } from 'vitest'\nimport { adminAccount } from '../src/testState'\n\ndescribe('admin operations', () => {\n  it('should have an admin account', () => {\n    expect(adminAccount.address).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "imports state from a module instead of inject()"
+  },
+  {
+    "ruleId": "integration-tests-2",
+    "ruleTitle": "Access Shared State via inject()",
+    "type": "good",
+    "code": "import { describe, it, expect, inject } from 'vitest'\n\ndescribe('admin operations', () => {\n  it('should have an admin account', () => {\n    const adminAccount = inject('adminAccount')\n    expect(adminAccount.address).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "uses inject() for globalSetup-provided shared state"
+  },
+  {
+    "ruleId": "integration-tests-3",
+    "ruleTitle": "Do Not Start Containers in Test Files",
+    "type": "bad",
+    "code": "import { describe, it, expect, beforeAll, afterAll } from 'vitest'\nimport { GenericContainer } from 'testcontainers'\n\nlet container: any\n\ndescribe('e2e flow', () => {\n  beforeAll(async () => {\n    container = await new GenericContainer('postgres')\n      .withEnvironment({ POSTGRES_PASSWORD: 'pw' })\n      .start()\n  }, 120_000)\n  afterAll(async () => {\n    await container.stop()\n  })\n  it('should query data', async () => {\n    expect(true).toBe(true)\n  })\n})",
+    "language": "typescript",
+    "description": "starts containers inside test file — duplicates globalSetup"
+  },
+  {
+    "ruleId": "integration-tests-3",
+    "ruleTitle": "Do Not Start Containers in Test Files",
+    "type": "good",
+    "code": "import { describe, it, expect, inject } from 'vitest'\n\ndescribe('e2e flow', () => {\n  it('should have container ports available', () => {\n    const localnetPort = inject('localnetPort')\n    const graphqlPort = inject('graphqlPort')\n    expect(localnetPort).toBeGreaterThan(0)\n    expect(graphqlPort).toBeGreaterThan(0)\n  })\n})",
+    "language": "typescript",
+    "description": "containers managed by globalSetup, tests receive ports via inject()"
+  },
+  {
+    "ruleId": "integration-tests-4",
+    "ruleTitle": "Do Not Publish Packages in Test Files",
+    "type": "bad",
+    "code": "import { describe, it, expect, beforeAll } from 'vitest'\nimport { execSync } from 'child_process'\n\nlet packageId: string\n\ndescribe('contract tests', () => {\n  beforeAll(() => {\n    const output = execSync('sui client publish --gas-budget 100000000').toString()\n    packageId = JSON.parse(output).objectChanges.find(\n      (c: any) => c.type === 'published'\n    ).packageId\n  }, 120_000)\n  it('should have package', () => {\n    expect(packageId).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "publishes Move package inside test — belongs in globalSetup"
+  },
+  {
+    "ruleId": "integration-tests-4",
+    "ruleTitle": "Do Not Publish Packages in Test Files",
+    "type": "good",
+    "code": "import { describe, it, expect, inject } from 'vitest'\n\ndescribe('contract tests', () => {\n  let packageId: string\n\n  it('should have published the package', () => {\n    const objectChanges = inject('objectChanges')\n    const published = objectChanges.find(\n      ({ outputState }) => outputState === 'PackageWrite'\n    )\n    expect(published).toBeDefined()\n    packageId = published!.objectId\n  })\n\n  it('should interact with the contract', async () => {\n    expect(packageId).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "package published in globalSetup, test reads objectChanges via inject()"
+  },
+  {
+    "ruleId": "integration-tests-5",
+    "ruleTitle": "Use inject() for Network Ports",
+    "type": "bad",
+    "code": "import { describe, it, expect } from 'vitest'\nimport { SuiGrpcClient } from '@mysten/sui/grpc'\n\nconst client = new SuiGrpcClient({\n  network: 'localnet',\n  baseUrl: 'http://localhost:9000',\n})\n\ndescribe('localnet queries', () => {\n  it('should query chain', async () => {\n    const info = await client.getChainIdentifier()\n    expect(info).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "hardcoded port — conflicts with dynamic container ports"
+  },
+  {
+    "ruleId": "integration-tests-5",
+    "ruleTitle": "Use inject() for Network Ports",
+    "type": "good",
+    "code": "import { describe, it, expect, inject } from 'vitest'\nimport { SuiGrpcClient } from '@mysten/sui/grpc'\n\ndescribe('localnet queries', () => {\n  it('should query chain', async () => {\n    const localnetPort = inject('localnetPort')\n    const client = new SuiGrpcClient({\n      network: 'localnet',\n      baseUrl: `http://localhost:${localnetPort}`,\n    })\n    const info = await client.getChainIdentifier()\n    expect(info).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "dynamic port from inject() matches actual container port"
+  }
+]

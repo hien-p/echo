@@ -1,0 +1,37 @@
+# GitHub Action for running Vitest tests
+name: Integration Tests
+
+on:
+  pull_request:
+    branches: [main, staging] # Add more comma separated branches here
+  push:
+    branches: [main, staging] # Runs on direct pushes to main and staging
+
+jobs:
+  test:
+    # Runner: change to 'macos-latest' or 'windows-latest' if needed
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./integration-tests
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc # Align CI with repo Node runtime
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9 # Pick preferred pnpm version
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run tests
+        run: pnpm run test

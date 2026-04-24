@@ -1,0 +1,4 @@
+packages:
+  - "dapp"
+  - "publish"
+  - "integration-tests"

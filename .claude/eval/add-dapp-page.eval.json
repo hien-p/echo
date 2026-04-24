@@ -1,0 +1,130 @@
+[
+  {
+    "ruleId": "add-dapp-page-1",
+    "ruleTitle": "Page Route Uses Default Export",
+    "type": "bad",
+    "code": "export const NftGalleryPage = () => {\n  return (\n    <main>\n      <h1>NFT Gallery</h1>\n    </main>\n  )\n}",
+    "language": "tsx",
+    "description": "named export for page — Next.js requires default export"
+  },
+  {
+    "ruleId": "add-dapp-page-1",
+    "ruleTitle": "Page Route Uses Default Export",
+    "type": "good",
+    "code": "import { NftGallery } from '@/components/general/NftGallery'\n\nexport default function NftGalleryPage() {\n  return (\n    <main>\n      <h1>NFT Gallery</h1>\n      <NftGallery />\n    </main>\n  )\n}",
+    "language": "tsx",
+    "description": "default export for page, named import for feature component"
+  },
+  {
+    "ruleId": "add-dapp-page-2",
+    "ruleTitle": "Feature Component With 'use client' and Named Export",
+    "type": "bad",
+    "code": "import { useCurrentAccount, useDAppKit } from '@mysten/dapp-kit-react'\nimport { Transaction } from '@mysten/sui/transactions'\n\nconst TokenTransfer = () => {\n  const currentAccount = useCurrentAccount()\n  const dAppKit = useDAppKit()\n\n  const handleTransfer = async () => {\n    if (!currentAccount) return\n    const tx = new Transaction()\n    tx.transferObjects([tx.object('0x123')], '0xrecipient')\n    await dAppKit.signAndExecuteTransaction({ transaction: tx, account: currentAccount })\n  }\n\n  return <button onClick={() => void handleTransfer()}>Transfer</button>\n}\n\nexport default TokenTransfer",
+    "language": "tsx",
+    "description": "missing 'use client', default export, hardcoded object IDs"
+  },
+  {
+    "ruleId": "add-dapp-page-2",
+    "ruleTitle": "Feature Component With 'use client' and Named Export",
+    "type": "good",
+    "code": "'use client'\n\nimport { useCurrentAccount, useDAppKit } from '@mysten/dapp-kit-react'\nimport { Transaction } from '@mysten/sui/transactions'\nimport { clientConfig } from '@/config/clientConfig'\n\nexport const TokenTransfer = ({ objectId, recipient }: {\n  objectId: string\n  recipient: string\n}) => {\n  const currentAccount = useCurrentAccount()\n  const dAppKit = useDAppKit()\n\n  const handleTransfer = async () => {\n    if (!currentAccount) return\n    const tx = new Transaction()\n    tx.transferObjects([tx.object(objectId)], recipient)\n    await dAppKit.signAndExecuteTransaction({ transaction: tx, account: currentAccount })\n  }\n\n  return <button onClick={() => void handleTransfer()}>Transfer</button>\n}",
+    "language": "tsx",
+    "description": "'use client' present, named export, config-driven values via props"
+  },
+  {
+    "ruleId": "add-dapp-page-3",
+    "ruleTitle": "API Route Follows Dapp Conventions",
+    "type": "bad",
+    "code": "import { clientConfig } from '@/config/clientConfig'\n\nexport default async function handler(req: Request) {\n  const network = clientConfig.SUI_NETWORK\n  const data = await fetch(`https://api.example.com/${network}/tokens`)\n  return new Response(JSON.stringify(await data.json()))\n}",
+    "language": "typescript",
+    "description": "default export, imports clientConfig, no force-dynamic, raw Response"
+  },
+  {
+    "ruleId": "add-dapp-page-3",
+    "ruleTitle": "API Route Follows Dapp Conventions",
+    "type": "good",
+    "code": "import { NextResponse } from 'next/server'\n\nexport const dynamic = 'force-dynamic'\n\nexport async function GET() {\n  const network = process.env.NEXT_PUBLIC_SUI_NETWORK\n  const data = await fetch(`https://api.example.com/${network}/tokens`)\n  return NextResponse.json(await data.json(), { status: 200 })\n}",
+    "language": "typescript",
+    "description": "named export, force-dynamic, process.env, NextResponse.json"
+  },
+  {
+    "ruleId": "add-dapp-page-4",
+    "ruleTitle": "New Env Vars Documented and Validated",
+    "type": "bad",
+    "code": "// Component reads env directly without validation\nconst PACKAGE_ID = process.env.NEXT_PUBLIC_NFT_PACKAGE_ID\n\nexport const NftMint = () => {\n  const handleMint = () => {\n    const tx = new Transaction()\n    tx.moveCall({ target: `${PACKAGE_ID}::nft::mint` })\n  }\n  return <button onClick={handleMint}>Mint</button>\n}",
+    "language": "tsx",
+    "description": "env var not in .env.example, not in Zod schema, read inline"
+  },
+  {
+    "ruleId": "add-dapp-page-4",
+    "ruleTitle": "New Env Vars Documented and Validated",
+    "type": "good",
+    "code": "// 1. Added to dapp/.env.example:\n//    NEXT_PUBLIC_NFT_PACKAGE_ID=0x...\n//\n// 2. Extended clientConfig.ts Zod schema:\n//    NFT_PACKAGE_ID: z.string().optional(),\n//\n// 3. Component reads from validated config:\n'use client'\n\nimport { clientConfig } from '@/config/clientConfig'\nimport { Transaction } from '@mysten/sui/transactions'\n\nexport const NftMint = () => {\n  const handleMint = () => {\n    if (!clientConfig.NFT_PACKAGE_ID) return\n    const tx = new Transaction()\n    tx.moveCall({ target: `${clientConfig.NFT_PACKAGE_ID}::nft::mint` })\n  }\n  return <button onClick={handleMint}>Mint</button>\n}",
+    "language": "tsx",
+    "description": "env var in .env.example, validated in Zod schema, read from config"
+  },
+  {
+    "ruleId": "add-dapp-page-5",
+    "ruleTitle": "Test Uses Dynamic Import in beforeAll",
+    "type": "bad",
+    "code": "import { describe, it, expect } from 'vitest'\nimport { GET } from '../src/app/api/nfts/route'\n\ndescribe('NFT API', () => {\n  it('should return NFTs', async () => {\n    const res = await GET(new Request('http://test'))\n    expect(res.status).toBe(200)\n  })\n})",
+    "language": "typescript",
+    "description": "top-level static import skips dotenv/config env loading"
+  },
+  {
+    "ruleId": "add-dapp-page-5",
+    "ruleTitle": "Test Uses Dynamic Import in beforeAll",
+    "type": "good",
+    "code": "import { describe, it, expect, beforeAll } from 'vitest'\n\nlet GET: (req: Request) => Promise<Response>\n\ndescribe.sequential('NFT API', () => {\n  beforeAll(async () => {\n    const route = await import('../src/app/api/nfts/route')\n    GET = route.GET\n  })\n  it('should return NFTs', async () => {\n    const res = await GET(new Request('http://test'))\n    expect(res.status).toBe(200)\n    const data = await res.json()\n    expect(Array.isArray(data.nfts)).toBe(true)\n  })\n  it('should handle errors', async () => {\n    const res = await GET(new Request('http://test?invalid=true'))\n    expect(res.status).toBeGreaterThanOrEqual(400)\n  })\n})",
+    "language": "typescript",
+    "description": "dynamic import in beforeAll, describe.sequential, both paths tested"
+  },
+  {
+    "ruleId": "add-dapp-page-6",
+    "ruleTitle": "Page With Suspense for Server-Fetched Data",
+    "type": "bad",
+    "code": "import { NftGrid } from '@/components/general/NftGrid'\n\nexport default async function NftGalleryPage() {\n  const nfts = await fetchNfts()\n  return (\n    <main>\n      <h1>NFT Gallery</h1>\n      <NftGrid nfts={nfts} />\n    </main>\n  )\n}",
+    "language": "tsx",
+    "description": "entire page blocked by data fetch — no streaming"
+  },
+  {
+    "ruleId": "add-dapp-page-6",
+    "ruleTitle": "Page With Suspense for Server-Fetched Data",
+    "type": "good",
+    "code": "import { Suspense } from 'react'\nimport { NftGrid } from '@/components/general/NftGrid'\nimport { Skeleton } from '@/components/ui/skeleton'\n\nasync function NftList() {\n  const nfts = await fetchNfts()\n  return <NftGrid nfts={nfts} />\n}\n\nexport default function NftGalleryPage() {\n  return (\n    <main>\n      <h1>NFT Gallery</h1>\n      <Suspense fallback={<Skeleton className=\"h-64 w-full\" />}>\n        <NftList />\n      </Suspense>\n    </main>\n  )\n}",
+    "language": "tsx",
+    "description": "Suspense boundary streams data — shell renders immediately"
+  },
+  {
+    "ruleId": "add-dapp-page-7",
+    "ruleTitle": "shadcn Components Added From Dapp Directory",
+    "type": "bad",
+    "code": "// Ran from monorepo root:\n//   npx shadcn@latest add card\n// Result: components.json not found, wrong output path",
+    "language": "shell",
+    "description": "running shadcn from monorepo root misses components.json"
+  },
+  {
+    "ruleId": "add-dapp-page-7",
+    "ruleTitle": "shadcn Components Added From Dapp Directory",
+    "type": "good",
+    "code": "// Ran from dapp directory:\n//   cd dapp && npx shadcn@latest add card\n// Result: card.tsx created in dapp/src/components/ui/",
+    "language": "shell",
+    "description": "cd dapp first so shadcn finds components.json"
+  },
+  {
+    "ruleId": "add-dapp-page-8",
+    "ruleTitle": "Do Not Hardcode Network Values",
+    "type": "bad",
+    "code": "'use client'\n\nimport { useCurrentClient } from '@mysten/dapp-kit-react'\n\nexport const BalanceDisplay = ({ address }: { address: string }) => {\n  const client = useCurrentClient()\n  const fetchBalance = async () => {\n    const balance = await client.getBalance({\n      owner: address,\n      coinType: '0x2::sui::SUI'\n    })\n    return balance\n  }\n  return <button onClick={() => fetchBalance()}>Check Balance on Testnet</button>\n}",
+    "language": "tsx",
+    "description": "hardcoded coin type and network reference in UI text"
+  },
+  {
+    "ruleId": "add-dapp-page-8",
+    "ruleTitle": "Do Not Hardcode Network Values",
+    "type": "good",
+    "code": "'use client'\n\nimport { useCurrentClient } from '@mysten/dapp-kit-react'\nimport { clientConfig } from '@/config/clientConfig'\n\nexport const BalanceDisplay = ({ address, coinType }: {\n  address: string\n  coinType: string\n}) => {\n  const client = useCurrentClient()\n  const fetchBalance = async () => {\n    return client.getBalance({ owner: address, coinType })\n  }\n  return (\n    <button onClick={() => fetchBalance()}>\n      Check Balance on {clientConfig.SUI_NETWORK}\n    </button>\n  )\n}",
+    "language": "tsx",
+    "description": "coin type via props, network name from validated config"
+  }
+]

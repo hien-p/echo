@@ -1,0 +1,98 @@
+[
+  {
+    "ruleId": "dapp-testing-1",
+    "ruleTitle": "Use Vitest Imports",
+    "type": "bad",
+    "code": "import { describe, it, expect } from 'jest'\n\ndescribe('Token API', () => {\n  it('should return tokens', async () => {\n    const res = await fetch('http://localhost:3000/api/tokens')\n    expect(res.status).toBe(200)\n  })\n})",
+    "language": "typescript",
+    "description": "uses jest imports and live HTTP fetch"
+  },
+  {
+    "ruleId": "dapp-testing-1",
+    "ruleTitle": "Use Vitest Imports",
+    "type": "good",
+    "code": "import { describe, it, expect } from 'vitest'\n\ndescribe('Token API', () => {\n  it('should return tokens', async () => {\n    const { GET } = await import('../src/app/api/tokens/route')\n    const res = await GET(new Request('http://test'))\n    expect(res.status).toBe(200)\n  })\n})",
+    "language": "typescript",
+    "description": "vitest imports, handler called directly"
+  },
+  {
+    "ruleId": "dapp-testing-2",
+    "ruleTitle": "Dynamic Import in beforeAll",
+    "type": "bad",
+    "code": "import { describe, it, expect } from 'vitest'\nimport { GET } from '../src/app/api/health/route'\n\nconst DUMMY_BASE_URL = 'http://test'\n\ndescribe('Health Check', () => {\n  it('should return 200', async () => {\n    const response = await GET(new Request(DUMMY_BASE_URL))\n    expect(response.status).toBe(200)\n  })\n})",
+    "language": "typescript",
+    "description": "top-level import bypasses env loading from dotenv/config"
+  },
+  {
+    "ruleId": "dapp-testing-2",
+    "ruleTitle": "Dynamic Import in beforeAll",
+    "type": "good",
+    "code": "import { NextResponse } from 'next/server'\nimport { describe, beforeAll, expect, it } from 'vitest'\n\nconst DUMMY_BASE_URL = 'http://test'\nlet GET: (request: Request) => NextResponse<{ message: string }>\n\ndescribe.sequential('Health Check', () => {\n  beforeAll(async () => {\n    const route = await import('../src/app/api/health/route')\n    GET = route.GET\n  })\n  it('should return 200', async () => {\n    const response = await GET(new Request(DUMMY_BASE_URL))\n    expect(response.status).toBe(200)\n  })\n})",
+    "language": "typescript",
+    "description": "dynamic import in beforeAll ensures env vars loaded via dotenv/config"
+  },
+  {
+    "ruleId": "dapp-testing-3",
+    "ruleTitle": "Use describe.sequential for Ordered Tests",
+    "type": "bad",
+    "code": "import { describe, it, expect } from 'vitest'\n\nlet token: string\n\ndescribe('Auth Flow', () => {\n  it('should login', async () => {\n    const { POST } = await import('../src/app/api/auth/route')\n    const res = await POST(new Request('http://test', { method: 'POST', body: JSON.stringify({ user: 'admin' }) }))\n    const data = await res.json()\n    token = data.token\n  })\n  it('should use token', async () => {\n    expect(token).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "regular describe does not guarantee execution order"
+  },
+  {
+    "ruleId": "dapp-testing-3",
+    "ruleTitle": "Use describe.sequential for Ordered Tests",
+    "type": "good",
+    "code": "import { describe, it, expect, beforeAll } from 'vitest'\n\nlet token: string\nlet POST: (req: Request) => Promise<Response>\n\ndescribe.sequential('Auth Flow', () => {\n  beforeAll(async () => {\n    const route = await import('../src/app/api/auth/route')\n    POST = route.POST\n  })\n  it('should login', async () => {\n    const res = await POST(new Request('http://test', { method: 'POST', body: JSON.stringify({ user: 'admin' }) }))\n    const data = await res.json()\n    token = data.token\n  })\n  it('should use token', async () => {\n    expect(token).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "describe.sequential guarantees test order for dependent tests"
+  },
+  {
+    "ruleId": "dapp-testing-4",
+    "ruleTitle": "Test API Routes via Handler Import",
+    "type": "bad",
+    "code": "import { describe, it, expect } from 'vitest'\n\ndescribe('Balance API', () => {\n  it('should return balance', async () => {\n    const res = await fetch('http://localhost:3000/api/balance?address=0x1')\n    const data = await res.json()\n    expect(data.balance).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "fetches from live server — fragile and requires running dev server"
+  },
+  {
+    "ruleId": "dapp-testing-4",
+    "ruleTitle": "Test API Routes via Handler Import",
+    "type": "good",
+    "code": "import { describe, it, expect, beforeAll } from 'vitest'\n\nlet GET: (req: Request) => Promise<Response>\n\ndescribe.sequential('Balance API', () => {\n  beforeAll(async () => {\n    const route = await import('../src/app/api/balance/route')\n    GET = route.GET\n  })\n  it('should return balance', async () => {\n    const res = await GET(new Request('http://test/api/balance?address=0x1'))\n    const data = await res.json()\n    expect(data.balance).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "imports handler and calls with new Request — no server needed"
+  },
+  {
+    "ruleId": "dapp-testing-5",
+    "ruleTitle": "Test Both Success and Error Paths",
+    "type": "bad",
+    "code": "describe.sequential('Transfer API', () => {\n  beforeAll(async () => {\n    const route = await import('../src/app/api/transfer/route')\n    POST = route.POST\n  })\n  it('should transfer tokens', async () => {\n    const res = await POST(new Request('http://test', {\n      method: 'POST',\n      body: JSON.stringify({ to: '0xabc', amount: 100 })\n    }))\n    expect(res.status).toBe(200)\n  })\n})",
+    "language": "typescript",
+    "description": "only tests the success path"
+  },
+  {
+    "ruleId": "dapp-testing-5",
+    "ruleTitle": "Test Both Success and Error Paths",
+    "type": "good",
+    "code": "describe.sequential('Transfer API', () => {\n  beforeAll(async () => {\n    const route = await import('../src/app/api/transfer/route')\n    POST = route.POST\n  })\n  it('should transfer tokens', async () => {\n    const res = await POST(new Request('http://test', {\n      method: 'POST',\n      body: JSON.stringify({ to: '0xabc', amount: 100 })\n    }))\n    expect(res.status).toBe(200)\n    const data = await res.json()\n    expect(data.txDigest).toBeDefined()\n  })\n  it('should reject missing recipient', async () => {\n    const res = await POST(new Request('http://test', {\n      method: 'POST',\n      body: JSON.stringify({ amount: 100 })\n    }))\n    expect(res.status).toBe(400)\n    const data = await res.json()\n    expect(data.error).toBeDefined()\n  })\n})",
+    "language": "typescript",
+    "description": "verifies both success and error responses"
+  },
+  {
+    "ruleId": "dapp-testing-6",
+    "ruleTitle": "Test Unauthorized Paths for Protected Routes",
+    "type": "bad",
+    "code": "describe.sequential('Admin API', () => {\n  beforeAll(async () => {\n    const route = await import('../src/app/api/admin/route')\n    GET = route.GET\n  })\n  it('returns data for an admin session', async () => {\n    const response = await GET(new Request('http://test'))\n    expect(response.status).toBe(200)\n  })\n})",
+    "language": "typescript",
+    "description": "protected route test only covers the happy path"
+  },
+  {
+    "ruleId": "dapp-testing-6",
+    "ruleTitle": "Test Unauthorized Paths for Protected Routes",
+    "type": "good",
+    "code": "describe.sequential('Admin API', () => {\n  beforeAll(async () => {\n    const route = await import('../src/app/api/admin/route')\n    GET = route.GET\n  })\n  it('returns data for an admin session', async () => {\n    const response = await GET(new Request('http://test'))\n    expect(response.status).toBe(200)\n  })\n  it('rejects requests without a session', async () => {\n    const response = await GET(new Request('http://test?anonymous=true'))\n    expect(response.status).toBe(401)\n  })\n})",
+    "language": "typescript",
+    "description": "protected route test covers both authorized and unauthorized behavior"
+  }
+]

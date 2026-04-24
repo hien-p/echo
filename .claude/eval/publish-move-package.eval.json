@@ -1,0 +1,82 @@
+[
+  {
+    "ruleId": "publish-move-package-1",
+    "ruleTitle": "Use the publish/ Scripts Instead of Raw sui client publish",
+    "type": "bad",
+    "code": "cd move/my_package && sui client publish --gas-budget 100000000",
+    "language": "shell",
+    "description": "publishes directly from the package directory instead of using the repo publish workflow"
+  },
+  {
+    "ruleId": "publish-move-package-1",
+    "ruleTitle": "Use the publish/ Scripts Instead of Raw sui client publish",
+    "type": "good",
+    "code": "cd publish && pnpm run deploy",
+    "language": "shell",
+    "description": "uses the publish workspace script for the standard deploy flow"
+  },
+  {
+    "ruleId": "publish-move-package-2",
+    "ruleTitle": "deploy Requires ADMIN_SECRET_KEY",
+    "type": "bad",
+    "code": "# publish/.env\nSUI_NETWORK=testnet\nSUI_FULLNODE_URL=https://fullnode.testnet.sui.io\nADMIN_ADDRESS=0xabc\nMOVE_PACKAGE_PATH=../move/my_package\n\ncd publish && pnpm run deploy",
+    "language": "shell",
+    "description": "deploy mode is missing the signing key that the direct publish flow requires"
+  },
+  {
+    "ruleId": "publish-move-package-2",
+    "ruleTitle": "deploy Requires ADMIN_SECRET_KEY",
+    "type": "good",
+    "code": "# publish/.env\nSUI_NETWORK=testnet\nSUI_FULLNODE_URL=https://fullnode.testnet.sui.io\nADMIN_SECRET_KEY=<base64-secret>\nMOVE_PACKAGE_PATH=../move/my_package\n\ncd publish && pnpm run deploy",
+    "language": "shell",
+    "description": "deploy mode provides the direct signer secret key"
+  },
+  {
+    "ruleId": "publish-move-package-3",
+    "ruleTitle": "deploy-bytes Requires ADMIN_ADDRESS",
+    "type": "bad",
+    "code": "# publish/.env\nSUI_NETWORK=testnet\nSUI_FULLNODE_URL=https://fullnode.testnet.sui.io\nADMIN_SECRET_KEY=<base64-secret>\nMOVE_PACKAGE_PATH=../move/my_package\n\ncd publish && pnpm run deploy-bytes",
+    "language": "shell",
+    "description": "deploy-bytes mode uses the wrong signing input and omits the future signer address"
+  },
+  {
+    "ruleId": "publish-move-package-3",
+    "ruleTitle": "deploy-bytes Requires ADMIN_ADDRESS",
+    "type": "good",
+    "code": "# publish/.env\nSUI_NETWORK=testnet\nSUI_FULLNODE_URL=https://fullnode.testnet.sui.io\nADMIN_ADDRESS=0xabc\nMOVE_PACKAGE_PATH=../move/my_package\n\ncd publish && pnpm run deploy-bytes",
+    "language": "shell",
+    "description": "deploy-bytes mode uses the future signer address instead of a local secret key"
+  },
+  {
+    "ruleId": "publish-move-package-4",
+    "ruleTitle": "Treat publish/data as Output, Not Source",
+    "type": "bad",
+    "code": "git add publish/data/publish.json publish/.env",
+    "language": "shell",
+    "description": "tries to commit generated output and a secret env file"
+  },
+  {
+    "ruleId": "publish-move-package-4",
+    "ruleTitle": "Treat publish/data as Output, Not Source",
+    "type": "good",
+    "code": "# publish/data is generated output.\n# Read the package ID from publish/data/publish.json, then copy only the needed NEXT_PUBLIC_*_PACKAGE_ID value into dapp/.env.example and dapp/src/config/clientConfig.ts.",
+    "language": "shell",
+    "description": "generated publish output is consumed manually and not committed"
+  },
+  {
+    "ruleId": "publish-move-package-5",
+    "ruleTitle": "Use publish ENV Instead of dapp clientConfig",
+    "type": "bad",
+    "code": "import { clientConfig } from '@/config/clientConfig'\n\nexport const publish = async () => {\n  return new SuiGrpcClient({\n    network: clientConfig.SUI_NETWORK,\n    baseUrl: clientConfig.SUI_FULLNODE_URL,\n  })\n}",
+    "language": "typescript",
+    "description": "publish code imports the dapp client-only config module"
+  },
+  {
+    "ruleId": "publish-move-package-5",
+    "ruleTitle": "Use publish ENV Instead of dapp clientConfig",
+    "type": "good",
+    "code": "import { ENV } from '../env'\n\nexport const publish = async () => {\n  return new SuiGrpcClient({\n    network: ENV.SUI_NETWORK,\n    baseUrl: ENV.SUI_FULLNODE_URL,\n  })\n}",
+    "language": "typescript",
+    "description": "publish code reads from the publish-side env module"
+  }
+]

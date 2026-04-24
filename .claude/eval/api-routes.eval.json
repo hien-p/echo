@@ -1,0 +1,162 @@
+[
+  {
+    "ruleId": "api-routes-1",
+    "ruleTitle": "Export Named Handler Functions",
+    "type": "bad",
+    "code": "export default async function handler(req: Request) {\n  if (req.method === 'GET') {\n    return NextResponse.json({ data: 'ok' })\n  }\n  return NextResponse.json({ error: 'Method not allowed' }, { status: 405 })\n}",
+    "language": "typescript",
+    "description": "default export with manual method routing"
+  },
+  {
+    "ruleId": "api-routes-1",
+    "ruleTitle": "Export Named Handler Functions",
+    "type": "good",
+    "code": "export async function GET(request: Request) {\n  return NextResponse.json({ data: 'ok' }, { status: 200 })\n}\n\nexport async function POST(request: Request) {\n  const body = await request.json()\n  return NextResponse.json({ created: true }, { status: 201 })\n}",
+    "language": "typescript",
+    "description": "named handler exports per HTTP method"
+  },
+  {
+    "ruleId": "api-routes-2",
+    "ruleTitle": "Force-Dynamic for Non-Cacheable Endpoints",
+    "type": "bad",
+    "code": "import { NextResponse } from 'next/server'\n\nexport async function GET() {\n  const session = await getSession()\n  return NextResponse.json({ user: session.user })\n}",
+    "language": "typescript",
+    "description": "missing force-dynamic on session-dependent endpoint"
+  },
+  {
+    "ruleId": "api-routes-2",
+    "ruleTitle": "Force-Dynamic for Non-Cacheable Endpoints",
+    "type": "good",
+    "code": "import { NextResponse } from 'next/server'\n\nexport const dynamic = 'force-dynamic'\n\nexport async function GET() {\n  const session = await getSession()\n  return NextResponse.json({ user: session.user })\n}",
+    "language": "typescript",
+    "description": "force-dynamic prevents stale cached responses"
+  },
+  {
+    "ruleId": "api-routes-3",
+    "ruleTitle": "Never Expose Secrets to Client",
+    "type": "bad",
+    "code": "export async function GET() {\n  const secret = process.env.ADMIN_SECRET_KEY\n  return NextResponse.json({\n    data: await fetchData(),\n    adminKey: secret\n  })\n}",
+    "language": "typescript",
+    "description": "leaks server secret in JSON response"
+  },
+  {
+    "ruleId": "api-routes-3",
+    "ruleTitle": "Never Expose Secrets to Client",
+    "type": "good",
+    "code": "export async function GET() {\n  const secret = process.env.ADMIN_SECRET_KEY\n  const data = await fetchData(secret!)\n  return NextResponse.json({ data })\n}",
+    "language": "typescript",
+    "description": "secret used server-side only, never returned"
+  },
+  {
+    "ruleId": "api-routes-4",
+    "ruleTitle": "Return NextResponse.json with Explicit Status",
+    "type": "bad",
+    "code": "export async function GET() {\n  const data = await fetchData()\n  return new Response(JSON.stringify(data))\n}",
+    "language": "typescript",
+    "description": "raw Response without explicit status or content type"
+  },
+  {
+    "ruleId": "api-routes-4",
+    "ruleTitle": "Return NextResponse.json with Explicit Status",
+    "type": "good",
+    "code": "export async function GET() {\n  const data = await fetchData()\n  return NextResponse.json({ data }, { status: 200 })\n}",
+    "language": "typescript",
+    "description": "NextResponse.json with explicit status code"
+  },
+  {
+    "ruleId": "api-routes-5",
+    "ruleTitle": "Async Performance — Start Early, Await Late",
+    "type": "bad",
+    "code": "export async function GET(request: Request) {\n  const session = await auth()\n  const config = await fetchConfig()\n  const data = await fetchData(session.user.id)\n  return NextResponse.json({ data, config })\n}",
+    "language": "typescript",
+    "description": "serial awaits — config waits for auth, data waits for both"
+  },
+  {
+    "ruleId": "api-routes-5",
+    "ruleTitle": "Async Performance — Start Early, Await Late",
+    "type": "good",
+    "code": "export async function GET(request: Request) {\n  const sessionPromise = auth()\n  const configPromise = fetchConfig()\n  const session = await sessionPromise\n  const [config, data] = await Promise.all([\n    configPromise,\n    fetchData(session.user.id),\n  ])\n  return NextResponse.json({ data, config })\n}",
+    "language": "typescript",
+    "description": "auth and config start immediately, dependent calls parallelized"
+  },
+  {
+    "ruleId": "api-routes-6",
+    "ruleTitle": "Keep Handlers Thin",
+    "type": "bad",
+    "code": "export async function POST(request: Request) {\n  const body = await request.json()\n  const { name, email } = body\n  if (!name || !email) {\n    return NextResponse.json({ error: 'Missing fields' }, { status: 400 })\n  }\n  const normalized = email.toLowerCase().trim()\n  const existing = await db.query('SELECT id FROM users WHERE email = $1', [normalized])\n  if (existing.rows.length > 0) {\n    return NextResponse.json({ error: 'Duplicate' }, { status: 409 })\n  }\n  const hash = await bcrypt.hash(name, 10)\n  const result = await db.query('INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id', [hash, normalized])\n  await sendWelcomeEmail(normalized)\n  return NextResponse.json({ id: result.rows[0].id }, { status: 201 })\n}",
+    "language": "typescript",
+    "description": "validation, DB queries, hashing, email all inline in handler"
+  },
+  {
+    "ruleId": "api-routes-6",
+    "ruleTitle": "Keep Handlers Thin",
+    "type": "good",
+    "code": "import { createUser } from '@/lib/users'\nimport { validateCreateUser } from '@/lib/validation'\n\nexport async function POST(request: Request) {\n  const body = await request.json()\n  const parsed = validateCreateUser(body)\n  if (!parsed.success) {\n    return NextResponse.json({ error: parsed.error }, { status: 400 })\n  }\n  const user = await createUser(parsed.data)\n  return NextResponse.json({ id: user.id }, { status: 201 })\n}",
+    "language": "typescript",
+    "description": "handler delegates to extracted lib modules"
+  },
+  {
+    "ruleId": "api-routes-7",
+    "ruleTitle": "Defer Await Until Needed",
+    "type": "bad",
+    "code": "export async function POST(request: Request) {\n  const body = await request.json()\n  const existing = await lookupTransfer(body.transferId)\n\n  if (body.dryRun) {\n    return NextResponse.json({ accepted: true }, { status: 202 })\n  }\n\n  return NextResponse.json({ transfer: existing }, { status: 200 })\n}",
+    "language": "typescript",
+    "description": "awaits expensive work even when the request returns early"
+  },
+  {
+    "ruleId": "api-routes-7",
+    "ruleTitle": "Defer Await Until Needed",
+    "type": "good",
+    "code": "export async function POST(request: Request) {\n  const body = await request.json()\n\n  if (body.dryRun) {\n    return NextResponse.json({ accepted: true }, { status: 202 })\n  }\n\n  const existing = await lookupTransfer(body.transferId)\n  return NextResponse.json({ transfer: existing }, { status: 200 })\n}",
+    "language": "typescript",
+    "description": "defers the expensive await until the branch that actually needs it"
+  },
+  {
+    "ruleId": "api-routes-8",
+    "ruleTitle": "Use after() for Non-Blocking Side Effects",
+    "type": "bad",
+    "code": "export async function POST(request: Request) {\n  const payload = await request.json()\n  await saveWebhook(payload)\n  await auditWebhook(payload)\n  return NextResponse.json({ ok: true }, { status: 200 })\n}",
+    "language": "typescript",
+    "description": "audit logging blocks the main response path"
+  },
+  {
+    "ruleId": "api-routes-8",
+    "ruleTitle": "Use after() for Non-Blocking Side Effects",
+    "type": "good",
+    "code": "import { after } from 'next/server'\n\nexport async function POST(request: Request) {\n  const payload = await request.json()\n  await saveWebhook(payload)\n\n  after(async () => {\n    await auditWebhook(payload)\n  })\n\n  return NextResponse.json({ ok: true }, { status: 200 })\n}",
+    "language": "typescript",
+    "description": "non-critical audit logging is deferred with after()"
+  },
+  {
+    "ruleId": "api-routes-9",
+    "ruleTitle": "Hoist Static I/O to Module Scope",
+    "type": "bad",
+    "code": "export async function GET() {\n  const emailTemplate = await fs.readFile('./templates/welcome.html', 'utf8')\n  return NextResponse.json({ templateLength: emailTemplate.length }, { status: 200 })\n}",
+    "language": "typescript",
+    "description": "static file is re-read on every request"
+  },
+  {
+    "ruleId": "api-routes-9",
+    "ruleTitle": "Hoist Static I/O to Module Scope",
+    "type": "good",
+    "code": "const emailTemplatePromise = fs.readFile('./templates/welcome.html', 'utf8')\n\nexport async function GET() {\n  const emailTemplate = await emailTemplatePromise\n  return NextResponse.json({ templateLength: emailTemplate.length }, { status: 200 })\n}",
+    "language": "typescript",
+    "description": "static file read starts once at module load instead of once per request"
+  },
+  {
+    "ruleId": "api-routes-10",
+    "ruleTitle": "Await cookies() and headers() in Next.js 16",
+    "type": "bad",
+    "code": "import { cookies } from 'next/headers'\n\nexport async function GET() {\n  const session = cookies().get('session')\n  return NextResponse.json({ hasSession: Boolean(session) }, { status: 200 })\n}",
+    "language": "typescript",
+    "description": "uses the async cookies() API like the older synchronous API"
+  },
+  {
+    "ruleId": "api-routes-10",
+    "ruleTitle": "Await cookies() and headers() in Next.js 16",
+    "type": "good",
+    "code": "import { cookies } from 'next/headers'\n\nexport async function GET() {\n  const cookieStore = await cookies()\n  const session = cookieStore.get('session')\n  return NextResponse.json({ hasSession: Boolean(session) }, { status: 200 })\n}",
+    "language": "typescript",
+    "description": "awaits the Next.js 16 cookies() API before reading values"
+  }
+]

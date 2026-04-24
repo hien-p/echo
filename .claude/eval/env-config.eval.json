@@ -1,0 +1,146 @@
+[
+  {
+    "ruleId": "env-config-1",
+    "ruleTitle": "Validate Env Access with Zod",
+    "type": "bad",
+    "code": "const network = process.env.NEXT_PUBLIC_SUI_NETWORK || 'devnet'\nconst rpcUrl = process.env.NEXT_PUBLIC_SUI_FULLNODE_URL\n\nif (!rpcUrl) {\n  throw new Error('Missing RPC URL')\n}\n\nexport const config = { network, rpcUrl }",
+    "language": "typescript",
+    "description": "scattered process.env reads with manual validation"
+  },
+  {
+    "ruleId": "env-config-1",
+    "ruleTitle": "Validate Env Access with Zod",
+    "type": "good",
+    "code": "import { z } from 'zod'\n\nexport const clientConfigSchema = z.object({\n  SUI_NETWORK: z.enum(['mainnet', 'testnet', 'devnet']),\n  SUI_FULLNODE_URL: z.url(),\n  ENOKI_PUBLIC_KEY: z.string(),\n})\n\nexport const clientConfig = clientConfigSchema.parse({\n  SUI_NETWORK: process.env.NEXT_PUBLIC_SUI_NETWORK,\n  SUI_FULLNODE_URL: process.env.NEXT_PUBLIC_SUI_FULLNODE_URL,\n  ENOKI_PUBLIC_KEY: process.env.NEXT_PUBLIC_ENOKI_PUBLIC_KEY,\n})",
+    "language": "typescript",
+    "description": "Zod schema validates all env vars at build time"
+  },
+  {
+    "ruleId": "env-config-2",
+    "ruleTitle": "Client Vars Must Use NEXT_PUBLIC_ Prefix",
+    "type": "bad",
+    "code": "export const clientConfigSchema = z.object({\n  SUI_NETWORK: z.enum(['mainnet', 'testnet', 'devnet']),\n})\n\nexport const clientConfig = clientConfigSchema.parse({\n  SUI_NETWORK: process.env.SUI_NETWORK,\n})",
+    "language": "typescript",
+    "description": "missing NEXT_PUBLIC_ prefix — value is undefined in browser"
+  },
+  {
+    "ruleId": "env-config-2",
+    "ruleTitle": "Client Vars Must Use NEXT_PUBLIC_ Prefix",
+    "type": "good",
+    "code": "export const clientConfigSchema = z.object({\n  SUI_NETWORK: z.enum(['mainnet', 'testnet', 'devnet']),\n})\n\nexport const clientConfig = clientConfigSchema.parse({\n  SUI_NETWORK: process.env.NEXT_PUBLIC_SUI_NETWORK,\n})",
+    "language": "typescript",
+    "description": "NEXT_PUBLIC_ prefix makes value available client-side"
+  },
+  {
+    "ruleId": "env-config-3",
+    "ruleTitle": "Never Add Secrets to .env.example",
+    "type": "bad",
+    "code": "# .env.example\nNEXT_PUBLIC_SUI_NETWORK=testnet\nNEXT_PUBLIC_SUI_FULLNODE_URL=https://fullnode.testnet.sui.io\nADMIN_SECRET_KEY=sk_live_abc123def456\nDATABASE_PASSWORD=supersecret",
+    "language": "shell",
+    "description": "real secrets committed in .env.example"
+  },
+  {
+    "ruleId": "env-config-3",
+    "ruleTitle": "Never Add Secrets to .env.example",
+    "type": "good",
+    "code": "# .env.example\nNEXT_PUBLIC_SUI_NETWORK=testnet\nNEXT_PUBLIC_SUI_FULLNODE_URL=https://fullnode.testnet.sui.io\n# Server-only — do NOT commit real values\n# ADMIN_SECRET_KEY=\n# DATABASE_PASSWORD=",
+    "language": "shell",
+    "description": "secrets documented as comments with empty placeholders"
+  },
+  {
+    "ruleId": "env-config-4",
+    "ruleTitle": "Mark Optional Fields with .optional()",
+    "type": "bad",
+    "code": "export const clientConfigSchema = z.object({\n  SUI_NETWORK: z.enum(['mainnet', 'testnet', 'devnet']),\n  SUI_FULLNODE_URL: z.url(),\n  ANALYTICS_ID: z.string(),\n})\n\nexport const clientConfig = clientConfigSchema.parse({\n  SUI_NETWORK: process.env.NEXT_PUBLIC_SUI_NETWORK,\n  SUI_FULLNODE_URL: process.env.NEXT_PUBLIC_SUI_FULLNODE_URL,\n  ANALYTICS_ID: process.env.NEXT_PUBLIC_ANALYTICS_ID,\n})",
+    "language": "typescript",
+    "description": "build fails if optional ANALYTICS_ID is missing"
+  },
+  {
+    "ruleId": "env-config-4",
+    "ruleTitle": "Mark Optional Fields with .optional()",
+    "type": "good",
+    "code": "export const clientConfigSchema = z.object({\n  SUI_NETWORK: z.enum(['mainnet', 'testnet', 'devnet']),\n  SUI_FULLNODE_URL: z.url(),\n  ANALYTICS_ID: z.string().optional(),\n})\n\nexport const clientConfig = clientConfigSchema.parse({\n  SUI_NETWORK: process.env.NEXT_PUBLIC_SUI_NETWORK,\n  SUI_FULLNODE_URL: process.env.NEXT_PUBLIC_SUI_FULLNODE_URL,\n  ANALYTICS_ID: process.env.NEXT_PUBLIC_ANALYTICS_ID,\n})",
+    "language": "typescript",
+    "description": ".optional() allows build to succeed without analytics"
+  },
+  {
+    "ruleId": "env-config-5",
+    "ruleTitle": "Never Hardcode Network Names or RPC URLs",
+    "type": "bad",
+    "code": "import { SuiGrpcClient } from '@mysten/sui/grpc'\n\nconst client = new SuiGrpcClient({\n  network: 'testnet',\n  baseUrl: 'https://fullnode.testnet.sui.io:443',\n})\n\nexport async function getChainIdentifier() {\n  return client.getChainIdentifier()\n}",
+    "language": "typescript",
+    "description": "hardcoded 'testnet' cannot switch environments"
+  },
+  {
+    "ruleId": "env-config-5",
+    "ruleTitle": "Never Hardcode Network Names or RPC URLs",
+    "type": "good",
+    "code": "import { SuiGrpcClient } from '@mysten/sui/grpc'\nimport { clientConfig } from '@/config/clientConfig'\n\nconst client = new SuiGrpcClient({\n  network: clientConfig.SUI_NETWORK,\n  baseUrl: clientConfig.SUI_FULLNODE_URL,\n})\n\nexport async function getChainIdentifier() {\n  return client.getChainIdentifier()\n}",
+    "language": "typescript",
+    "description": "network and RPC URL read from validated config"
+  },
+  {
+    "ruleId": "env-config-6",
+    "ruleTitle": "Publish Config Uses Server-Only Env Names",
+    "type": "bad",
+    "code": "const envSchema = z.object({\n  SUI_NETWORK: z.enum(['mainnet', 'testnet', 'devnet']),\n  SUI_FULLNODE_URL: z.url(),\n  ADMIN_SECRET_KEY: z.string().optional(),\n})\n\nexport const ENV = envSchema.parse({\n  SUI_NETWORK: process.env.NEXT_PUBLIC_SUI_NETWORK,\n  SUI_FULLNODE_URL: process.env.NEXT_PUBLIC_SUI_FULLNODE_URL,\n  ADMIN_SECRET_KEY: process.env.NEXT_PUBLIC_ADMIN_SECRET_KEY,\n})",
+    "language": "typescript",
+    "description": "publish config incorrectly reads server values from NEXT_PUBLIC_* names"
+  },
+  {
+    "ruleId": "env-config-6",
+    "ruleTitle": "Publish Config Uses Server-Only Env Names",
+    "type": "good",
+    "code": "const envSchema = z.object({\n  SUI_NETWORK: z.enum(['mainnet', 'testnet', 'devnet', 'localnet']),\n  SUI_FULLNODE_URL: z.url(),\n  ADMIN_SECRET_KEY: z.string().optional(),\n})\n\nexport const ENV = envSchema.parse({\n  SUI_NETWORK: process.env.SUI_NETWORK,\n  SUI_FULLNODE_URL: process.env.SUI_FULLNODE_URL,\n  ADMIN_SECRET_KEY: process.env.ADMIN_SECRET_KEY,\n})",
+    "language": "typescript",
+    "description": "publish config keeps server-only values unprefixed"
+  },
+  {
+    "ruleId": "env-config-7",
+    "ruleTitle": "Publish Network Enum Includes localnet",
+    "type": "bad",
+    "code": "const envSchema = z.object({\n  SUI_NETWORK: z.enum(['mainnet', 'testnet', 'devnet']),\n  SUI_FULLNODE_URL: z.url(),\n})",
+    "language": "typescript",
+    "description": "publish config cannot validate localnet even though publish scripts support it"
+  },
+  {
+    "ruleId": "env-config-7",
+    "ruleTitle": "Publish Network Enum Includes localnet",
+    "type": "good",
+    "code": "const envSchema = z.object({\n  SUI_NETWORK: z.enum(['mainnet', 'testnet', 'devnet', 'localnet']),\n  SUI_FULLNODE_URL: z.url(),\n})",
+    "language": "typescript",
+    "description": "publish config covers localnet alongside the shared remote networks"
+  },
+  {
+    "ruleId": "env-config-8",
+    "ruleTitle": "Publish Schema Keeps Mode-Specific Fields Optional",
+    "type": "bad",
+    "code": "const envSchema = z.object({\n  SUI_NETWORK: z.enum(['mainnet', 'testnet', 'devnet', 'localnet']),\n  SUI_FULLNODE_URL: z.url(),\n  ADMIN_ADDRESS: z.string(),\n  ADMIN_SECRET_KEY: z.string(),\n  MOVE_PACKAGE_PATH: z.string(),\n})",
+    "language": "typescript",
+    "description": "forces both deploy modes to configure every signing field globally"
+  },
+  {
+    "ruleId": "env-config-8",
+    "ruleTitle": "Publish Schema Keeps Mode-Specific Fields Optional",
+    "type": "good",
+    "code": "const envSchema = z.object({\n  SUI_NETWORK: z.enum(['mainnet', 'testnet', 'devnet', 'localnet']),\n  SUI_FULLNODE_URL: z.url(),\n  ADMIN_ADDRESS: z.string().optional(),\n  ADMIN_SECRET_KEY: z.string().optional(),\n  MOVE_PACKAGE_PATH: z.string().optional(),\n})",
+    "language": "typescript",
+    "description": "schema leaves mode-specific values optional so deploy scripts can enforce only what they need"
+  },
+  {
+    "ruleId": "env-config-9",
+    "ruleTitle": "Use publish ENV Instead of clientConfig",
+    "type": "bad",
+    "code": "import { clientConfig } from '@/config/clientConfig'\n\nexport const publish = async () => {\n  const suiClient = new SuiGrpcClient({\n    network: clientConfig.SUI_NETWORK,\n    baseUrl: clientConfig.SUI_FULLNODE_URL,\n  })\n}",
+    "language": "typescript",
+    "description": "publish code imports the client-only dapp config module"
+  },
+  {
+    "ruleId": "env-config-9",
+    "ruleTitle": "Use publish ENV Instead of clientConfig",
+    "type": "good",
+    "code": "import { ENV } from '../env'\n\nexport const publish = async () => {\n  const suiClient = new SuiGrpcClient({\n    network: ENV.SUI_NETWORK,\n    baseUrl: ENV.SUI_FULLNODE_URL,\n  })\n}",
+    "language": "typescript",
+    "description": "publish code reads from the publish-side server ENV module"
+  }
+]

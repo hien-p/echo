@@ -1,0 +1,250 @@
+[
+  {
+    "ruleId": "react-components-1",
+    "ruleTitle": "Add 'use client' Only When Needed",
+    "type": "bad",
+    "code": "'use client'\n\nexport const NetworkBadge = ({ network }: { network: string }) => {\n  return <span className=\"rounded bg-muted px-2 py-1 text-xs\">{network}</span>\n}",
+    "language": "tsx",
+    "description": "unnecessary 'use client' on a pure presentational component"
+  },
+  {
+    "ruleId": "react-components-1",
+    "ruleTitle": "Add 'use client' Only When Needed",
+    "type": "bad",
+    "code": "import { useState } from 'react'\n\nexport const Counter = () => {\n  const [count, setCount] = useState(0)\n  return (\n    <button onClick={() => setCount(c => c + 1)}>\n      Count: {count}\n    </button>\n  )\n}",
+    "language": "tsx",
+    "description": "missing 'use client' even though the component uses state and an event handler"
+  },
+  {
+    "ruleId": "react-components-1",
+    "ruleTitle": "Add 'use client' Only When Needed",
+    "type": "good",
+    "code": "'use client'\n\nimport { useState } from 'react'\n\nexport const Counter = () => {\n  const [count, setCount] = useState(0)\n  return (\n    <button onClick={() => setCount(c => c + 1)}>\n      Count: {count}\n    </button>\n  )\n}",
+    "language": "tsx",
+    "description": "'use client' is present because the component uses hooks and browser events"
+  },
+  {
+    "ruleId": "react-components-2",
+    "ruleTitle": "Use Named Exports for Components",
+    "type": "bad",
+    "code": "'use client'\n\nimport { useCurrentAccount } from '@mysten/dapp-kit-react'\n\nconst WalletStatus = () => {\n  const account = useCurrentAccount()\n  return <span>{account ? 'Connected' : 'Disconnected'}</span>\n}\n\nexport default WalletStatus",
+    "language": "tsx",
+    "description": "default export for a component instead of a named export"
+  },
+  {
+    "ruleId": "react-components-2",
+    "ruleTitle": "Use Named Exports for Components",
+    "type": "good",
+    "code": "'use client'\n\nimport { useCurrentAccount } from '@mysten/dapp-kit-react'\n\nexport const WalletStatus = () => {\n  const account = useCurrentAccount()\n  return <span>{account ? 'Connected' : 'Disconnected'}</span>\n}",
+    "language": "tsx",
+    "description": "named export matches the repo component convention"
+  },
+  {
+    "ruleId": "react-components-3",
+    "ruleTitle": "Merge Tailwind Classes with cn()",
+    "type": "bad",
+    "code": "export const Card = ({ className, active }: { className?: string; active: boolean }) => {\n  const classes = 'rounded-lg border p-4 ' + (active ? 'border-primary bg-primary/10' : 'border-muted') + ' ' + (className || '')\n  return <div className={classes}>Content</div>\n}",
+    "language": "tsx",
+    "description": "manual string concatenation for conditional Tailwind classes"
+  },
+  {
+    "ruleId": "react-components-3",
+    "ruleTitle": "Merge Tailwind Classes with cn()",
+    "type": "good",
+    "code": "import { cn } from '@/lib/utils'\n\nexport const Card = ({ className, active }: { className?: string; active: boolean }) => {\n  return (\n    <div className={cn(\n      'rounded-lg border p-4',\n      active ? 'border-primary bg-primary/10' : 'border-muted',\n      className\n    )}>\n      Content\n    </div>\n  )\n}",
+    "language": "tsx",
+    "description": "cn() merges conditional Tailwind classes cleanly"
+  },
+  {
+    "ruleId": "react-components-4",
+    "ruleTitle": "No Inline Component Definitions",
+    "type": "bad",
+    "code": "'use client'\n\nimport { useState } from 'react'\nimport { cn } from '@/lib/utils'\n\nexport const TokenList = ({ tokens }: { tokens: string[] }) => {\n  const [selected, setSelected] = useState<string | null>(null)\n\n  const TokenItem = ({ token }: { token: string }) => (\n    <li\n      className={cn('cursor-pointer', selected === token && 'font-bold')}\n      onClick={() => setSelected(token)}\n    >\n      {token}\n    </li>\n  )\n\n  return <ul>{tokens.map(t => <TokenItem key={t} token={t} />)}</ul>\n}",
+    "language": "tsx",
+    "description": "component is defined inside another component and remounts on every render"
+  },
+  {
+    "ruleId": "react-components-4",
+    "ruleTitle": "No Inline Component Definitions",
+    "type": "good",
+    "code": "'use client'\n\nimport { useState } from 'react'\nimport { cn } from '@/lib/utils'\n\nconst TokenItem = ({ token, selected, onSelect }: {\n  token: string\n  selected: boolean\n  onSelect: (token: string) => void\n}) => (\n  <li\n    className={cn('cursor-pointer', selected && 'font-bold')}\n    onClick={() => onSelect(token)}\n  >\n    {token}\n  </li>\n)\n\nexport const TokenList = ({ tokens }: { tokens: string[] }) => {\n  const [selected, setSelected] = useState<string | null>(null)\n  return <ul>{tokens.map(t => <TokenItem key={t} token={t} selected={selected === t} onSelect={setSelected} />)}</ul>\n}",
+    "language": "tsx",
+    "description": "subcomponent is extracted outside so React can preserve identity"
+  },
+  {
+    "ruleId": "react-components-5",
+    "ruleTitle": "Prefer Regular ref Props over forwardRef",
+    "type": "bad",
+    "code": "import { forwardRef } from 'react'\nimport { cn } from '@/lib/utils'\n\nexport const Input = forwardRef<HTMLInputElement, React.ComponentProps<'input'>>((\n  { className, ...props }, ref\n) => (\n  <input\n    ref={ref}\n    className={cn('border rounded px-3 py-2', className)}\n    {...props}\n  />\n))\n\nInput.displayName = 'Input'",
+    "language": "tsx",
+    "description": "unnecessary forwardRef wrapper in React 19 app code"
+  },
+  {
+    "ruleId": "react-components-5",
+    "ruleTitle": "Prefer Regular ref Props over forwardRef",
+    "type": "good",
+    "code": "import { cn } from '@/lib/utils'\n\nexport const Input = ({ className, ref, ...props }: React.ComponentProps<'input'>) => (\n  <input\n    ref={ref}\n    className={cn('border rounded px-3 py-2', className)}\n    {...props}\n  />\n)",
+    "language": "tsx",
+    "description": "regular ref prop keeps the component simpler in React 19"
+  },
+  {
+    "ruleId": "react-components-6",
+    "ruleTitle": "Keep Server-to-Client Props Narrow",
+    "type": "bad",
+    "code": "import { UserProfile } from '@/components/general/UserProfile'\n\nexport default async function Page() {\n  const user = await fetchUser()\n  return <UserProfile user={user} />\n}",
+    "language": "tsx",
+    "description": "passes an entire fetched object across the server/client boundary"
+  },
+  {
+    "ruleId": "react-components-6",
+    "ruleTitle": "Keep Server-to-Client Props Narrow",
+    "type": "good",
+    "code": "import { UserProfile } from '@/components/general/UserProfile'\n\nexport default async function Page() {\n  const user = await fetchUser()\n  return <UserProfile name={user.name} avatarUrl={user.avatarUrl} />\n}",
+    "language": "tsx",
+    "description": "passes only the fields the client component actually renders"
+  },
+  {
+    "ruleId": "react-components-7",
+    "ruleTitle": "Use Explicit Conditionals for Falsy Values",
+    "type": "bad",
+    "code": "export const Badge = ({ count }: { count: number }) => {\n  return <div>{count && <span className=\"badge\">{count}</span>}</div>\n}",
+    "language": "tsx",
+    "description": "0 renders as text instead of hiding the badge"
+  },
+  {
+    "ruleId": "react-components-7",
+    "ruleTitle": "Use Explicit Conditionals for Falsy Values",
+    "type": "good",
+    "code": "export const Badge = ({ count }: { count: number }) => {\n  return <div>{count > 0 ? <span className=\"badge\">{count}</span> : null}</div>\n}",
+    "language": "tsx",
+    "description": "explicit comparison avoids confusing falsy rendering"
+  },
+  {
+    "ruleId": "react-components-8",
+    "ruleTitle": "Prefer Composition over Boolean Props",
+    "type": "bad",
+    "code": "import { cn } from '@/lib/utils'\n\nexport const Button = ({\n  isLoading, isPrimary, isOutline, isSmall, hasIcon, isDisabled, children\n}: {\n  isLoading?: boolean; isPrimary?: boolean; isOutline?: boolean\n  isSmall?: boolean; hasIcon?: boolean; isDisabled?: boolean\n  children: React.ReactNode\n}) => {\n  return (\n    <button\n      disabled={isDisabled || isLoading}\n      className={cn(\n        'px-4 py-2',\n        isPrimary && 'bg-primary text-white',\n        isOutline && 'border bg-transparent',\n        isSmall && 'px-2 py-1 text-sm'\n      )}\n    >\n      {isLoading ? 'Loading...' : children}\n    </button>\n  )\n}",
+    "language": "tsx",
+    "description": "too many boolean props create an unmaintainable mode matrix"
+  },
+  {
+    "ruleId": "react-components-8",
+    "ruleTitle": "Prefer Composition over Boolean Props",
+    "type": "good",
+    "code": "import { cn } from '@/lib/utils'\n\ntype Variant = 'primary' | 'outline' | 'ghost'\ntype Size = 'sm' | 'md' | 'lg'\n\nexport const Button = ({\n  variant = 'primary', size = 'md', className, children, ...props\n}: {\n  variant?: Variant\n  size?: Size\n  className?: string\n  children: React.ReactNode\n} & React.ComponentProps<'button'>) => {\n  return (\n    <button\n      className={cn(\n        'rounded font-medium',\n        variant === 'primary' && 'bg-primary text-white',\n        variant === 'outline' && 'border bg-transparent',\n        size === 'sm' && 'px-2 py-1 text-sm',\n        size === 'md' && 'px-4 py-2',\n        className\n      )}\n      {...props}\n    >\n      {children}\n    </button>\n  )\n}",
+    "language": "tsx",
+    "description": "explicit variants avoid boolean prop proliferation"
+  },
+  {
+    "ruleId": "react-components-9",
+    "ruleTitle": "Component File Organization",
+    "type": "bad",
+    "code": "'use client'\n\n// dapp/src/components/ui/WalletInfo.tsx\nimport { useCurrentAccount } from '@mysten/dapp-kit-react'\n\nexport const WalletInfo = () => {\n  const account = useCurrentAccount()\n  return <div>{account?.address}</div>\n}",
+    "language": "tsx",
+    "description": "feature-specific wallet UI lives in the reusable ui primitives folder"
+  },
+  {
+    "ruleId": "react-components-9",
+    "ruleTitle": "Component File Organization",
+    "type": "good",
+    "code": "'use client'\n\n// dapp/src/components/general/WalletInfo.tsx\nimport { useCurrentAccount } from '@mysten/dapp-kit-react'\n\nexport const WalletInfo = () => {\n  const account = useCurrentAccount()\n  return <div>{account?.address}</div>\n}",
+    "language": "tsx",
+    "description": "feature-specific wallet UI lives in the general component folder"
+  },
+  {
+    "ruleId": "react-components-10",
+    "ruleTitle": "Derive State During Render",
+    "type": "bad",
+    "code": "'use client'\n\nimport { useEffect, useState } from 'react'\n\nexport const FullName = ({ firstName, lastName }: { firstName: string; lastName: string }) => {\n  const [fullName, setFullName] = useState('')\n\n  useEffect(() => {\n    setFullName(`${firstName} ${lastName}`)\n  }, [firstName, lastName])\n\n  return <p>{fullName}</p>\n}",
+    "language": "tsx",
+    "description": "derived UI state is mirrored through useEffect and setState"
+  },
+  {
+    "ruleId": "react-components-10",
+    "ruleTitle": "Derive State During Render",
+    "type": "good",
+    "code": "'use client'\n\nexport const FullName = ({ firstName, lastName }: { firstName: string; lastName: string }) => {\n  const fullName = `${firstName} ${lastName}`\n  return <p>{fullName}</p>\n}",
+    "language": "tsx",
+    "description": "derived value is computed directly during render"
+  },
+  {
+    "ruleId": "react-components-11",
+    "ruleTitle": "Put Interaction Logic in Event Handlers",
+    "type": "bad",
+    "code": "'use client'\n\nimport { useEffect, useState } from 'react'\n\nexport const RegisterButton = () => {\n  const [submitted, setSubmitted] = useState(false)\n\n  useEffect(() => {\n    if (submitted) {\n      void fetch('/api/register', { method: 'POST' })\n    }\n  }, [submitted])\n\n  return <button onClick={() => setSubmitted(true)}>Register</button>\n}",
+    "language": "tsx",
+    "description": "click-driven work is modeled as state plus effect"
+  },
+  {
+    "ruleId": "react-components-11",
+    "ruleTitle": "Put Interaction Logic in Event Handlers",
+    "type": "good",
+    "code": "'use client'\n\nexport const RegisterButton = () => {\n  const handleRegister = async () => {\n    await fetch('/api/register', { method: 'POST' })\n  }\n\n  return <button onClick={() => void handleRegister()}>Register</button>\n}",
+    "language": "tsx",
+    "description": "click-driven work happens in the event handler directly"
+  },
+  {
+    "ruleId": "react-components-12",
+    "ruleTitle": "Use Functional setState Updates",
+    "type": "bad",
+    "code": "'use client'\n\nimport { useCallback, useState } from 'react'\n\nexport const TokenList = () => {\n  const [tokens, setTokens] = useState<string[]>([])\n\n  const addToken = useCallback((token: string) => {\n    setTokens([...tokens, token])\n  }, [tokens])\n\n  return <button onClick={() => addToken('SUI')}>Add token</button>\n}",
+    "language": "tsx",
+    "description": "state update depends on previous state but closes over the current array"
+  },
+  {
+    "ruleId": "react-components-12",
+    "ruleTitle": "Use Functional setState Updates",
+    "type": "good",
+    "code": "'use client'\n\nimport { useCallback, useState } from 'react'\n\nexport const TokenList = () => {\n  const [tokens, setTokens] = useState<string[]>([])\n\n  const addToken = useCallback((token: string) => {\n    setTokens((current) => [...current, token])\n  }, [])\n\n  return <button onClick={() => addToken('SUI')}>Add token</button>\n}",
+    "language": "tsx",
+    "description": "functional update avoids stale closures and extra callback dependencies"
+  },
+  {
+    "ruleId": "react-components-13",
+    "ruleTitle": "Prefer the Shared Query Layer over useEffect Fetching",
+    "type": "bad",
+    "code": "'use client'\n\nimport { useEffect, useState } from 'react'\n\nexport const BalancePanel = ({ address }: { address: string }) => {\n  const [balance, setBalance] = useState<string | null>(null)\n\n  useEffect(() => {\n    fetch(`/api/balance?address=${address}`)\n      .then((response) => response.json())\n      .then((data) => setBalance(data.balance))\n  }, [address])\n\n  return <div>{balance}</div>\n}",
+    "language": "tsx",
+    "description": "client data fetching is implemented with ad hoc useEffect state wiring"
+  },
+  {
+    "ruleId": "react-components-13",
+    "ruleTitle": "Prefer the Shared Query Layer over useEffect Fetching",
+    "type": "good",
+    "code": "'use client'\n\nimport { useQuery } from '@tanstack/react-query'\n\nexport const BalancePanel = ({ address }: { address: string }) => {\n  const { data } = useQuery({\n    queryKey: ['balance', address],\n    queryFn: async () => {\n      const response = await fetch(`/api/balance?address=${address}`)\n      return response.json() as Promise<{ balance: string }>\n    },\n    enabled: Boolean(address),\n  })\n\n  return <div>{data?.balance ?? '...'}</div>\n}",
+    "language": "tsx",
+    "description": "client data fetching uses the shared TanStack Query layer"
+  },
+  {
+    "ruleId": "react-components-14",
+    "ruleTitle": "Lazy-Load Heavy or Browser-Only UI",
+    "type": "bad",
+    "code": "'use client'\n\nimport { MonacoEditor } from './MonacoEditor'\n\nexport const CodePanel = ({ code }: { code: string }) => {\n  return <MonacoEditor value={code} />\n}",
+    "language": "tsx",
+    "description": "heavy browser-only editor is bundled into the initial client chunk"
+  },
+  {
+    "ruleId": "react-components-14",
+    "ruleTitle": "Lazy-Load Heavy or Browser-Only UI",
+    "type": "good",
+    "code": "'use client'\n\nimport dynamic from 'next/dynamic'\n\nconst MonacoEditor = dynamic(\n  () => import('./MonacoEditor').then((module) => module.MonacoEditor),\n  { ssr: false }\n)\n\nexport const CodePanel = ({ code }: { code: string }) => {\n  return <MonacoEditor value={code} />\n}",
+    "language": "tsx",
+    "description": "heavy browser-only editor is lazy-loaded with next/dynamic"
+  },
+  {
+    "ruleId": "react-components-15",
+    "ruleTitle": "Keep Browser-Only Values Hydration-Safe",
+    "type": "bad",
+    "code": "'use client'\n\nexport const LocalTime = () => {\n  return <span>{new Date().toLocaleString()}</span>\n}",
+    "language": "tsx",
+    "description": "renders a browser-dependent timestamp directly during hydration"
+  },
+  {
+    "ruleId": "react-components-15",
+    "ruleTitle": "Keep Browser-Only Values Hydration-Safe",
+    "type": "good",
+    "code": "'use client'\n\nimport { useEffect, useState } from 'react'\n\nexport const LocalTime = () => {\n  const [time, setTime] = useState<string | null>(null)\n\n  useEffect(() => {\n    setTime(new Date().toLocaleString())\n  }, [])\n\n  return <span>{time ?? '...'}</span>\n}",
+    "language": "tsx",
+    "description": "browser-dependent timestamp is only rendered after mount"
+  }
+]

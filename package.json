@@ -1,0 +1,26 @@
+{
+  "name": "dapp-template",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": "24"
+  },
+  "scripts": {
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "test": "pnpm -r test",
+    "coverage": "pnpm -r coverage",
+    "lint": "pnpm -r lint",
+    "fix": "pnpm -r fix",
+    "clean": "rm -rf ./node_modules && pnpm -r clean",
+    "start_localnet": "RUST_LOG=off sui start --with-faucet --force-regenesis",
+    "faucet": "sui client faucet"
+  },
+  "devDependencies": {
+    "@mysten/prettier-plugin-move": "^0.3.1",
+    "prettier": "^3.6.2"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}

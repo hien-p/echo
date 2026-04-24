@@ -1,0 +1,21 @@
+# Dependencies
+node_modules
+
+# Build outputs
+.next
+out
+build
+dist
+coverage
+
+# Lock files
+pnpm-lock.yaml
+
+# Sui / Move build artifacts
+**/traces
+*.mvcov
+*.trace
+
+# Auto-generated
+next-env.d.ts
+template_bytecode.json

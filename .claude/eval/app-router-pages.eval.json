@@ -1,0 +1,98 @@
+[
+  {
+    "ruleId": "app-router-pages-1",
+    "ruleTitle": "Keep Route Files Server-First",
+    "type": "bad",
+    "code": "'use client'\n\nimport { formatAddress } from '@mysten/sui/utils'\nimport { useCurrentAccount } from '@mysten/dapp-kit-react'\n\nexport default function PortfolioPage() {\n  const currentAccount = useCurrentAccount()\n  return <div>{currentAccount ? formatAddress(currentAccount.address) : 'Connect wallet'}</div>\n}",
+    "language": "tsx",
+    "description": "entire page is marked client-side just to read wallet state"
+  },
+  {
+    "ruleId": "app-router-pages-1",
+    "ruleTitle": "Keep Route Files Server-First",
+    "type": "good",
+    "code": "import { Portfolio } from '@/components/general/Portfolio'\n\nexport default function PortfolioPage() {\n  return <Portfolio />\n}",
+    "language": "tsx",
+    "description": "page stays server-side and delegates browser logic to a child component"
+  },
+  {
+    "ruleId": "app-router-pages-2",
+    "ruleTitle": "Metadata Belongs in Server Files",
+    "type": "bad",
+    "code": "'use client'\n\nimport type { Metadata } from 'next'\n\nexport const metadata: Metadata = {\n  title: 'NFT Gallery',\n}\n\nexport default function NftGalleryPage() {\n  return <div>NFT Gallery</div>\n}",
+    "language": "tsx",
+    "description": "client page tries to export metadata even though metadata is server-only"
+  },
+  {
+    "ruleId": "app-router-pages-2",
+    "ruleTitle": "Metadata Belongs in Server Files",
+    "type": "good",
+    "code": "import type { Metadata } from 'next'\nimport { NftGallery } from '@/components/general/NftGallery'\n\nexport const metadata: Metadata = {\n  title: 'NFT Gallery',\n}\n\nexport default function NftGalleryPage() {\n  return <NftGallery />\n}",
+    "language": "tsx",
+    "description": "server page owns metadata and renders a child component for interactivity"
+  },
+  {
+    "ruleId": "app-router-pages-3",
+    "ruleTitle": "Use Next.js 16 Async params and searchParams",
+    "type": "bad",
+    "code": "type Props = {\n  params: { slug: string }\n}\n\nexport async function generateMetadata({ params }: Props) {\n  return { title: params.slug }\n}\n\nexport default function Page({ params }: Props) {\n  return <div>{params.slug}</div>\n}",
+    "language": "tsx",
+    "description": "uses the older synchronous params signature in a Next.js 16 app"
+  },
+  {
+    "ruleId": "app-router-pages-3",
+    "ruleTitle": "Use Next.js 16 Async params and searchParams",
+    "type": "good",
+    "code": "type Props = {\n  params: Promise<{ slug: string }>\n}\n\nexport async function generateMetadata({ params }: Props) {\n  const { slug } = await params\n  return { title: slug }\n}\n\nexport default async function Page({ params }: Props) {\n  const { slug } = await params\n  return <div>{slug}</div>\n}",
+    "language": "tsx",
+    "description": "awaits the asynchronous params API used by Next.js 16"
+  },
+  {
+    "ruleId": "app-router-pages-4",
+    "ruleTitle": "Use Suspense to Stream Slow Sections",
+    "type": "bad",
+    "code": "import { NftGrid } from '@/components/general/NftGrid'\n\nexport default async function NftGalleryPage() {\n  const nfts = await fetchNfts()\n  return (\n    <main>\n      <h1>NFT Gallery</h1>\n      <NftGrid nfts={nfts} />\n    </main>\n  )\n}",
+    "language": "tsx",
+    "description": "page shell is blocked by a slow server fetch"
+  },
+  {
+    "ruleId": "app-router-pages-4",
+    "ruleTitle": "Use Suspense to Stream Slow Sections",
+    "type": "good",
+    "code": "import { Suspense } from 'react'\nimport { NftGrid } from '@/components/general/NftGrid'\n\nasync function NftSection() {\n  const nfts = await fetchNfts()\n  return <NftGrid nfts={nfts} />\n}\n\nexport default function NftGalleryPage() {\n  return (\n    <main>\n      <h1>NFT Gallery</h1>\n      <Suspense fallback={<div>Loading NFTs...</div>}>\n        <NftSection />\n      </Suspense>\n    </main>\n  )\n}",
+    "language": "tsx",
+    "description": "slow data is isolated behind Suspense so the page shell can render first"
+  },
+  {
+    "ruleId": "app-router-pages-5",
+    "ruleTitle": "Keep RSC Props Serializable and Narrow",
+    "type": "bad",
+    "code": "import { Transaction } from '@mysten/sui/transactions'\nimport { TransferForm } from '@/components/general/TransferForm'\n\nexport default function Page() {\n  const tx = new Transaction()\n  return <TransferForm transaction={tx} />\n}",
+    "language": "tsx",
+    "description": "passes a non-serializable Transaction instance from a server file to a client component"
+  },
+  {
+    "ruleId": "app-router-pages-5",
+    "ruleTitle": "Keep RSC Props Serializable and Narrow",
+    "type": "good",
+    "code": "import { TransferForm } from '@/components/general/TransferForm'\n\nexport default function Page() {\n  const packageId = process.env.NEXT_PUBLIC_TRANSFER_PACKAGE_ID!\n  return <TransferForm packageId={packageId} coinType='0x2::sui::SUI' />\n}",
+    "language": "tsx",
+    "description": "passes plain serializable values and lets the client component build the transaction"
+  },
+  {
+    "ruleId": "app-router-pages-6",
+    "ruleTitle": "Wrap URL-Reading Client Components in Suspense",
+    "type": "bad",
+    "code": "import { FiltersPanel } from '@/components/general/FiltersPanel'\n\nexport default function TokensPage() {\n  return <FiltersPanel />\n}\n\n// FiltersPanel calls useSearchParams() internally.",
+    "language": "tsx",
+    "description": "client child reads search params without a Suspense boundary from the server page"
+  },
+  {
+    "ruleId": "app-router-pages-6",
+    "ruleTitle": "Wrap URL-Reading Client Components in Suspense",
+    "type": "good",
+    "code": "import { Suspense } from 'react'\nimport { FiltersPanel } from '@/components/general/FiltersPanel'\n\nexport default function TokensPage() {\n  return (\n    <Suspense fallback={<div>Loading filters...</div>}>\n      <FiltersPanel />\n    </Suspense>\n  )\n}\n\n// FiltersPanel calls useSearchParams() internally.",
+    "language": "tsx",
+    "description": "server page wraps the URL-reading client child in Suspense"
+  }
+]
