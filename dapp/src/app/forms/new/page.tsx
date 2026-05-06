@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FormBuilder } from "@/components/general/FormBuilder";
+import { FormBuilder } from "./FormBuilderClient";
 
 export const metadata: Metadata = {
   title: "New form · Echo",

@@ -12,6 +12,7 @@ export {
   readBytesBlob,
 } from "./walrus";
 export { getSealClient, encryptForTier, tierIdentity } from "./seal";
+export { WalletBackedSigner, makeWalletSigner } from "./walletSigner";
 export {
   buildCreateFormTx,
   buildSubmitTx,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
@@ -13,6 +14,8 @@ import {
   type FormSchema,
 } from "@/lib/echo/types";
 import { buildCreateFormTx } from "@/lib/echo/tx";
+import { getWalrusClient, uploadJsonBlob } from "@/lib/echo/walrus";
+import { makeWalletSigner } from "@/lib/echo/walletSigner";
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "short_text", label: "Short text" },
@@ -95,6 +98,7 @@ const defaultField = (type: FieldType): FormField => {
 export const FormBuilder = () => {
   const currentAccount = useCurrentAccount();
   const dAppKit = useDAppKit();
+  const router = useRouter();
 
   const [title, setTitle] = useState("Untitled feedback form");
   const [description, setDescription] = useState("");
@@ -108,7 +112,8 @@ export const FormBuilder = () => {
   ]);
   const [status, setStatus] = useState<
     | { kind: "idle" }
-    | { kind: "preview"; schemaJson: string; metaJson: string; tx: string }
+    | { kind: "saving"; step: string }
+    | { kind: "saved"; formId: string }
     | { kind: "error"; message: string }
   >({ kind: "idle" });
 
@@ -139,7 +144,7 @@ export const FormBuilder = () => {
       curr.map((f) => (f.id === id ? ({ ...f, ...patch } as FormField) : f)),
     );
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setStatus({ kind: "idle" });
     if (!currentAccount) {
       setStatus({ kind: "error", message: "Connect a wallet first." });
@@ -154,32 +159,77 @@ export const FormBuilder = () => {
       return;
     }
 
-    const tx = buildCreateFormTx({
-      packageId,
-      senderAddress: currentAccount.address,
-      // Real Walrus blob IDs land here once we wire a wallet-backed signer
-      // through `WalrusClient.writeBlobFlow` and dApp Kit. For now show the
-      // tx that would be sent with placeholders so the operator can verify
-      // params before signing.
-      schemaBlobId: "TODO_walrus_schema_blob_id",
-      metadataBlobId: "TODO_walrus_metadata_blob_id",
-      privacyTier: tier,
-      thresholdN: tier === PrivacyTier.Threshold ? thresholdN : 0,
-      thresholdM: tier === PrivacyTier.Threshold ? thresholdM : 0,
-      unlockMs:
-        tier === PrivacyTier.TimeLocked && unlockMs
-          ? BigInt(unlockMs)
-          : undefined,
-      conditionalPolicyId:
-        tier === PrivacyTier.Conditional ? policyId : undefined,
-    });
+    try {
+      const suiClient = dAppKit.getClient();
+      const walrus = getWalrusClient(suiClient, clientConfig.WALRUS_NETWORK);
+      const signer = makeWalletSigner(dAppKit, currentAccount);
 
-    setStatus({
-      kind: "preview",
-      schemaJson: JSON.stringify(schema, null, 2),
-      metaJson: JSON.stringify(metadata, null, 2),
-      tx: JSON.stringify(tx.getData(), null, 2),
-    });
+      setStatus({ kind: "saving", step: "Uploading schema to Walrus…" });
+      const { blobId: schemaBlobId } = await uploadJsonBlob(
+        walrus,
+        signer,
+        schema,
+      );
+
+      setStatus({ kind: "saving", step: "Uploading metadata to Walrus…" });
+      const { blobId: metadataBlobId } = await uploadJsonBlob(
+        walrus,
+        signer,
+        metadata,
+      );
+
+      setStatus({ kind: "saving", step: "Creating form on chain…" });
+      const tx = buildCreateFormTx({
+        packageId,
+        senderAddress: currentAccount.address,
+        schemaBlobId,
+        metadataBlobId,
+        privacyTier: tier,
+        thresholdN: tier === PrivacyTier.Threshold ? thresholdN : 0,
+        thresholdM: tier === PrivacyTier.Threshold ? thresholdM : 0,
+        unlockMs:
+          tier === PrivacyTier.TimeLocked && unlockMs
+            ? BigInt(unlockMs)
+            : undefined,
+        conditionalPolicyId:
+          tier === PrivacyTier.Conditional ? policyId : undefined,
+      });
+
+      const result = await dAppKit.signAndExecuteTransaction({
+        transaction: tx,
+      });
+
+      if (result.$kind === "FailedTransaction") {
+        setStatus({
+          kind: "error",
+          message: `Transaction failed: ${result.FailedTransaction.digest}`,
+        });
+        return;
+      }
+
+      // Form is the only shared object created in this tx; FormOwnerCap is
+      // address-owned. Filter changedObjects to find the Created+Shared one.
+      const created = result.Transaction.effects?.changedObjects ?? [];
+      const formChange = created.find(
+        (c) => c.idOperation === "Created" && c.outputOwner?.$kind === "Shared",
+      );
+      const formId = formChange?.objectId ?? "";
+      if (!formId) {
+        setStatus({
+          kind: "error",
+          message: `Form created but couldn't find shared object id. Tx digest: ${result.Transaction.digest}`,
+        });
+        return;
+      }
+
+      setStatus({ kind: "saved", formId });
+      router.push(`/forms/${formId}`);
+    } catch (err) {
+      setStatus({
+        kind: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   };
 
   return (
@@ -362,15 +412,19 @@ export const FormBuilder = () => {
         <button
           className={cn(
             "border rounded px-4 py-2 font-medium",
-            currentAccount
+            currentAccount && status.kind !== "saving"
               ? "bg-foreground text-background hover:opacity-90"
               : "opacity-60 cursor-not-allowed",
           )}
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           type="button"
-          disabled={!currentAccount}
+          disabled={!currentAccount || status.kind === "saving"}
         >
-          {currentAccount ? "Preview save" : "Connect wallet to save"}
+          {status.kind === "saving"
+            ? status.step
+            : currentAccount
+              ? "Save form"
+              : "Connect wallet to save"}
         </button>
         {!packageDeployed && (
           <p className="text-xs text-amber-600">
@@ -382,29 +436,11 @@ export const FormBuilder = () => {
         {status.kind === "error" && (
           <p className="text-sm text-destructive">{status.message}</p>
         )}
-        {status.kind === "preview" && (
-          <details className="border rounded p-3 text-xs flex flex-col gap-2">
-            <summary className="cursor-pointer font-medium">
-              Preview — schema, metadata, and unsigned tx
-            </summary>
-            <div className="grid gap-2 mt-2">
-              <Pre
-                title="schema.json (Walrus payload)"
-                body={status.schemaJson}
-              />
-              <Pre
-                title="metadata.json (Walrus payload)"
-                body={status.metaJson}
-              />
-              <Pre title="create_form transaction" body={status.tx} />
-              <p className="text-muted-foreground">
-                Walrus upload + sign-and-execute via{" "}
-                <code>{dAppKit ? "dApp Kit" : "wallet"}</code> still needs a
-                wallet-backed Signer adapter. See{" "}
-                <code>src/lib/echo/walrus.ts</code>.
-              </p>
-            </div>
-          </details>
+        {status.kind === "saved" && (
+          <p className="text-sm text-emerald-700">
+            ✓ Form created. Redirecting to{" "}
+            <code>/forms/{status.formId.slice(0, 10)}…</code>
+          </p>
         )}
       </div>
     </div>
@@ -437,11 +473,4 @@ const Field = ({
     <span className="text-muted-foreground text-xs">{label}</span>
     {children}
   </label>
-);
-
-const Pre = ({ title, body }: { title: string; body: string }) => (
-  <div>
-    <p className="text-muted-foreground mb-1">{title}</p>
-    <pre className="bg-muted p-2 rounded overflow-auto max-h-60">{body}</pre>
-  </div>
 );
