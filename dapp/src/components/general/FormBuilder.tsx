@@ -3,7 +3,22 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import {
@@ -126,23 +141,28 @@ export const FormBuilder = () => {
     [title, description],
   );
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  );
+
   const addField = (type: FieldType) =>
     setFields((curr) => [...curr, defaultField(type)]);
   const removeField = (id: string) =>
     setFields((curr) => curr.filter((f) => f.id !== id));
-  const moveField = (id: string, dir: -1 | 1) =>
-    setFields((curr) => {
-      const idx = curr.findIndex((f) => f.id === id);
-      const target = idx + dir;
-      if (idx < 0 || target < 0 || target >= curr.length) return curr;
-      const next = [...curr];
-      [next[idx], next[target]] = [next[target], next[idx]];
-      return next;
-    });
   const updateField = (id: string, patch: Partial<FormField>) =>
     setFields((curr) =>
       curr.map((f) => (f.id === id ? ({ ...f, ...patch } as FormField) : f)),
     );
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setFields((curr) => {
+      const oldIndex = curr.findIndex((f) => f.id === active.id);
+      const newIndex = curr.findIndex((f) => f.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return curr;
+      return arrayMove(curr, oldIndex, newIndex);
+    });
+  };
 
   const handleSave = async () => {
     setStatus({ kind: "idle" });
@@ -312,74 +332,27 @@ export const FormBuilder = () => {
       </BuilderSection>
 
       <BuilderSection title="Fields">
-        <ol className="flex flex-col gap-2">
-          {fields.map((f, i) => (
-            <li
-              key={f.id}
-              className="border rounded p-2 flex flex-col gap-2 bg-card"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-6">
-                  #{i + 1}
-                </span>
-                <select
-                  className="border rounded px-1 py-0.5 text-sm"
-                  value={f.type}
-                  onChange={(e) =>
-                    updateField(f.id, { type: e.target.value as FieldType })
-                  }
-                >
-                  {FIELD_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="border rounded px-2 py-1 flex-1"
-                  value={f.label}
-                  onChange={(e) => updateField(f.id, { label: e.target.value })}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={fields.map((f) => f.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <ol className="flex flex-col gap-2">
+              {fields.map((f) => (
+                <SortableFieldRow
+                  key={f.id}
+                  field={f}
+                  onUpdate={updateField}
+                  onRemove={removeField}
                 />
-                <label className="flex items-center gap-1 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={!!f.required}
-                    onChange={(e) =>
-                      updateField(f.id, { required: e.target.checked })
-                    }
-                  />
-                  required
-                </label>
-                <button
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => moveField(f.id, -1)}
-                  disabled={i === 0}
-                  type="button"
-                  aria-label="Move up"
-                >
-                  <ArrowUp size={14} />
-                </button>
-                <button
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => moveField(f.id, 1)}
-                  disabled={i === fields.length - 1}
-                  type="button"
-                  aria-label="Move down"
-                >
-                  <ArrowDown size={14} />
-                </button>
-                <button
-                  className="text-destructive hover:opacity-80"
-                  onClick={() => removeField(f.id)}
-                  type="button"
-                  aria-label="Delete field"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ol>
+              ))}
+            </ol>
+          </SortableContext>
+        </DndContext>
         <div className="flex gap-2 items-center">
           <select
             className="border rounded px-2 py-1 text-sm"
@@ -474,3 +447,82 @@ const Field = ({
     {children}
   </label>
 );
+
+const SortableFieldRow = ({
+  field,
+  onUpdate,
+  onRemove,
+}: {
+  field: FormField;
+  onUpdate: (id: string, patch: Partial<FormField>) => void;
+  onRemove: (id: string) => void;
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: field.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="border rounded p-2 flex flex-col gap-2 bg-card"
+    >
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="cursor-grab text-muted-foreground hover:text-foreground touch-none"
+          aria-label="Drag to reorder"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={16} />
+        </button>
+        <select
+          className="border rounded px-1 py-0.5 text-sm"
+          value={field.type}
+          onChange={(e) =>
+            onUpdate(field.id, { type: e.target.value as FieldType })
+          }
+        >
+          {FIELD_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+        <input
+          className="border rounded px-2 py-1 flex-1"
+          value={field.label}
+          onChange={(e) => onUpdate(field.id, { label: e.target.value })}
+        />
+        <label className="flex items-center gap-1 text-xs">
+          <input
+            type="checkbox"
+            checked={!!field.required}
+            onChange={(e) => onUpdate(field.id, { required: e.target.checked })}
+          />
+          required
+        </label>
+        <button
+          className="text-destructive hover:opacity-80"
+          onClick={() => onRemove(field.id)}
+          type="button"
+          aria-label="Delete field"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </li>
+  );
+};
