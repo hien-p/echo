@@ -114,3 +114,12 @@ export function buildCloseFormTx(args: CloseFormArgs): Transaction {
   });
   return tx;
 }
+
+export function buildArchiveFormTx(args: CloseFormArgs): Transaction {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${args.packageId}::form::archive_form`,
+    arguments: [tx.object(args.formOwnerCapId), tx.object(args.formId)],
+  });
+  return tx;
+}

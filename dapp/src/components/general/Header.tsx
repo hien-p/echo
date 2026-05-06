@@ -9,6 +9,9 @@ export const Header = () => {
           Echo
         </Link>
         <nav className="flex items-center gap-sm text-sm text-muted-foreground">
+          <Link href="/forms" className="hover:text-foreground">
+            My forms
+          </Link>
           <Link href="/forms/new" className="hover:text-foreground">
             New form
           </Link>

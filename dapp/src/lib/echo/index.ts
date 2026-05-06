@@ -19,4 +19,5 @@ export {
   buildSubmitAnonymousTx,
   buildUpdateSchemaTx,
   buildCloseFormTx,
+  buildArchiveFormTx,
 } from "./tx";
