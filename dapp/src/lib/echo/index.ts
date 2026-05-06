@@ -20,4 +20,11 @@ export {
   buildUpdateSchemaTx,
   buildCloseFormTx,
   buildArchiveFormTx,
+  buildMintReputationTx,
+  buildIssueCreditTx,
+  buildClaimCreditTx,
+  buildCreateBountyTx,
+  buildAddBountyFundsTx,
+  buildBountyPayoutTx,
+  buildCloseBountyTx,
 } from "./tx";

@@ -15,6 +15,9 @@ export const Header = () => {
           <Link href="/forms/new" className="hover:text-foreground">
             New form
           </Link>
+          <Link href="/reputation" className="hover:text-foreground">
+            Reputation
+          </Link>
           <Link href="/logs/" className="hover:text-foreground">
             Devlog
           </Link>

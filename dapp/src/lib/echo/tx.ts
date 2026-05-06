@@ -123,3 +123,106 @@ export function buildArchiveFormTx(args: CloseFormArgs): Transaction {
   });
   return tx;
 }
+
+export function buildMintReputationTx(args: {
+  packageId: string;
+}): Transaction {
+  const tx = new Transaction();
+  tx.moveCall({ target: `${args.packageId}::reputation::mint`, arguments: [] });
+  return tx;
+}
+
+export function buildIssueCreditTx(args: {
+  packageId: string;
+  formOwnerCapId: string;
+  recipient: string;
+  scoreDelta: number;
+}): Transaction {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${args.packageId}::reputation::issue_credit`,
+    arguments: [
+      tx.object(args.formOwnerCapId),
+      tx.pure.address(args.recipient),
+      tx.pure.u64(args.scoreDelta),
+    ],
+  });
+  return tx;
+}
+
+export function buildClaimCreditTx(args: {
+  packageId: string;
+  ticketId: string;
+  reputationId: string;
+}): Transaction {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${args.packageId}::reputation::claim_credit`,
+    arguments: [tx.object(args.ticketId), tx.object(args.reputationId)],
+  });
+  return tx;
+}
+
+export function buildCreateBountyTx(args: {
+  packageId: string;
+  formOwnerCapId: string;
+  amountMist: bigint;
+  mode: number;
+}): Transaction {
+  const tx = new Transaction();
+  const [coin] = tx.splitCoins(tx.gas, [tx.pure.u64(args.amountMist)]);
+  tx.moveCall({
+    target: `${args.packageId}::bounty::create_bounty`,
+    arguments: [tx.object(args.formOwnerCapId), coin, tx.pure.u8(args.mode)],
+  });
+  return tx;
+}
+
+export function buildAddBountyFundsTx(args: {
+  packageId: string;
+  poolId: string;
+  amountMist: bigint;
+}): Transaction {
+  const tx = new Transaction();
+  const [coin] = tx.splitCoins(tx.gas, [tx.pure.u64(args.amountMist)]);
+  tx.moveCall({
+    target: `${args.packageId}::bounty::add_funds`,
+    arguments: [tx.object(args.poolId), coin],
+  });
+  return tx;
+}
+
+export function buildBountyPayoutTx(args: {
+  packageId: string;
+  formOwnerCapId: string;
+  poolId: string;
+  recipient: string;
+  amountMist: bigint;
+}): Transaction {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${args.packageId}::bounty::payout_to`,
+    arguments: [
+      tx.object(args.formOwnerCapId),
+      tx.object(args.poolId),
+      tx.pure.address(args.recipient),
+      tx.pure.u64(args.amountMist),
+    ],
+  });
+  return tx;
+}
+
+export function buildCloseBountyTx(args: {
+  packageId: string;
+  formOwnerCapId: string;
+  poolId: string;
+  refundRecipient: string;
+}): Transaction {
+  const tx = new Transaction();
+  const refund = tx.moveCall({
+    target: `${args.packageId}::bounty::close_bounty`,
+    arguments: [tx.object(args.formOwnerCapId), tx.object(args.poolId)],
+  });
+  tx.transferObjects([refund], tx.pure.address(args.refundRecipient));
+  return tx;
+}

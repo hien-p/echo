@@ -16,6 +16,7 @@ import {
   type FormSchema,
   type SubmissionPayload,
 } from "@/lib/echo";
+import { BountyPanel } from "./BountyPanel";
 
 interface OnChainForm {
   schema_blob_id: string;
@@ -357,6 +358,13 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
           </ul>
         )}
       </section>
+
+      <BountyPanel
+        formId={formId}
+        formOwnerCapId={ownerCapQuery.data ?? null}
+        isOwner={isOwner}
+        callerAddress={account.address}
+      />
 
       {onChain.status === 2 && (
         <p className="text-sm text-amber-700 inline-flex items-center gap-1">
