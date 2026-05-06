@@ -6,6 +6,7 @@
 node_modules
 build
 *.lock
+*.key
 
 .env*
 .publish.res.json
