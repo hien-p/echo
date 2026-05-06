@@ -4,14 +4,26 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import Link from "next/link";
-import { Download, Lock, Unlock, Archive } from "lucide-react";
+import {
+  Download,
+  Lock,
+  Unlock,
+  Archive,
+  Unlock as UnlockIcon,
+} from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import {
+  PrivacyTier,
   buildArchiveFormTx,
   buildCloseFormTx,
+  buildSealApproveTxBytes,
+  getSealClient,
   getWalrusClient,
+  readBytesBlob,
   readJsonBlob,
+  SessionKey,
+  tierIdentity,
   type FormMetadata,
   type FormSchema,
   type SubmissionPayload,
@@ -26,6 +38,7 @@ interface OnChainForm {
   privacy_tier: number;
   status: number;
   submission_count: string;
+  unlock_ms?: string;
 }
 
 interface OnChainSubmissionRef {
@@ -319,41 +332,19 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
         ) : (
           <ul className="flex flex-col gap-2">
             {submissions.map((s) => (
-              <li
+              <SubmissionRowView
                 key={s.submissionId}
-                className="border rounded p-3 bg-card flex flex-col gap-1 text-sm"
-              >
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <code>{s.submissionId.slice(0, 10)}…</code>
-                  <span>·</span>
-                  <span>{s.submittedAt}</span>
-                  <span>·</span>
-                  <span>
-                    {s.anonymous ? "anonymous" : `${s.submitter.slice(0, 10)}…`}
-                  </span>
-                  {s.encrypted && (
-                    <span className="ml-auto inline-flex items-center gap-1 text-amber-700">
-                      <Lock size={12} /> encrypted
-                    </span>
-                  )}
-                </div>
-                {s.encrypted ? (
-                  <p className="text-xs text-muted-foreground">
-                    Payload Walrus blob: <code>{s.payloadBlobId}</code>. Decrypt
-                    requires Seal session key (admin-only flow — coming soon).
-                  </p>
-                ) : s.payloadError ? (
-                  <p className="text-xs text-destructive">
-                    Failed to read Walrus payload: {s.payloadError}
-                  </p>
-                ) : s.payload ? (
-                  <AnswerList payload={s.payload} schema={schema} />
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No payload bytes.
-                  </p>
-                )}
-              </li>
+                row={s}
+                schema={schema}
+                formId={formId}
+                packageId={packageId}
+                privacyTier={onChain.privacy_tier}
+                unlockMs={onChain.unlock_ms ?? "0"}
+                formOwnerCapId={ownerCapQuery.data ?? null}
+                dAppKit={dAppKit}
+                suiClient={suiClient}
+                accountAddress={account.address}
+              />
             ))}
           </ul>
         )}
@@ -375,6 +366,180 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
     </div>
   );
 };
+
+function SubmissionRowView({
+  row,
+  schema,
+  formId,
+  packageId,
+  privacyTier,
+  unlockMs,
+  formOwnerCapId,
+  dAppKit,
+  suiClient,
+  accountAddress,
+}: {
+  row: SubmissionRow;
+  schema: FormSchema | null;
+  formId: string;
+  packageId: string;
+  privacyTier: number;
+  unlockMs: string;
+  formOwnerCapId: string | null;
+  dAppKit: ReturnType<typeof useDAppKit>;
+  suiClient: ReturnType<ReturnType<typeof useDAppKit>["getClient"]>;
+  accountAddress: string;
+}) {
+  const [decrypted, setDecrypted] = useState<SubmissionPayload | null>(null);
+  const [decryptError, setDecryptError] = useState<string | null>(null);
+  const [decrypting, setDecrypting] = useState(false);
+
+  const decrypt = async () => {
+    setDecryptError(null);
+    setDecrypting(true);
+    try {
+      const sealServers = parseSealServers(clientConfig.SEAL_KEY_SERVERS);
+      if (sealServers.length === 0) {
+        throw new Error(
+          "NEXT_PUBLIC_SEAL_KEY_SERVERS not configured; can't fetch decryption shares.",
+        );
+      }
+      const seal = getSealClient({
+        suiClient: suiClient as unknown as Parameters<
+          typeof getSealClient
+        >[0]["suiClient"],
+        serverConfigs: sealServers,
+        verifyKeyServers: false,
+      });
+
+      // SessionKey requires the user to sign a personal message.
+      const session = await SessionKey.create({
+        address: accountAddress,
+        packageId,
+        ttlMin: 30,
+        suiClient: suiClient as unknown as Parameters<
+          typeof SessionKey.create
+        >[0]["suiClient"],
+      });
+      const personalMessage = session.getPersonalMessage();
+      const sig = await dAppKit.signPersonalMessage({
+        message: personalMessage,
+      });
+      await session.setPersonalMessageSignature(sig.signature);
+
+      // Build a seal_approve_* PTB for this form's tier.
+      const identity = tierIdentity({
+        formId,
+        tier: privacyTier as PrivacyTier,
+        unlockMs: unlockMs ? BigInt(unlockMs) : undefined,
+      });
+      const txBytes = await buildSealApproveTxBytes({
+        packageId,
+        formId,
+        formOwnerCapId: formOwnerCapId ?? undefined,
+        privacyTier: privacyTier as PrivacyTier,
+        identity,
+        suiClient: suiClient as unknown as Parameters<
+          typeof buildSealApproveTxBytes
+        >[0]["suiClient"],
+      });
+
+      // Fetch encrypted ciphertext bytes from Walrus.
+      const walrus = getWalrusClient(suiClient, clientConfig.WALRUS_NETWORK);
+      const ciphertext = await readBytesBlob(walrus, row.payloadBlobId);
+
+      const threshold = privacyTier === PrivacyTier.Threshold ? 1 : 1; // form's own threshold; for now 1
+      await seal.fetchKeys({
+        ids: [bytesToHex(identity)],
+        txBytes,
+        sessionKey: session,
+        threshold,
+      });
+      const plainBytes = await seal.decrypt({
+        data: ciphertext,
+        sessionKey: session,
+        txBytes,
+      });
+      const json = JSON.parse(
+        new TextDecoder().decode(plainBytes),
+      ) as SubmissionPayload;
+      setDecrypted(json);
+    } catch (e) {
+      setDecryptError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDecrypting(false);
+    }
+  };
+
+  return (
+    <li className="border rounded p-3 bg-card flex flex-col gap-1 text-sm">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <code>{row.submissionId.slice(0, 10)}…</code>
+        <span>·</span>
+        <span>{row.submittedAt}</span>
+        <span>·</span>
+        <span>
+          {row.anonymous ? "anonymous" : `${row.submitter.slice(0, 10)}…`}
+        </span>
+        {row.encrypted && !decrypted && (
+          <span className="ml-auto inline-flex items-center gap-1 text-amber-700">
+            <Lock size={12} /> encrypted
+          </span>
+        )}
+        {decrypted && (
+          <span className="ml-auto inline-flex items-center gap-1 text-emerald-700">
+            <UnlockIcon size={12} /> decrypted
+          </span>
+        )}
+      </div>
+
+      {row.encrypted && !decrypted ? (
+        <div className="flex flex-col gap-1">
+          <p className="text-xs text-muted-foreground">
+            Payload Walrus blob: <code>{row.payloadBlobId}</code>
+          </p>
+          <button
+            type="button"
+            onClick={() => void decrypt()}
+            disabled={decrypting}
+            className="border rounded px-3 py-1 text-xs w-fit hover:bg-accent disabled:opacity-60"
+          >
+            {decrypting ? "Decrypting…" : "Decrypt with Seal"}
+          </button>
+          {decryptError && (
+            <p className="text-xs text-destructive">{decryptError}</p>
+          )}
+        </div>
+      ) : decrypted ? (
+        <AnswerList payload={decrypted} schema={schema} />
+      ) : row.payloadError ? (
+        <p className="text-xs text-destructive">
+          Failed to read Walrus payload: {row.payloadError}
+        </p>
+      ) : row.payload ? (
+        <AnswerList payload={row.payload} schema={schema} />
+      ) : (
+        <p className="text-xs text-muted-foreground">No payload bytes.</p>
+      )}
+    </li>
+  );
+}
+
+function parseSealServers(raw: string): { objectId: string; weight: number }[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw) as Array<{ objectId: string; weight?: number }>;
+    return arr.map((s) => ({ objectId: s.objectId, weight: s.weight ?? 1 }));
+  } catch {
+    return [];
+  }
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  let hex = "";
+  for (const b of bytes) hex += b.toString(16).padStart(2, "0");
+  return hex;
+}
 
 function AnswerList({
   payload,

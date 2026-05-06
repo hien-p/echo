@@ -11,7 +11,13 @@ export {
   readJsonBlob,
   readBytesBlob,
 } from "./walrus";
-export { getSealClient, encryptForTier, tierIdentity } from "./seal";
+export {
+  getSealClient,
+  encryptForTier,
+  tierIdentity,
+  buildSealApproveTxBytes,
+  SessionKey,
+} from "./seal";
 export { WalletBackedSigner, makeWalletSigner } from "./walletSigner";
 export { executeSponsored } from "./sponsor";
 export {

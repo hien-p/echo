@@ -16,9 +16,11 @@
 
 import {
   SealClient,
+  SessionKey,
   type SealClientOptions,
   type KeyServerConfig,
 } from "@mysten/seal";
+import { Transaction } from "@mysten/sui/transactions";
 import type { ClientWithExtensions, CoreClient } from "@mysten/sui/client";
 import { PrivacyTier } from "./types";
 
@@ -99,6 +101,71 @@ function encodeTierExtra(args: {
   }
   return new Uint8Array(0);
 }
+
+/**
+ * Build the seal_approve_* PTB body matching a form's privacy tier. Returns
+ * the kind-only tx bytes that get passed to fetchKeys + decrypt.
+ */
+export async function buildSealApproveTxBytes(args: {
+  packageId: string;
+  formId: string;
+  formOwnerCapId?: string;
+  privacyTier: PrivacyTier;
+  identity: Uint8Array;
+  suiClient: SealCompatibleSuiClient;
+}): Promise<Uint8Array> {
+  const tx = new Transaction();
+  const idArg = tx.pure.vector("u8", Array.from(args.identity));
+  switch (args.privacyTier) {
+    case PrivacyTier.AdminOnly:
+      if (!args.formOwnerCapId)
+        throw new Error("AdminOnly decrypt requires the FormOwnerCap id.");
+      tx.moveCall({
+        target: `${args.packageId}::form::seal_approve_admin_only`,
+        arguments: [
+          idArg,
+          tx.object(args.formId),
+          tx.object(args.formOwnerCapId),
+        ],
+      });
+      break;
+    case PrivacyTier.Threshold:
+      if (!args.formOwnerCapId)
+        throw new Error("Threshold decrypt requires the FormOwnerCap id.");
+      tx.moveCall({
+        target: `${args.packageId}::form::seal_approve_threshold`,
+        arguments: [
+          idArg,
+          tx.object(args.formId),
+          tx.object(args.formOwnerCapId),
+        ],
+      });
+      break;
+    case PrivacyTier.TimeLocked:
+      tx.moveCall({
+        target: `${args.packageId}::form::seal_approve_time_locked`,
+        arguments: [idArg, tx.object(args.formId), tx.object("0x6")],
+      });
+      break;
+    case PrivacyTier.Conditional:
+      if (!args.formOwnerCapId)
+        throw new Error("Conditional decrypt requires the FormOwnerCap id.");
+      tx.moveCall({
+        target: `${args.packageId}::form::seal_approve_conditional`,
+        arguments: [
+          idArg,
+          tx.object(args.formId),
+          tx.object(args.formOwnerCapId),
+        ],
+      });
+      break;
+    default:
+      throw new Error("Public tier needs no Seal decrypt.");
+  }
+  return tx.build({ client: args.suiClient, onlyTransactionKind: true });
+}
+
+export { SessionKey };
 
 // ---- byte helpers ----
 

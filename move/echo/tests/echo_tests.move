@@ -145,6 +145,114 @@ fun submit_to_closed_form_aborts() {
   ts::end(scenario);
 }
 
+#[test]
+fun seal_approve_admin_only_passes_with_matching_cap() {
+  let mut scenario = ts::begin(ADMIN);
+  // Create an admin-only form.
+  {
+    let ctx = ts::ctx(&mut scenario);
+    let clock = clock::create_for_testing(ctx);
+    let cap = form::create_form(
+      string::utf8(b"s"),
+      string::utf8(b"m"),
+      form::privacy_admin_only(),
+      0,
+      0,
+      0,
+      string::utf8(b""),
+      &clock,
+      ctx,
+    );
+    clock::destroy_for_testing(clock);
+    transfer::public_transfer(cap, ADMIN);
+  };
+
+  ts::next_tx(&mut scenario, ADMIN);
+  let cap = ts::take_from_sender<FormOwnerCap>(&scenario);
+  let form_obj = ts::take_shared<Form>(&scenario);
+
+  // Build a Seal id: 32 bytes form id + 1 tier byte.
+  let mut id = sui::object::id_to_bytes(&form::id(&form_obj));
+  vector::push_back(&mut id, form::privacy_admin_only());
+
+  form::seal_approve_admin_only(id, &form_obj, &cap);
+
+  ts::return_shared(form_obj);
+  ts::return_to_sender(&scenario, cap);
+  ts::end(scenario);
+}
+
+#[test, expected_failure(abort_code = 5, location = echo::form)]
+fun seal_approve_time_locked_aborts_before_unlock() {
+  let mut scenario = ts::begin(ADMIN);
+  let ctx = ts::ctx(&mut scenario);
+  let clock = clock::create_for_testing(ctx);
+  let cap = form::create_form(
+    string::utf8(b"s"),
+    string::utf8(b"m"),
+    form::privacy_time_locked(),
+    0,
+    0,
+    99999999999, // far in the future
+    string::utf8(b""),
+    &clock,
+    ctx,
+  );
+  transfer::public_transfer(cap, ADMIN);
+
+  ts::next_tx(&mut scenario, ADMIN);
+  let form_obj = ts::take_shared<Form>(&scenario);
+
+  let mut id = sui::object::id_to_bytes(&form::id(&form_obj));
+  vector::push_back(&mut id, form::privacy_time_locked());
+
+  // Clock is at 0; unlock is 99999999999 → must abort with ENotYetUnlocked (5).
+  form::seal_approve_time_locked(id, &form_obj, &clock);
+
+  clock::destroy_for_testing(clock);
+  ts::return_shared(form_obj);
+  ts::end(scenario);
+}
+
+#[test, expected_failure(abort_code = 4, location = echo::form)]
+fun seal_approve_admin_only_aborts_on_wrong_id() {
+  let mut scenario = ts::begin(ADMIN);
+  {
+    let ctx = ts::ctx(&mut scenario);
+    let clock = clock::create_for_testing(ctx);
+    let cap = form::create_form(
+      string::utf8(b"s"),
+      string::utf8(b"m"),
+      form::privacy_admin_only(),
+      0,
+      0,
+      0,
+      string::utf8(b""),
+      &clock,
+      ctx,
+    );
+    clock::destroy_for_testing(clock);
+    transfer::public_transfer(cap, ADMIN);
+  };
+
+  ts::next_tx(&mut scenario, ADMIN);
+  let cap = ts::take_from_sender<FormOwnerCap>(&scenario);
+  let form_obj = ts::take_shared<Form>(&scenario);
+
+  // 33 bytes of zeros → id prefix won't match form.id → ESealIdMismatch (4).
+  let mut id: vector<u8> = vector[];
+  let mut i = 0;
+  while (i < 33) {
+    vector::push_back(&mut id, 0);
+    i = i + 1;
+  };
+  form::seal_approve_admin_only(id, &form_obj, &cap);
+
+  ts::return_shared(form_obj);
+  ts::return_to_sender(&scenario, cap);
+  ts::end(scenario);
+}
+
 #[test, expected_failure(abort_code = 3, location = echo::form)]
 fun threshold_invalid_aborts() {
   let mut scenario = ts::begin(ADMIN);

@@ -25,6 +25,9 @@ const EInvalidPrivacyTier: u64 = 0;
 const EFormNotOpen: u64 = 1;
 const EWrongOwnerCap: u64 = 2;
 const EThresholdInvalid: u64 = 3;
+const ESealIdMismatch: u64 = 4;
+const ENotYetUnlocked: u64 = 5;
+const EWrongTier: u64 = 6;
 
 public struct Form has key {
   id: UID,
@@ -161,6 +164,79 @@ public(package) fun bump_submission_count(form: &mut Form) {
 
 public(package) fun assert_open(form: &Form) {
   assert!(form.status == STATUS_OPEN, EFormNotOpen);
+}
+
+// ============================================================================
+// Seal access-control approvals.
+//
+// Seal key servers run these as a dry-run PTB and release decryption shares
+// only when the call returns successfully (no abort). The first arg is the
+// encryption identity bytes — we require it to start with the form's object
+// id so a single approval can't leak shares for a different form's tier.
+// ============================================================================
+
+/// Bytes prefix length we expect: 32-byte form id + 1 tier byte.
+const SEAL_ID_MIN_LEN: u64 = 33;
+
+/// Helper: compare form id bytes against the leading 32 bytes of `id`.
+fun seal_id_matches_form(id: &vector<u8>, form: &Form): bool {
+  if (vector::length(id) < SEAL_ID_MIN_LEN) return false;
+  let form_bytes = object::id_to_bytes(&object::id(form));
+  let mut i = 0;
+  while (i < 32) {
+    if (*vector::borrow(id, i) != *vector::borrow(&form_bytes, i)) return false;
+    i = i + 1;
+  };
+  true
+}
+
+/// Admin-only tier: caller must hold the matching FormOwnerCap.
+public fun seal_approve_admin_only(
+  id: vector<u8>,
+  form: &Form,
+  cap: &FormOwnerCap,
+) {
+  assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
+  assert!(form.privacy_tier == PRIVACY_ADMIN_ONLY, EWrongTier);
+  assert!(cap.form_id == object::id(form), EWrongOwnerCap);
+}
+
+/// Threshold tier: each admin holding a cap calls this with their share. The
+/// off-chain Seal aggregator combines N shares; the on-chain check just
+/// validates that the caller does hold a cap matching this form (not that
+/// N have signed — that's enforced at the Seal layer by counting responses).
+public fun seal_approve_threshold(
+  id: vector<u8>,
+  form: &Form,
+  cap: &FormOwnerCap,
+) {
+  assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
+  assert!(form.privacy_tier == PRIVACY_THRESHOLD, EWrongTier);
+  assert!(cap.form_id == object::id(form), EWrongOwnerCap);
+}
+
+/// Time-locked tier: any caller can decrypt once the unlock timestamp passes.
+public fun seal_approve_time_locked(
+  id: vector<u8>,
+  form: &Form,
+  clock: &sui::clock::Clock,
+) {
+  assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
+  assert!(form.privacy_tier == PRIVACY_TIME_LOCKED, EWrongTier);
+  assert!(clock.timestamp_ms() >= form.unlock_ms, ENotYetUnlocked);
+}
+
+/// Conditional tier: caller must hold the FormOwnerCap (the off-chain policy
+/// implementation can extend this with an additional witness object). Kept
+/// minimal here so the privacy contract compiles end-to-end.
+public fun seal_approve_conditional(
+  id: vector<u8>,
+  form: &Form,
+  cap: &FormOwnerCap,
+) {
+  assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
+  assert!(form.privacy_tier == PRIVACY_CONDITIONAL, EWrongTier);
+  assert!(cap.form_id == object::id(form), EWrongOwnerCap);
 }
 
 public fun id(form: &Form): ID { object::id(form) }
