@@ -81,6 +81,120 @@ const TIER_OPTIONS: { value: PrivacyTier; label: string; help: string }[] = [
 let fieldCounter = 0;
 const newFieldId = () => `f${++fieldCounter}_${Date.now().toString(36)}`;
 
+interface Template {
+  id: string;
+  label: string;
+  title: string;
+  description: string;
+  tier: PrivacyTier;
+  fields: Omit<FormField, "id">[];
+}
+
+const TEMPLATES: Template[] = [
+  {
+    id: "blank",
+    label: "— blank —",
+    title: "Quick feedback",
+    description: "Tell us what you think.",
+    tier: PrivacyTier.Public,
+    fields: [{ type: "long_text", label: "Your feedback", required: true }],
+  },
+  {
+    id: "bug",
+    label: "Bug report",
+    title: "Bug report",
+    description:
+      "Found something broken? Help us reproduce and fix it. Steps + screenshots welcome.",
+    tier: PrivacyTier.Public,
+    fields: [
+      { type: "short_text", label: "What broke?", required: true },
+      {
+        type: "long_text",
+        label: "Steps to reproduce",
+        required: true,
+      },
+      { type: "long_text", label: "What did you expect to happen?" },
+      {
+        type: "single_select",
+        label: "Severity",
+        required: true,
+        options: [
+          { value: "low", label: "Low — annoyance" },
+          { value: "med", label: "Medium — workaround exists" },
+          { value: "high", label: "High — blocks my work" },
+          { value: "crit", label: "Critical — data loss / security" },
+        ],
+      } as Omit<FormField, "id">,
+      { type: "url", label: "Link to screenshot or recording" },
+    ],
+  },
+  {
+    id: "feature",
+    label: "Feature request",
+    title: "Feature request",
+    description:
+      "What would make Echo better? One idea per submission. Anonymous OK.",
+    tier: PrivacyTier.Public,
+    fields: [
+      { type: "short_text", label: "One-line summary", required: true },
+      {
+        type: "long_text",
+        label: "What problem does this solve for you?",
+        required: true,
+      },
+      {
+        type: "rating",
+        label: "How much would you use it? (1=rarely, 5=daily)",
+        scale: 5,
+      } as Omit<FormField, "id">,
+    ],
+  },
+  {
+    id: "nps",
+    label: "NPS survey",
+    title: "How likely are you to recommend us?",
+    description: "Two questions, ~30 seconds.",
+    tier: PrivacyTier.Public,
+    fields: [
+      {
+        type: "rating",
+        label: "0 = never, 10 = absolutely",
+        scale: 10,
+        required: true,
+      } as Omit<FormField, "id">,
+      { type: "long_text", label: "What's the biggest reason for that score?" },
+    ],
+  },
+  {
+    id: "grant",
+    label: "Grant application (private)",
+    title: "Grant application",
+    description:
+      "Tell us about your project. Submissions are encrypted — only the review committee can decrypt after the deadline.",
+    tier: PrivacyTier.Threshold,
+    fields: [
+      { type: "short_text", label: "Project name", required: true },
+      { type: "url", label: "Project link" },
+      {
+        type: "long_text",
+        label: "What are you building? (max 500 words)",
+        required: true,
+        maxLength: 3000,
+      } as Omit<FormField, "id">,
+      {
+        type: "long_text",
+        label: "Why does it need a grant?",
+        required: true,
+      },
+      {
+        type: "short_text",
+        label: "Requested amount (in USD or SUI)",
+        required: true,
+      },
+    ],
+  },
+];
+
 const defaultField = (type: FieldType): FormField => {
   const base = {
     id: newFieldId(),
@@ -115,16 +229,17 @@ export const FormBuilder = () => {
   const dAppKit = useDAppKit();
   const router = useRouter();
 
-  const [title, setTitle] = useState("Untitled feedback form");
-  const [description, setDescription] = useState("");
-  const [tier, setTier] = useState<PrivacyTier>(PrivacyTier.Public);
+  const blank = TEMPLATES[0];
+  const [title, setTitle] = useState(blank.title);
+  const [description, setDescription] = useState(blank.description);
+  const [tier, setTier] = useState<PrivacyTier>(blank.tier);
   const [thresholdN, setThresholdN] = useState(2);
   const [thresholdM, setThresholdM] = useState(3);
   const [unlockMs, setUnlockMs] = useState("");
   const [policyId, setPolicyId] = useState("");
-  const [fields, setFields] = useState<FormField[]>([
-    defaultField("short_text"),
-  ]);
+  const [fields, setFields] = useState<FormField[]>(
+    blank.fields.map((f) => ({ ...f, id: newFieldId() }) as FormField),
+  );
   const [status, setStatus] = useState<
     | { kind: "idle" }
     | { kind: "saving"; step: string }
@@ -252,8 +367,33 @@ export const FormBuilder = () => {
     }
   };
 
+  const applyTemplate = (templateId: string) => {
+    const t = TEMPLATES.find((x) => x.id === templateId);
+    if (!t) return;
+    setTitle(t.title);
+    setDescription(t.description);
+    setTier(t.tier);
+    setFields(t.fields.map((f) => ({ ...f, id: newFieldId() }) as FormField));
+    setStatus({ kind: "idle" });
+  };
+
   return (
     <div className="flex flex-col gap-md">
+      <BuilderSection title="Start from a template">
+        <div className="flex flex-wrap gap-2">
+          {TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => applyTemplate(t.id)}
+              className="border rounded px-3 py-1 text-sm hover:bg-accent"
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </BuilderSection>
+
       <BuilderSection title="Metadata">
         <Field label="Title">
           <input
