@@ -162,6 +162,28 @@
         <article class="log-card" data-date="2026-05-06">
           <header>
             <time datetime="2026-05-06">2026-05-06</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>
+            Shipped — repo public on GitHub, dapp live on Cloudflare Pages
+          </h3>
+          <p>
+            Echo is now at
+            <a href="https://github.com/hien-p/echo">github.com/hien-p/echo</a>
+            (public) and deployed at
+            <a href="https://echo-20u.pages.dev">echo-20u.pages.dev</a>. CI now
+            includes a <code>cf-deploy</code> workflow that rebuilds + deploys
+            the Pages project on every push to <code>main</code> using the
+            <code>CLOUDFLARE_API_TOKEN</code> +
+            <code>CLOUDFLARE_ACCOUNT_ID</code> repo secrets. Integration tests
+            repointed at <code>move/echo</code>
+            so the localnet suite publishes the real Echo package.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-06">
+          <header>
+            <time datetime="2026-05-06">2026-05-06</time>
             <span class="log-tag" data-tag="chore">chore</span>
           </header>
           <h3>Devlog + git-hook conventions wired in</h3>

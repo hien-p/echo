@@ -1,0 +1,58 @@
+name: Deploy to Cloudflare Pages
+
+# Builds the dapp via @cloudflare/next-on-pages and deploys to the `echo`
+# Cloudflare Pages project on every push to main. Secrets required:
+#   CLOUDFLARE_API_TOKEN — token with "Pages: Edit" + "Account: Read" scopes
+#   CLOUDFLARE_ACCOUNT_ID — the CF account ID (visible in dash → Workers/Pages)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: cf-pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build dapp for Cloudflare Pages
+        working-directory: dapp
+        run: pnpm build:cf
+        env:
+          NEXT_PUBLIC_SUI_NETWORK: testnet
+          NEXT_PUBLIC_SUI_FULLNODE_URL: https://mysten-rpc.testnet.sui.io:443
+          NEXT_PUBLIC_WALRUS_NETWORK: testnet
+          NEXT_PUBLIC_ENOKI_PUBLIC_KEY: ${{ vars.NEXT_PUBLIC_ENOKI_PUBLIC_KEY }}
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+          NEXT_PUBLIC_ECHO_PACKAGE_ID: ${{ vars.NEXT_PUBLIC_ECHO_PACKAGE_ID }}
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: dapp
+          command: pages deploy .vercel/output/static --project-name=echo --branch=main --commit-dirty=true
