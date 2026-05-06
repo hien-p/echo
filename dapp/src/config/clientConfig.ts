@@ -11,6 +11,13 @@ export const clientConfigSchema = z.object({
   GOOGLE_CLIENT_ID: z.string(),
   ECHO_PACKAGE_ID: z.string(),
   WALRUS_NETWORK: z.enum(["mainnet", "testnet"]),
+  /**
+   * JSON-encoded array of Seal key-server configs:
+   *   [{"objectId": "0x...", "weight": 1}, ...]
+   * Empty/unset means Seal encryption is disabled — non-Public tiers will
+   * still work but submissions are uploaded plaintext with a UI warning.
+   */
+  SEAL_KEY_SERVERS: z.string().default(""),
 });
 
 export const clientConfig = clientConfigSchema.parse({
@@ -20,4 +27,5 @@ export const clientConfig = clientConfigSchema.parse({
   GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
   ECHO_PACKAGE_ID: process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID,
   WALRUS_NETWORK: process.env.NEXT_PUBLIC_WALRUS_NETWORK,
+  SEAL_KEY_SERVERS: process.env.NEXT_PUBLIC_SEAL_KEY_SERVERS ?? "",
 });

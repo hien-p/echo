@@ -45,6 +45,8 @@ export interface BaseField {
   required?: boolean;
   /** Conditional logic: show this field only when these prior answers match. */
   showWhen?: ShowCondition[];
+  /** 0-indexed page number for multi-page forms. Omitted = page 0. */
+  page?: number;
 }
 
 export interface ShowCondition {

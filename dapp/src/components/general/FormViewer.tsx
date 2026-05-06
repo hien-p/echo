@@ -6,12 +6,17 @@ import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import {
+  PrivacyTier,
   buildSubmitAnonymousTx,
   buildSubmitTx,
+  encryptForTier,
   executeSponsored,
+  getSealClient,
   getWalrusClient,
   makeWalletSigner,
   readJsonBlob,
+  tierIdentity,
+  uploadBytesBlob,
   uploadJsonBlob,
   type FormField,
   type FormMetadata,
@@ -117,6 +122,10 @@ export const FormViewer = ({ formId }: { formId: string }) => {
           packageId={packageId}
           schema={schema}
           schemaVersion={Number(onChain.schema_version)}
+          privacyTier={onChain.privacy_tier}
+          unlockMs={onChain.unlock_ms}
+          conditionalPolicyId={onChain.conditional_policy_id}
+          thresholdN={onChain.threshold_n}
           dAppKit={dAppKit}
           suiClient={suiClient}
           accountAddress={account?.address}
@@ -126,15 +135,21 @@ export const FormViewer = ({ formId }: { formId: string }) => {
   );
 };
 
-function GatedSubmit(props: {
+interface GatedSubmitProps {
   formId: string;
   packageId: string;
   schema: FormSchema;
   schemaVersion: number;
+  privacyTier: number;
+  unlockMs: string;
+  conditionalPolicyId: string;
+  thresholdN: number;
   dAppKit: ReturnType<typeof useDAppKit>;
   suiClient: ReturnType<ReturnType<typeof useDAppKit>["getClient"]>;
   accountAddress?: string;
-}) {
+}
+
+function GatedSubmit(props: GatedSubmitProps) {
   const { schema, accountAddress, suiClient } = props;
   const gating = schema.gating;
 
@@ -213,26 +228,30 @@ function SubmitForm({
   packageId,
   schema,
   schemaVersion,
+  privacyTier,
+  unlockMs,
+  conditionalPolicyId,
+  thresholdN,
   dAppKit,
   suiClient,
   accountAddress,
-}: {
-  formId: string;
-  packageId: string;
-  schema: FormSchema;
-  schemaVersion: number;
-  dAppKit: ReturnType<typeof useDAppKit>;
-  suiClient: ReturnType<ReturnType<typeof useDAppKit>["getClient"]>;
-  accountAddress?: string;
-}) {
+}: GatedSubmitProps) {
   const [answers, setAnswers] = useState<Record<string, SubmissionAnswer>>({});
   const [anonymous, setAnonymous] = useState(false);
+  const [pageIdx, setPageIdx] = useState(0);
   const [status, setStatus] = useState<
     | { kind: "idle" }
     | { kind: "submitting"; step: string }
     | { kind: "submitted"; digest: string }
     | { kind: "error"; message: string }
   >({ kind: "idle" });
+
+  const pageNumbers = Array.from(
+    new Set(schema.fields.map((f) => f.page ?? 0)),
+  ).sort((a, b) => a - b);
+  const currentPage = pageNumbers[pageIdx] ?? 0;
+  const totalPages = pageNumbers.length;
+  const isLastPage = pageIdx === totalPages - 1;
 
   const setAnswer = (id: string, value: SubmissionAnswer) =>
     setAnswers((curr) => ({ ...curr, [id]: value }));
@@ -276,8 +295,53 @@ function SubmitForm({
         submittedAt: new Date().toISOString(),
       };
 
-      setStatus({ kind: "submitting", step: "Uploading payload to Walrus…" });
-      const { blobId } = await uploadJsonBlob(walrus, signer, payload);
+      const isPublic = privacyTier === PrivacyTier.Public;
+      const sealServers = parseSealServers(clientConfig.SEAL_KEY_SERVERS);
+      const sealAvailable = !isPublic && sealServers.length > 0;
+
+      let blobId: string;
+      if (sealAvailable) {
+        setStatus({ kind: "submitting", step: "Encrypting payload (Seal)…" });
+        const seal = getSealClient({
+          suiClient: suiClient as unknown as Parameters<
+            typeof getSealClient
+          >[0]["suiClient"],
+          serverConfigs: sealServers,
+          verifyKeyServers: false,
+        });
+        const id = tierIdentity({
+          formId,
+          tier: privacyTier as PrivacyTier,
+          conditionalPolicyId: conditionalPolicyId || undefined,
+          unlockMs: unlockMs ? BigInt(unlockMs) : undefined,
+        });
+        const threshold =
+          privacyTier === PrivacyTier.Threshold ? thresholdN : 1;
+        const data = new TextEncoder().encode(JSON.stringify(payload));
+        const { ciphertext } = await encryptForTier({
+          client: seal,
+          packageId,
+          identity: id,
+          threshold,
+          data,
+        });
+        setStatus({
+          kind: "submitting",
+          step: "Uploading ciphertext to Walrus…",
+        });
+        const out = await uploadBytesBlob(walrus, signer, ciphertext);
+        blobId = out.blobId;
+      } else {
+        if (!isPublic) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "Echo: privacy tier !== Public but NEXT_PUBLIC_SEAL_KEY_SERVERS not set; uploading plaintext.",
+          );
+        }
+        setStatus({ kind: "submitting", step: "Uploading payload to Walrus…" });
+        const out = await uploadJsonBlob(walrus, signer, payload);
+        blobId = out.blobId;
+      }
 
       setStatus({
         kind: "submitting",
@@ -311,10 +375,17 @@ function SubmitForm({
     }
   };
 
-  const visibleFields = schema.fields.filter((f) => isFieldVisible(f, answers));
+  const visibleFields = schema.fields
+    .filter((f) => (f.page ?? 0) === currentPage)
+    .filter((f) => isFieldVisible(f, answers));
 
   return (
     <div className="flex flex-col gap-md">
+      {totalPages > 1 && (
+        <p className="text-xs text-muted-foreground">
+          Page {pageIdx + 1} of {totalPages}
+        </p>
+      )}
       {visibleFields.map((field) => (
         <FieldInput
           key={field.id}
@@ -324,33 +395,56 @@ function SubmitForm({
         />
       ))}
 
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={anonymous}
-          onChange={(e) => setAnonymous(e.target.checked)}
-        />
-        Submit anonymously (the chain records a commitment hash, not your
-        address)
-      </label>
+      {isLastPage && (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={anonymous}
+            onChange={(e) => setAnonymous(e.target.checked)}
+          />
+          Submit anonymously (the chain records a commitment hash, not your
+          address)
+        </label>
+      )}
 
-      <button
-        type="button"
-        onClick={() => void submit()}
-        disabled={!accountAddress || status.kind === "submitting"}
-        className={cn(
-          "border rounded px-4 py-2 font-medium",
-          accountAddress && status.kind !== "submitting"
-            ? "bg-foreground text-background hover:opacity-90"
-            : "opacity-60 cursor-not-allowed",
+      <div className="flex gap-2">
+        {pageIdx > 0 && (
+          <button
+            type="button"
+            onClick={() => setPageIdx((i) => i - 1)}
+            className="border rounded px-3 py-1 text-sm hover:bg-accent"
+          >
+            ← Previous
+          </button>
         )}
-      >
-        {status.kind === "submitting"
-          ? status.step
-          : accountAddress
-            ? "Submit"
-            : "Connect wallet to submit"}
-      </button>
+        {!isLastPage ? (
+          <button
+            type="button"
+            onClick={() => setPageIdx((i) => i + 1)}
+            className="border rounded px-3 py-1 text-sm hover:bg-accent ml-auto"
+          >
+            Next →
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={!accountAddress || status.kind === "submitting"}
+            className={cn(
+              "border rounded px-4 py-2 font-medium ml-auto",
+              accountAddress && status.kind !== "submitting"
+                ? "bg-foreground text-background hover:opacity-90"
+                : "opacity-60 cursor-not-allowed",
+            )}
+          >
+            {status.kind === "submitting"
+              ? status.step
+              : accountAddress
+                ? "Submit"
+                : "Connect wallet to submit"}
+          </button>
+        )}
+      </div>
 
       {status.kind === "error" && (
         <p className="text-sm text-destructive">{status.message}</p>
@@ -518,6 +612,16 @@ function FieldInput({
           Field type <code>{field.type}</code> not yet supported in this viewer.
         </p>
       );
+  }
+}
+
+function parseSealServers(raw: string): { objectId: string; weight: number }[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw) as Array<{ objectId: string; weight?: number }>;
+    return arr.map((s) => ({ objectId: s.objectId, weight: s.weight ?? 1 }));
+  } catch {
+    return [];
   }
 }
 

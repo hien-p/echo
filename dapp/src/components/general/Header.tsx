@@ -18,6 +18,9 @@ export const Header = () => {
           <Link href="/reputation" className="hover:text-foreground">
             Reputation
           </Link>
+          <Link href="/insights" className="hover:text-foreground">
+            Insights
+          </Link>
           <Link href="/logs/" className="hover:text-foreground">
             Devlog
           </Link>
