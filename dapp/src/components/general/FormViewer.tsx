@@ -111,8 +111,8 @@ export const FormViewer = ({ formId }: { formId: string }) => {
           This form is not accepting submissions (
           {STATUS_LABELS[onChain.status] ?? "unknown"}).
         </p>
-      ) : packageId !== onChain.schema_blob_id.split("::")[0] ? (
-        <SubmitForm
+      ) : (
+        <GatedSubmit
           formId={formId}
           packageId={packageId}
           schema={schema}
@@ -121,10 +121,92 @@ export const FormViewer = ({ formId }: { formId: string }) => {
           suiClient={suiClient}
           accountAddress={account?.address}
         />
-      ) : null}
+      )}
     </div>
   );
 };
+
+function GatedSubmit(props: {
+  formId: string;
+  packageId: string;
+  schema: FormSchema;
+  schemaVersion: number;
+  dAppKit: ReturnType<typeof useDAppKit>;
+  suiClient: ReturnType<ReturnType<typeof useDAppKit>["getClient"]>;
+  accountAddress?: string;
+}) {
+  const { schema, accountAddress, suiClient } = props;
+  const gating = schema.gating;
+
+  const gateQuery = useQuery({
+    queryKey: ["echo", "gate", props.formId, accountAddress],
+    queryFn: async () => {
+      if (!gating || !accountAddress) return { ok: true } as const;
+      if (gating.type === "token" && gating.coinType) {
+        const client = suiClient as unknown as {
+          getBalance(input: {
+            owner: string;
+            coinType: string;
+          }): Promise<{ totalBalance: string }>;
+        };
+        const balance = await client.getBalance({
+          owner: accountAddress,
+          coinType: gating.coinType,
+        });
+        const required = BigInt(gating.minAmount ?? "1");
+        const have = BigInt(balance.totalBalance ?? "0");
+        if (have < required) {
+          return {
+            ok: false,
+            reason: `Token-gated: requires ${required} of ${gating.coinType}. You have ${have}.`,
+          } as const;
+        }
+        return { ok: true } as const;
+      }
+      if (gating.type === "nft" && gating.nftType) {
+        const client = suiClient as unknown as {
+          listOwnedObjects(input: {
+            owner: string;
+            type: string;
+            limit: number;
+          }): Promise<{ objects: unknown[] }>;
+        };
+        const owned = await client.listOwnedObjects({
+          owner: accountAddress,
+          type: gating.nftType,
+          limit: 1,
+        });
+        if (owned.objects.length === 0) {
+          return {
+            ok: false,
+            reason: `NFT-gated: requires owning a ${gating.nftType}.`,
+          } as const;
+        }
+        return { ok: true } as const;
+      }
+      if (gating.type === "suins" && gating.domain) {
+        return {
+          ok: false,
+          reason: `SuiNS gating ('${gating.domain}') not yet wired in viewer; treat as soft warning.`,
+        } as const;
+      }
+      return { ok: true } as const;
+    },
+    enabled: !!accountAddress,
+  });
+
+  if (gating && accountAddress && gateQuery.data && !gateQuery.data.ok) {
+    return (
+      <div className="border rounded p-3 bg-amber-50 dark:bg-amber-950/30">
+        <p className="text-sm text-amber-700 dark:text-amber-400">
+          🔒 {gateQuery.data.reason}
+        </p>
+      </div>
+    );
+  }
+
+  return <SubmitForm {...props} />;
+}
 
 function SubmitForm({
   formId,
@@ -229,9 +311,11 @@ function SubmitForm({
     }
   };
 
+  const visibleFields = schema.fields.filter((f) => isFieldVisible(f, answers));
+
   return (
     <div className="flex flex-col gap-md">
-      {schema.fields.map((field) => (
+      {visibleFields.map((field) => (
         <FieldInput
           key={field.id}
           field={field}
@@ -435,6 +519,40 @@ function FieldInput({
         </p>
       );
   }
+}
+
+function isFieldVisible(
+  field: FormField,
+  answers: Record<string, SubmissionAnswer>,
+): boolean {
+  const conds = field.showWhen ?? [];
+  if (conds.length === 0) return true;
+  return conds.every((cond) => {
+    const a = answers[cond.fieldId];
+    if (!a) return false;
+    const value =
+      a.kind === "checkbox"
+        ? a.value
+        : a.kind === "rating"
+          ? a.value
+          : a.kind === "text"
+            ? a.value
+            : a.kind === "choice"
+              ? a.value
+              : a.kind === "date"
+                ? a.value
+                : null;
+    if (cond.equals !== undefined) {
+      if (Array.isArray(value)) return value.includes(String(cond.equals));
+      return value === cond.equals;
+    }
+    if (cond.oneOf) {
+      const set = new Set<string | number>(cond.oneOf);
+      if (Array.isArray(value)) return value.some((v) => set.has(v));
+      return set.has(value as string | number);
+    }
+    return true;
+  });
 }
 
 function cryptoRandomBytes(n: number): Uint8Array {
