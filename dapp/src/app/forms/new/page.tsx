@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function NewFormPage() {
   return (
-    <section className="flex flex-col gap-md max-w-3xl mx-auto p-md">
+    <section className="flex flex-col gap-md max-w-[768px] mx-auto p-md w-full">
       <header>
         <h1 className="text-2xl font-semibold">New form</h1>
         <p className="text-sm text-muted-foreground">
