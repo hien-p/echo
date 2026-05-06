@@ -1,6 +1,41 @@
-# CLAUDE.md — dapp-template
+# CLAUDE.md — Echo
 
-Sui dApp monorepo (pnpm workspaces) with a Next.js frontend, Move contract publishing tools, and integration tests using TestContainers.
+Sui dApp monorepo (pnpm workspaces) with a Next.js frontend, Move contract publishing tools, and integration tests using TestContainers. Bootstrapped from `harrymove-ctrl/sui-dapp-template-main`; conventions below adopt the static-site `/logs` + commit-attribution rules from `hien-p/claude-cloudflare-template`.
+
+## Commit conventions — NEVER attribute commits to Claude
+
+Do not include in commit messages, PR titles/descriptions, issue comments, or any public artifact:
+
+- `Co-Authored-By: Claude …` trailers
+- The strings `Claude`, `Anthropic`, `claude.com/claude-code`
+- `🤖 Generated with [Claude Code]` footers
+
+Three layers enforce this:
+
+1. **Claude Code `PreToolUse` hook** (`.claude/settings.json`) — blocks `git commit` calls whose message contains the banned patterns.
+2. **Local `commit-msg` git hook** (`.githooks/commit-msg`) — rejects the commit. Run `./scripts/install-hooks.sh` after fresh clone.
+3. **`Commit Guard` GitHub Actions** (`.github/workflows/commit-guard.yml`) — fails the workflow on push/PR if any banned pattern slips through.
+
+References to "Claude Code" _inside_ this CLAUDE.md describe how to operate the harness; that is fine. Authorship attribution is not.
+
+## Devlog convention — update `/logs` on every change
+
+`dapp/public/logs/index.html` is the project devlog (served at `/logs/` by Next.js). Every commit/PR that lands on `main` (or `staging`) should add a card. Card format — copy the existing pattern, newest at the top of `<main id="log-stream">`:
+
+```html
+<article class="log-card" data-date="YYYY-MM-DD">
+  <header>
+    <time datetime="YYYY-MM-DD">YYYY-MM-DD</time>
+    <span class="log-tag" data-tag="feat"
+      >feat | fix | chore | docs | refactor</span
+    >
+  </header>
+  <h3>One-line summary of what changed</h3>
+  <p>Two or three sentences on the why and the user-visible effect.</p>
+</article>
+```
+
+The `pre-push` hook will warn (not block) for non-chore/docs commits that don't touch this file.
 
 ## Repo structure
 

@@ -1,39 +1,44 @@
-import swaggerJsdoc from "swagger-jsdoc";
+/**
+ * Static OpenAPI spec for the Echo dapp.
+ *
+ * Originally swagger-jsdoc auto-scanned route files via the filesystem.
+ * That can't run on edge / Cloudflare Pages, so we hand-maintain a small
+ * spec here. Keep it terse — it's only exposed in dev (`/docs`).
+ */
 
-const options: swaggerJsdoc.Options = {
-  definition: {
-    openapi: "3.0.0",
-    info: {
-      title: "DApp template API",
-      version: "1.0.0",
-      description: "API documentation for the Next.js DApp template.",
-    },
-    components: {
-      schemas: {
-        HealthResponse: {
-          type: "object",
-          properties: {
-            message: {
-              type: "string",
-              description: "Health status message",
-              example: "OK",
-            },
-          },
-        },
-        ErrorResponse: {
-          type: "object",
-          properties: {
-            error: {
-              type: "string",
-              description: "Error message",
-              example: "An error occurred",
+export const swaggerSpec = {
+  openapi: "3.0.0",
+  info: {
+    title: "Echo API",
+    version: "0.1.0",
+    description: "Echo decentralized feedback & forms platform — internal API.",
+  },
+  paths: {
+    "/api/health": {
+      get: {
+        summary: "Health check",
+        tags: ["Health"],
+        responses: {
+          "200": {
+            description: "API is healthy",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/HealthResponse" },
+              },
             },
           },
         },
       },
     },
   },
-  apis: ["./src/app/api/**/route.ts"],
+  components: {
+    schemas: {
+      HealthResponse: {
+        type: "object",
+        properties: {
+          message: { type: "string", example: "OK" },
+        },
+      },
+    },
+  },
 };
-
-export const swaggerSpec = swaggerJsdoc(options);

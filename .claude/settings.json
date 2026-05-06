@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e 'let d=\"\";process.stdin.on(\"data\",c=>d+=c).on(\"end\",()=>{try{const i=JSON.parse(d);const cmd=(i.tool_input&&i.tool_input.command)||\"\";if(/git\\s+commit/.test(cmd)&&/(Co-Authored-By:\\s*Claude|claude\\.com\\/claude-code|Generated with .*Claude|\\bAnthropic\\b)/i.test(cmd)){process.stderr.write(\"Blocked: commit message contains Claude/Anthropic attribution. Remove Co-Authored-By, Generated-with, and any Claude/Anthropic mention, then retry.\\n\");process.exit(2)}}catch(e){}process.exit(0)})'"
+          }
+        ]
+      }
+    ]
+  }
+}

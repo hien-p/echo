@@ -1,9 +1,31 @@
-# Publish utilities
+# Publish utilities — Echo
+
+Used to publish the `move/echo` package to a Sui network.
 
 This package provides two main utilities:
 
 1. [development phase] Publish a Move package to a chosen Sui network
 2. [production phase] Get the unsigned bytes of the publish transaction to sign them by a multi-sig account / KMS.
+
+## Echo deploy quickstart
+
+```bash
+# 1. (one-time) create an admin keypair and fund it from the testnet faucet
+sui client new-address ed25519        # save the resulting Bech32 secret + address
+sui client switch --address <new-addr>
+sui client faucet                     # uses the default faucet for the active network
+
+# 2. fill publish/.env (see .env.example) with the new ADMIN_SECRET_KEY
+#    MOVE_PACKAGE_PATH=../move/echo is already set.
+
+# 3. publish from the repo root
+pnpm --filter publish run deploy
+
+# 4. Open publish/data/publish.json — copy the `packageId` value into
+#    dapp/.env as NEXT_PUBLIC_ECHO_PACKAGE_ID, then `pnpm build` the dapp.
+```
+
+After step 4 the form-builder at `/forms/new` will pick up the package ID and unblock saves.
 
 ## Prerequisites
 

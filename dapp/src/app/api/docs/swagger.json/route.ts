@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { swaggerSpec } from "@/lib/swagger";
 
+export const runtime = "edge";
+
+// swagger-jsdoc is dev-only because it scans the filesystem.
+// On production / Cloudflare Pages we stub a 404 to keep the bundle edge-safe.
 export async function GET() {
-  // Only allow access in development mode
   if (process.env.NODE_ENV !== "development") {
     return new NextResponse("Not Found", { status: 404 });
   }
-
+  const { swaggerSpec } = await import("@/lib/swagger");
   return NextResponse.json(swaggerSpec);
 }

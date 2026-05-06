@@ -1,0 +1,57 @@
+name: Commit Guard
+
+# Server-side enforcement of CLAUDE.md rule: no Claude/Anthropic attribution
+# in any commit message that lands on GitHub. Catches what the local
+# commit-msg hook misses — web UI edits, API commits, fresh clones that
+# never ran ./scripts/install-hooks.sh.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  no-ai-attribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine commit range
+        id: range
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "range=${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ] || [ -z "${{ github.event.before }}" ]; then
+            # New branch / first push — just check the head commit.
+            echo "range=-1 ${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "range=${{ github.event.before }}..${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Scan commit messages
+        run: |
+          set -e
+          range="${{ steps.range.outputs.range }}"
+          echo "scanning: $range"
+          echo ""
+          banned='(Co-Authored-By:[[:space:]]*Claude|claude\.com/claude-code|Generated with .*Claude|\bAnthropic\b|\bClaude\b)'
+          hits=$(git log --format='%H %s%n%B%n---END---' $range | grep -iEn "$banned" || true)
+          if [ -n "$hits" ]; then
+            echo "::error::commit message contains forbidden AI attribution"
+            echo ""
+            echo "Hits:"
+            echo "$hits"
+            echo ""
+            echo "Forbidden patterns:"
+            echo "  - Co-Authored-By: Claude"
+            echo "  - claude.com/claude-code"
+            echo "  - 'Generated with [Claude Code]' style footers"
+            echo "  - bare 'Claude' or 'Anthropic' mentions"
+            echo ""
+            echo "Fix: rewrite the commit messages (git rebase -i / git commit --amend)"
+            echo "and force-push. Do NOT bypass the local hook with --no-verify."
+            exit 1
+          fi
+          echo "ok — no forbidden attribution found"

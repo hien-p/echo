@@ -1,0 +1,447 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { clientConfig } from "@/config/clientConfig";
+import { cn } from "@/lib/utils";
+import {
+  PrivacyTier,
+  type FieldType,
+  type FormField,
+  type FormMetadata,
+  type FormSchema,
+} from "@/lib/echo/types";
+import { buildCreateFormTx } from "@/lib/echo/tx";
+
+const FIELD_TYPES: { value: FieldType; label: string }[] = [
+  { value: "short_text", label: "Short text" },
+  { value: "long_text", label: "Long text" },
+  { value: "rich_text", label: "Rich text" },
+  { value: "single_select", label: "Single select" },
+  { value: "multi_select", label: "Multi select" },
+  { value: "dropdown", label: "Dropdown" },
+  { value: "checkbox", label: "Checkbox" },
+  { value: "rating", label: "Star rating" },
+  { value: "file_upload", label: "File upload" },
+  { value: "screenshot", label: "Screenshot" },
+  { value: "video", label: "Video" },
+  { value: "url", label: "URL" },
+  { value: "date", label: "Date" },
+  { value: "time", label: "Time" },
+  { value: "signature", label: "Signature" },
+];
+
+const TIER_OPTIONS: { value: PrivacyTier; label: string; help: string }[] = [
+  {
+    value: PrivacyTier.Public,
+    label: "Public",
+    help: "Open submissions, plaintext on Walrus, indexed and searchable.",
+  },
+  {
+    value: PrivacyTier.AdminOnly,
+    label: "Admin only",
+    help: "Seal IBE — only the form owner can decrypt.",
+  },
+  {
+    value: PrivacyTier.Threshold,
+    label: "Threshold reveal",
+    help: "N-of-M admin shares required to decrypt.",
+  },
+  {
+    value: PrivacyTier.TimeLocked,
+    label: "Time-locked",
+    help: "Auto-decrypts after the configured timestamp.",
+  },
+  {
+    value: PrivacyTier.Conditional,
+    label: "Conditional",
+    help: "Decrypts when an on-chain policy is satisfied.",
+  },
+];
+
+let fieldCounter = 0;
+const newFieldId = () => `f${++fieldCounter}_${Date.now().toString(36)}`;
+
+const defaultField = (type: FieldType): FormField => {
+  const base = {
+    id: newFieldId(),
+    label: "Untitled question",
+    required: false,
+  };
+  switch (type) {
+    case "single_select":
+    case "multi_select":
+    case "dropdown":
+      return {
+        ...base,
+        type,
+        options: [
+          { value: "opt1", label: "Option 1" },
+          { value: "opt2", label: "Option 2" },
+        ],
+      };
+    case "rating":
+      return { ...base, type, scale: 5 };
+    case "file_upload":
+    case "screenshot":
+    case "video":
+      return { ...base, type, maxSizeBytes: 10 * 1024 * 1024 };
+    default:
+      return { ...base, type } as FormField;
+  }
+};
+
+export const FormBuilder = () => {
+  const currentAccount = useCurrentAccount();
+  const dAppKit = useDAppKit();
+
+  const [title, setTitle] = useState("Untitled feedback form");
+  const [description, setDescription] = useState("");
+  const [tier, setTier] = useState<PrivacyTier>(PrivacyTier.Public);
+  const [thresholdN, setThresholdN] = useState(2);
+  const [thresholdM, setThresholdM] = useState(3);
+  const [unlockMs, setUnlockMs] = useState("");
+  const [policyId, setPolicyId] = useState("");
+  const [fields, setFields] = useState<FormField[]>([
+    defaultField("short_text"),
+  ]);
+  const [status, setStatus] = useState<
+    | { kind: "idle" }
+    | { kind: "preview"; schemaJson: string; metaJson: string; tx: string }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
+
+  const packageId = clientConfig.ECHO_PACKAGE_ID;
+  const packageDeployed = packageId.length > 0 && packageId.startsWith("0x");
+
+  const schema = useMemo<FormSchema>(() => ({ version: 1, fields }), [fields]);
+  const metadata = useMemo<FormMetadata>(
+    () => ({ title, description: description || undefined }),
+    [title, description],
+  );
+
+  const addField = (type: FieldType) =>
+    setFields((curr) => [...curr, defaultField(type)]);
+  const removeField = (id: string) =>
+    setFields((curr) => curr.filter((f) => f.id !== id));
+  const moveField = (id: string, dir: -1 | 1) =>
+    setFields((curr) => {
+      const idx = curr.findIndex((f) => f.id === id);
+      const target = idx + dir;
+      if (idx < 0 || target < 0 || target >= curr.length) return curr;
+      const next = [...curr];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  const updateField = (id: string, patch: Partial<FormField>) =>
+    setFields((curr) =>
+      curr.map((f) => (f.id === id ? ({ ...f, ...patch } as FormField) : f)),
+    );
+
+  const handleSave = () => {
+    setStatus({ kind: "idle" });
+    if (!currentAccount) {
+      setStatus({ kind: "error", message: "Connect a wallet first." });
+      return;
+    }
+    if (!packageDeployed) {
+      setStatus({
+        kind: "error",
+        message:
+          "Echo package not deployed. Set NEXT_PUBLIC_ECHO_PACKAGE_ID after running publish/.",
+      });
+      return;
+    }
+
+    const tx = buildCreateFormTx({
+      packageId,
+      senderAddress: currentAccount.address,
+      // Real Walrus blob IDs land here once we wire a wallet-backed signer
+      // through `WalrusClient.writeBlobFlow` and dApp Kit. For now show the
+      // tx that would be sent with placeholders so the operator can verify
+      // params before signing.
+      schemaBlobId: "TODO_walrus_schema_blob_id",
+      metadataBlobId: "TODO_walrus_metadata_blob_id",
+      privacyTier: tier,
+      thresholdN: tier === PrivacyTier.Threshold ? thresholdN : 0,
+      thresholdM: tier === PrivacyTier.Threshold ? thresholdM : 0,
+      unlockMs:
+        tier === PrivacyTier.TimeLocked && unlockMs
+          ? BigInt(unlockMs)
+          : undefined,
+      conditionalPolicyId:
+        tier === PrivacyTier.Conditional ? policyId : undefined,
+    });
+
+    setStatus({
+      kind: "preview",
+      schemaJson: JSON.stringify(schema, null, 2),
+      metaJson: JSON.stringify(metadata, null, 2),
+      tx: JSON.stringify(tx.getData(), null, 2),
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-md">
+      <BuilderSection title="Metadata">
+        <Field label="Title">
+          <input
+            className="w-full border rounded px-2 py-1"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </Field>
+        <Field label="Description">
+          <textarea
+            className="w-full border rounded px-2 py-1 min-h-[60px]"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </Field>
+      </BuilderSection>
+
+      <BuilderSection title="Privacy tier">
+        <select
+          className="border rounded px-2 py-1 w-fit"
+          value={tier}
+          onChange={(e) => setTier(Number(e.target.value) as PrivacyTier)}
+        >
+          {TIER_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-sm text-muted-foreground">
+          {TIER_OPTIONS.find((o) => o.value === tier)?.help}
+        </p>
+        {tier === PrivacyTier.Threshold && (
+          <div className="flex gap-2 items-center">
+            <Field label="N (required)">
+              <input
+                type="number"
+                min={1}
+                max={thresholdM}
+                className="border rounded px-2 py-1 w-20"
+                value={thresholdN}
+                onChange={(e) => setThresholdN(Number(e.target.value))}
+              />
+            </Field>
+            <Field label="M (total)">
+              <input
+                type="number"
+                min={thresholdN}
+                className="border rounded px-2 py-1 w-20"
+                value={thresholdM}
+                onChange={(e) => setThresholdM(Number(e.target.value))}
+              />
+            </Field>
+          </div>
+        )}
+        {tier === PrivacyTier.TimeLocked && (
+          <Field label="Unlock at (unix ms)">
+            <input
+              className="border rounded px-2 py-1 w-full"
+              placeholder="1746000000000"
+              value={unlockMs}
+              onChange={(e) => setUnlockMs(e.target.value)}
+            />
+          </Field>
+        )}
+        {tier === PrivacyTier.Conditional && (
+          <Field label="Policy ID">
+            <input
+              className="border rounded px-2 py-1 w-full"
+              placeholder="airdrop_holder_v1"
+              value={policyId}
+              onChange={(e) => setPolicyId(e.target.value)}
+            />
+          </Field>
+        )}
+      </BuilderSection>
+
+      <BuilderSection title="Fields">
+        <ol className="flex flex-col gap-2">
+          {fields.map((f, i) => (
+            <li
+              key={f.id}
+              className="border rounded p-2 flex flex-col gap-2 bg-card"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-6">
+                  #{i + 1}
+                </span>
+                <select
+                  className="border rounded px-1 py-0.5 text-sm"
+                  value={f.type}
+                  onChange={(e) =>
+                    updateField(f.id, { type: e.target.value as FieldType })
+                  }
+                >
+                  {FIELD_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="border rounded px-2 py-1 flex-1"
+                  value={f.label}
+                  onChange={(e) => updateField(f.id, { label: e.target.value })}
+                />
+                <label className="flex items-center gap-1 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={!!f.required}
+                    onChange={(e) =>
+                      updateField(f.id, { required: e.target.checked })
+                    }
+                  />
+                  required
+                </label>
+                <button
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => moveField(f.id, -1)}
+                  disabled={i === 0}
+                  type="button"
+                  aria-label="Move up"
+                >
+                  <ArrowUp size={14} />
+                </button>
+                <button
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => moveField(f.id, 1)}
+                  disabled={i === fields.length - 1}
+                  type="button"
+                  aria-label="Move down"
+                >
+                  <ArrowDown size={14} />
+                </button>
+                <button
+                  className="text-destructive hover:opacity-80"
+                  onClick={() => removeField(f.id)}
+                  type="button"
+                  aria-label="Delete field"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="flex gap-2 items-center">
+          <select
+            className="border rounded px-2 py-1 text-sm"
+            id="add-field-type"
+            defaultValue="short_text"
+          >
+            {FIELD_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <button
+            className="border rounded px-3 py-1 text-sm flex items-center gap-1 hover:bg-accent"
+            onClick={() => {
+              const sel = document.getElementById(
+                "add-field-type",
+              ) as HTMLSelectElement | null;
+              if (sel) addField(sel.value as FieldType);
+            }}
+            type="button"
+          >
+            <Plus size={14} />
+            Add field
+          </button>
+        </div>
+      </BuilderSection>
+
+      <div className="flex flex-col gap-2">
+        <button
+          className={cn(
+            "border rounded px-4 py-2 font-medium",
+            currentAccount
+              ? "bg-foreground text-background hover:opacity-90"
+              : "opacity-60 cursor-not-allowed",
+          )}
+          onClick={handleSave}
+          type="button"
+          disabled={!currentAccount}
+        >
+          {currentAccount ? "Preview save" : "Connect wallet to save"}
+        </button>
+        {!packageDeployed && (
+          <p className="text-xs text-amber-600">
+            ⚠ NEXT_PUBLIC_ECHO_PACKAGE_ID is not set yet. Deploy the Move
+            package via <code>publish/</code> and add the resulting object ID to{" "}
+            <code>dapp/.env</code> to enable on-chain saves.
+          </p>
+        )}
+        {status.kind === "error" && (
+          <p className="text-sm text-destructive">{status.message}</p>
+        )}
+        {status.kind === "preview" && (
+          <details className="border rounded p-3 text-xs flex flex-col gap-2">
+            <summary className="cursor-pointer font-medium">
+              Preview — schema, metadata, and unsigned tx
+            </summary>
+            <div className="grid gap-2 mt-2">
+              <Pre
+                title="schema.json (Walrus payload)"
+                body={status.schemaJson}
+              />
+              <Pre
+                title="metadata.json (Walrus payload)"
+                body={status.metaJson}
+              />
+              <Pre title="create_form transaction" body={status.tx} />
+              <p className="text-muted-foreground">
+                Walrus upload + sign-and-execute via{" "}
+                <code>{dAppKit ? "dApp Kit" : "wallet"}</code> still needs a
+                wallet-backed Signer adapter. See{" "}
+                <code>src/lib/echo/walrus.ts</code>.
+              </p>
+            </div>
+          </details>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const BuilderSection = ({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) => (
+  <section className="flex flex-col gap-2">
+    <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
+      {title}
+    </h2>
+    <div className="flex flex-col gap-2">{children}</div>
+  </section>
+);
+
+const Field = ({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) => (
+  <label className="flex flex-col gap-1 text-sm">
+    <span className="text-muted-foreground text-xs">{label}</span>
+    {children}
+  </label>
+);
+
+const Pre = ({ title, body }: { title: string; body: string }) => (
+  <div>
+    <p className="text-muted-foreground mb-1">{title}</p>
+    <pre className="bg-muted p-2 rounded overflow-auto max-h-60">{body}</pre>
+  </div>
+);

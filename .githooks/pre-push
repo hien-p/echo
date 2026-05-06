@@ -1,0 +1,35 @@
+#!/bin/sh
+# Warn (don't block) if pushed commits didn't touch the devlog.
+# Skipped for branches whose only commits are docs/chore.
+
+remote="$1"
+logs_path="dapp/public/logs/index.html"
+zero="0000000000000000000000000000000000000000"
+
+while read local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue   # branch deletion
+  if [ "$remote_sha" = "$zero" ]; then
+    range="$local_sha"
+    files=$(git diff-tree --no-commit-id --name-only -r "$local_sha")
+  else
+    range="$remote_sha..$local_sha"
+    files=$(git diff --name-only "$range")
+  fi
+
+  # If every commit in the range is chore: or docs:, skip the nudge.
+  msgs=$(git log --format=%s "$range" 2>/dev/null)
+  if echo "$msgs" | grep -qvE '^(chore|docs)(\(|:)'; then
+    if ! echo "$files" | grep -qx "$logs_path"; then
+      cat >&2 <<EOF
+⚠ pre-push: commits in this push don't touch $logs_path
+
+Per CLAUDE.md, every user-visible change should add a card to the devlog.
+If this push is purely chore/docs, you can ignore this nudge.
+
+Push proceeding anyway.
+EOF
+    fi
+  fi
+done
+
+exit 0

@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "dApp Template",
+  title: "Echo — Decentralized Feedback & Forms",
   description:
-    "The dapp template to bootstrap production battle-ready dapps on Sui easily and quickly.",
+    "Walrus-native form platform with encrypted storage, on-chain composability, and zkLogin sign-in. Nobody builds this on Google Forms.",
 };
 
 export default function RootLayout({
@@ -26,9 +26,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-[100dvh] flex flex-col`}
+        suppressHydrationWarning
       >
         <SuiProvider>
           <Header />

@@ -1,0 +1,8 @@
+# Cloudflare Pages config for Echo dapp.
+# Deployed via `pnpm deploy:cf` (which runs next-on-pages then wrangler pages deploy).
+# URL: https://echo.pages.dev (or echo-<hash>.pages.dev if "echo" is taken globally).
+
+name = "echo"
+compatibility_date = "2026-05-06"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"

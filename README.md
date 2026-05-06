@@ -1,8 +1,14 @@
-# dapp-template
+# Echo — Decentralized Feedback & Form Platform
 
-The dapp template built by SolEng to bootstrap production battle-ready dapps easily and quickly.
+> Nobody builds this on Google Forms.
 
-Including UI dapp, move contracts, typescript sdk and e2e tests.
+Walrus-native form platform: structured feedback collection, encrypted storage (Seal), and on-chain composability (Sui). zkLogin via Enoki, SuiNS-branded shareable links, Memwal-powered conversational analytics.
+
+Codebase bootstrapped from the SolEng `dapp-template` (Next.js + Move + integration tests). Original template docs preserved below.
+
+---
+
+## Original template README
 
 ## Prerequisites
 

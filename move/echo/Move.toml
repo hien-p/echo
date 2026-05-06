@@ -1,0 +1,5 @@
+[package]
+name = "echo"
+edition = "2024"
+
+[dependencies]

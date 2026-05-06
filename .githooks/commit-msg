@@ -1,0 +1,19 @@
+#!/bin/sh
+# Reject commit messages that attribute the work to Claude / Anthropic.
+# Bypass with --no-verify is forbidden by CLAUDE.md; fix the message instead.
+
+msg_file="$1"
+if grep -qiE '(Co-Authored-By:[[:space:]]*Claude|claude\.com/claude-code|Generated with .*Claude|\bAnthropic\b|\bClaude\b)' "$msg_file"; then
+  cat >&2 <<'EOF'
+✗ commit-msg hook: message contains Claude/Anthropic attribution.
+
+Remove any of:
+  - "Co-Authored-By: Claude ..."
+  - "🤖 Generated with [Claude Code]" footers
+  - any "Claude" or "Anthropic" mention
+
+Then retry the commit. Do not bypass with --no-verify.
+EOF
+  exit 1
+fi
+exit 0
