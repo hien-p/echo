@@ -42,7 +42,16 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
 
-  /* ==== Spacing Tokens: Used for padding, margin, gap, and spacing classes ==== */
+  /* ==== Spacing Tokens: Used for padding, margin, gap, and spacing classes ====
+   *
+   * ⚠️ Tailwind 4 quirk: these t-shirt keys (xs..5xl) shadow the corresponding
+   * container tokens. So `max-w-3xl` resolves to `--spacing-3xl` (= 64px here)
+   * instead of the canonical 48rem. Workarounds tried:
+   *   - separate `@theme { --container-3xl: 48rem }` block → ignored
+   *   - `@theme inline { --container-3xl: 48rem }` → ignored
+   * For container widths use arbitrary values: `max-w-[768px]` instead of
+   * `max-w-3xl`. Same for `min-w-*` and `w-*` t-shirt utilities.
+   */
   --spacing-none: var(--size-0);
   --spacing-6xs: var(--size-1);
   --spacing-5xs: var(--size-2);
