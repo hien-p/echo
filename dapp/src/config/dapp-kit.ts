@@ -20,6 +20,14 @@ export const dAppKit = createDAppKit({
         ...(clientConfig.GOOGLE_CLIENT_ID && {
           google: {
             clientId: clientConfig.GOOGLE_CLIENT_ID,
+            // Pin to origin "/" so we only need to register a single URL in
+            // Google OAuth + Enoki, regardless of which page the user clicked
+            // sign-in from. Without this, the SDK uses window.location.href
+            // and every page (/forms/new, /logs, …) needs its own entry.
+            redirectUrl:
+              typeof window !== "undefined"
+                ? `${window.location.origin}/`
+                : undefined,
           },
         }),
       },
