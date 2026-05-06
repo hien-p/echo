@@ -13,6 +13,7 @@ export {
 } from "./walrus";
 export { getSealClient, encryptForTier, tierIdentity } from "./seal";
 export { WalletBackedSigner, makeWalletSigner } from "./walletSigner";
+export { executeSponsored } from "./sponsor";
 export {
   buildCreateFormTx,
   buildSubmitTx,

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   buildSubmitAnonymousTx,
   buildSubmitTx,
+  executeSponsored,
   getWalrusClient,
   makeWalletSigner,
   readJsonBlob,
@@ -196,7 +197,10 @@ function SubmitForm({
       setStatus({ kind: "submitting", step: "Uploading payload to Walrus…" });
       const { blobId } = await uploadJsonBlob(walrus, signer, payload);
 
-      setStatus({ kind: "submitting", step: "Submitting on chain…" });
+      setStatus({
+        kind: "submitting",
+        step: "Submitting on chain (gas sponsored)…",
+      });
       const tx = anonymous
         ? buildSubmitAnonymousTx({
             packageId,
@@ -210,17 +214,13 @@ function SubmitForm({
             payloadBlobId: blobId,
           });
 
-      const result = await dAppKit.signAndExecuteTransaction({
-        transaction: tx,
+      const { digest } = await executeSponsored({
+        tx,
+        sender: accountAddress,
+        suiClient,
+        dAppKit,
       });
-      if (result.$kind === "FailedTransaction") {
-        setStatus({
-          kind: "error",
-          message: `Submission failed: ${result.FailedTransaction.digest}`,
-        });
-        return;
-      }
-      setStatus({ kind: "submitted", digest: result.Transaction.digest });
+      setStatus({ kind: "submitted", digest });
     } catch (e) {
       setStatus({
         kind: "error",
