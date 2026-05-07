@@ -142,20 +142,32 @@ export const InsightsConsole = () => {
           onChange={(e) => setSelectedFormId(e.target.value)}
         >
           <option value="">— select a form —</option>
-          {forms.map((f) => (
-            <option
-              key={f.id}
-              value={f.id}
-              disabled={f.privacyTier !== 0}
-              title={
-                f.privacyTier !== 0
-                  ? "Encrypted tiers can't be indexed by Memwal"
-                  : ""
-              }
-            >
-              {f.title} {f.privacyTier !== 0 ? "(encrypted — skip)" : ""}
-            </option>
-          ))}
+          {forms.map((f) => {
+            const isPublic = f.privacyTier === 0;
+            const isTimeLocked = f.privacyTier === 3;
+            const indexableServerSide = isPublic || isTimeLocked;
+            const tag = isPublic
+              ? ""
+              : isTimeLocked
+                ? "(time-locked · indexable post-unlock)"
+                : "(admin-only · use browser indexer)";
+            return (
+              <option
+                key={f.id}
+                value={f.id}
+                disabled={!indexableServerSide}
+                title={
+                  isPublic
+                    ? "Public — server can index plaintext directly."
+                    : isTimeLocked
+                      ? "Time-locked — server auto-decrypts after unlock_ms via permissionless Seal policy."
+                      : "AdminOnly / Threshold / Conditional — needs browser-side indexer (admin signs SessionKey, decrypts locally, sends only embeddings)."
+                }
+              >
+                {f.title} {tag}
+              </option>
+            );
+          })}
         </select>
         {selected && (
           <div className="flex gap-2 items-center">
