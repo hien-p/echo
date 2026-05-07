@@ -30,8 +30,7 @@ import {
 } from "@/lib/echo/types";
 import { buildCreateFormTx } from "@/lib/echo/tx";
 import { executeSponsored } from "@/lib/echo/sponsor";
-import { getWalrusClient, uploadJsonBlob } from "@/lib/echo/walrus";
-import { makeWalletSigner } from "@/lib/echo/walletSigner";
+import { uploadJsonViaPublisher } from "@/lib/echo/walrus";
 import { FormPreview } from "./FormPreview";
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
@@ -248,6 +247,9 @@ export const FormBuilder = () => {
     | { kind: "saved"; formId: string }
     | { kind: "error"; message: string }
   >({ kind: "idle" });
+  const [mode, setMode] = useState<"visual" | "json">("visual");
+  const [jsonText, setJsonText] = useState("");
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
   const packageId = clientConfig.ECHO_PACKAGE_ID;
   const packageDeployed = packageId.length > 0 && packageId.startsWith("0x");
@@ -298,22 +300,18 @@ export const FormBuilder = () => {
 
     try {
       const suiClient = dAppKit.getClient();
-      const walrus = getWalrusClient(suiClient, clientConfig.WALRUS_NETWORK);
-      const signer = makeWalletSigner(dAppKit, currentAccount);
 
-      setStatus({ kind: "saving", step: "Uploading schema to Walrus…" });
-      const { blobId: schemaBlobId } = await uploadJsonBlob(
-        walrus,
-        signer,
-        schema,
-      );
+      setStatus({
+        kind: "saving",
+        step: "Uploading schema to Walrus (publisher)…",
+      });
+      const { blobId: schemaBlobId } = await uploadJsonViaPublisher(schema);
 
-      setStatus({ kind: "saving", step: "Uploading metadata to Walrus…" });
-      const { blobId: metadataBlobId } = await uploadJsonBlob(
-        walrus,
-        signer,
-        metadata,
-      );
+      setStatus({
+        kind: "saving",
+        step: "Uploading metadata to Walrus (publisher)…",
+      });
+      const { blobId: metadataBlobId } = await uploadJsonViaPublisher(metadata);
 
       setStatus({
         kind: "saving",
@@ -378,192 +376,293 @@ export const FormBuilder = () => {
     setStatus({ kind: "idle" });
   };
 
+  const enterJsonMode = () => {
+    setJsonText(
+      JSON.stringify(
+        {
+          metadata: { title, description },
+          tier,
+          schema,
+        },
+        null,
+        2,
+      ),
+    );
+    setJsonError(null);
+    setMode("json");
+  };
+
+  const applyJson = () => {
+    try {
+      const parsed = JSON.parse(jsonText) as {
+        metadata?: { title?: string; description?: string };
+        tier?: number;
+        schema?: { version?: number; fields?: FormField[] };
+      };
+      if (parsed.metadata?.title !== undefined) setTitle(parsed.metadata.title);
+      if (parsed.metadata?.description !== undefined)
+        setDescription(parsed.metadata.description);
+      if (parsed.tier !== undefined) setTier(parsed.tier as PrivacyTier);
+      if (Array.isArray(parsed.schema?.fields)) {
+        setFields(
+          parsed.schema!.fields!.map((f) => ({
+            ...f,
+            id: f.id ?? newFieldId(),
+          })),
+        );
+      }
+      setJsonError(null);
+      setMode("visual");
+    } catch (e) {
+      setJsonError(e instanceof Error ? e.message : "Invalid JSON");
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] gap-md">
       <div className="flex flex-col gap-md">
-        <BuilderSection title="Start from a template">
-          <div className="flex flex-wrap gap-2">
-            {TEMPLATES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => applyTemplate(t.id)}
-                className="border rounded px-3 py-1 text-sm hover:bg-accent"
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </BuilderSection>
-
-        <BuilderSection title="Metadata">
-          <Field label="Title">
-            <input
-              className="w-full border rounded px-2 py-1"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </Field>
-          <Field label="Description">
-            <textarea
-              className="w-full border rounded px-2 py-1 min-h-[60px]"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </Field>
-        </BuilderSection>
-
-        <BuilderSection title="Privacy tier">
-          <select
-            className="border rounded px-2 py-1 w-fit"
-            value={tier}
-            onChange={(e) => setTier(Number(e.target.value) as PrivacyTier)}
-          >
-            {TIER_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <p className="text-sm text-muted-foreground">
-            {TIER_OPTIONS.find((o) => o.value === tier)?.help}
-          </p>
-          {tier === PrivacyTier.Threshold && (
-            <div className="flex gap-2 items-center">
-              <Field label="N (required)">
-                <input
-                  type="number"
-                  min={1}
-                  max={thresholdM}
-                  className="border rounded px-2 py-1 w-20"
-                  value={thresholdN}
-                  onChange={(e) => setThresholdN(Number(e.target.value))}
-                />
-              </Field>
-              <Field label="M (total)">
-                <input
-                  type="number"
-                  min={thresholdN}
-                  className="border rounded px-2 py-1 w-20"
-                  value={thresholdM}
-                  onChange={(e) => setThresholdM(Number(e.target.value))}
-                />
-              </Field>
-            </div>
-          )}
-          {tier === PrivacyTier.TimeLocked && (
-            <Field label="Unlock at (unix ms)">
-              <input
-                className="border rounded px-2 py-1 w-full"
-                placeholder="1746000000000"
-                value={unlockMs}
-                onChange={(e) => setUnlockMs(e.target.value)}
-              />
-            </Field>
-          )}
-          {tier === PrivacyTier.Conditional && (
-            <Field label="Policy ID">
-              <input
-                className="border rounded px-2 py-1 w-full"
-                placeholder="airdrop_holder_v1"
-                value={policyId}
-                onChange={(e) => setPolicyId(e.target.value)}
-              />
-            </Field>
-          )}
-        </BuilderSection>
-
-        <BuilderSection title="Fields">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={fields.map((f) => f.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <ol className="flex flex-col gap-2">
-                {fields.map((f) => (
-                  <SortableFieldRow
-                    key={f.id}
-                    field={f}
-                    onUpdate={updateField}
-                    onRemove={removeField}
-                  />
-                ))}
-              </ol>
-            </SortableContext>
-          </DndContext>
-          <div className="flex gap-2 items-center">
-            <select
-              className="border rounded px-2 py-1 text-sm"
-              id="add-field-type"
-              defaultValue="short_text"
-            >
-              {FIELD_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <button
-              className="border rounded px-3 py-1 text-sm flex items-center gap-1 hover:bg-accent"
-              onClick={() => {
-                const sel = document.getElementById(
-                  "add-field-type",
-                ) as HTMLSelectElement | null;
-                if (sel) addField(sel.value as FieldType);
-              }}
-              type="button"
-            >
-              <Plus size={14} />
-              Add field
-            </button>
-          </div>
-        </BuilderSection>
-
-        <div className="flex flex-col gap-2">
-          <TierBadge
-            tier={tier}
-            thresholdN={thresholdN}
-            thresholdM={thresholdM}
-            unlockMs={unlockMs}
-          />
+        <div className="flex gap-2 text-xs">
           <button
-            className={cn(
-              "border rounded px-4 py-2 font-medium",
-              currentAccount && status.kind !== "saving"
-                ? "bg-foreground text-background hover:opacity-90"
-                : "opacity-60 cursor-not-allowed",
-            )}
-            onClick={() => void handleSave()}
             type="button"
-            disabled={!currentAccount || status.kind === "saving"}
+            onClick={() => setMode("visual")}
+            className={cn(
+              "border rounded px-3 py-1",
+              mode === "visual"
+                ? "bg-foreground text-background"
+                : "hover:bg-accent",
+            )}
           >
-            {status.kind === "saving"
-              ? status.step
-              : currentAccount
-                ? "Save form"
-                : "Connect wallet to save"}
+            Visual
           </button>
-          {!packageDeployed && (
-            <p className="text-xs text-amber-600">
-              ⚠ NEXT_PUBLIC_ECHO_PACKAGE_ID is not set yet. Deploy the Move
-              package via <code>publish/</code> and add the resulting object ID
-              to <code>dapp/.env</code> to enable on-chain saves.
-            </p>
-          )}
-          {status.kind === "error" && (
-            <p className="text-sm text-destructive">{status.message}</p>
-          )}
-          {status.kind === "saved" && (
-            <p className="text-sm text-emerald-700">
-              ✓ Form created. Redirecting to{" "}
-              <code>/forms/{status.formId.slice(0, 10)}…</code>
-            </p>
-          )}
+          <button
+            type="button"
+            onClick={enterJsonMode}
+            className={cn(
+              "border rounded px-3 py-1",
+              mode === "json"
+                ? "bg-foreground text-background"
+                : "hover:bg-accent",
+            )}
+          >
+            Edit JSON
+          </button>
         </div>
+
+        {mode === "json" && (
+          <BuilderSection title="Schema JSON">
+            <textarea
+              className="border rounded px-2 py-1 font-mono text-xs min-h-[400px]"
+              value={jsonText}
+              onChange={(e) => setJsonText(e.target.value)}
+              spellCheck={false}
+            />
+            <div className="flex gap-2 items-center">
+              <button
+                type="button"
+                onClick={applyJson}
+                className="border rounded px-3 py-1 text-sm bg-foreground text-background hover:opacity-90"
+              >
+                Apply &amp; switch back to visual
+              </button>
+              {jsonError && (
+                <span className="text-xs text-destructive">{jsonError}</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Edit <code>{`{ metadata, tier, schema }`}</code> directly. Apply
+              validates JSON before writing back to state. Visual save flow
+              still gates on chain-side validation.
+            </p>
+          </BuilderSection>
+        )}
+
+        {mode === "visual" && (
+          <>
+            <BuilderSection title="Start from a template">
+              <div className="flex flex-wrap gap-2">
+                {TEMPLATES.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => applyTemplate(t.id)}
+                    className="border rounded px-3 py-1 text-sm hover:bg-accent"
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </BuilderSection>
+
+            <BuilderSection title="Metadata">
+              <Field label="Title">
+                <input
+                  className="w-full border rounded px-2 py-1"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </Field>
+              <Field label="Description">
+                <textarea
+                  className="w-full border rounded px-2 py-1 min-h-[60px]"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </Field>
+            </BuilderSection>
+
+            <BuilderSection title="Privacy tier">
+              <select
+                className="border rounded px-2 py-1 w-fit"
+                value={tier}
+                onChange={(e) => setTier(Number(e.target.value) as PrivacyTier)}
+              >
+                {TIER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-muted-foreground">
+                {TIER_OPTIONS.find((o) => o.value === tier)?.help}
+              </p>
+              {tier === PrivacyTier.Threshold && (
+                <div className="flex gap-2 items-center">
+                  <Field label="N (required)">
+                    <input
+                      type="number"
+                      min={1}
+                      max={thresholdM}
+                      className="border rounded px-2 py-1 w-20"
+                      value={thresholdN}
+                      onChange={(e) => setThresholdN(Number(e.target.value))}
+                    />
+                  </Field>
+                  <Field label="M (total)">
+                    <input
+                      type="number"
+                      min={thresholdN}
+                      className="border rounded px-2 py-1 w-20"
+                      value={thresholdM}
+                      onChange={(e) => setThresholdM(Number(e.target.value))}
+                    />
+                  </Field>
+                </div>
+              )}
+              {tier === PrivacyTier.TimeLocked && (
+                <Field label="Unlock at (unix ms)">
+                  <input
+                    className="border rounded px-2 py-1 w-full"
+                    placeholder="1746000000000"
+                    value={unlockMs}
+                    onChange={(e) => setUnlockMs(e.target.value)}
+                  />
+                </Field>
+              )}
+              {tier === PrivacyTier.Conditional && (
+                <Field label="Policy ID">
+                  <input
+                    className="border rounded px-2 py-1 w-full"
+                    placeholder="airdrop_holder_v1"
+                    value={policyId}
+                    onChange={(e) => setPolicyId(e.target.value)}
+                  />
+                </Field>
+              )}
+            </BuilderSection>
+
+            <BuilderSection title="Fields">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={fields.map((f) => f.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <ol className="flex flex-col gap-2">
+                    {fields.map((f) => (
+                      <SortableFieldRow
+                        key={f.id}
+                        field={f}
+                        onUpdate={updateField}
+                        onRemove={removeField}
+                      />
+                    ))}
+                  </ol>
+                </SortableContext>
+              </DndContext>
+              <div className="flex gap-2 items-center">
+                <select
+                  className="border rounded px-2 py-1 text-sm"
+                  id="add-field-type"
+                  defaultValue="short_text"
+                >
+                  {FIELD_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="border rounded px-3 py-1 text-sm flex items-center gap-1 hover:bg-accent"
+                  onClick={() => {
+                    const sel = document.getElementById(
+                      "add-field-type",
+                    ) as HTMLSelectElement | null;
+                    if (sel) addField(sel.value as FieldType);
+                  }}
+                  type="button"
+                >
+                  <Plus size={14} />
+                  Add field
+                </button>
+              </div>
+            </BuilderSection>
+
+            <div className="flex flex-col gap-2">
+              <TierBadge
+                tier={tier}
+                thresholdN={thresholdN}
+                thresholdM={thresholdM}
+                unlockMs={unlockMs}
+              />
+              <button
+                className={cn(
+                  "border rounded px-4 py-2 font-medium",
+                  currentAccount && status.kind !== "saving"
+                    ? "bg-foreground text-background hover:opacity-90"
+                    : "opacity-60 cursor-not-allowed",
+                )}
+                onClick={() => void handleSave()}
+                type="button"
+                disabled={!currentAccount || status.kind === "saving"}
+              >
+                {status.kind === "saving"
+                  ? status.step
+                  : currentAccount
+                    ? "Save form"
+                    : "Connect wallet to save"}
+              </button>
+              {!packageDeployed && (
+                <p className="text-xs text-amber-600">
+                  ⚠ NEXT_PUBLIC_ECHO_PACKAGE_ID is not set yet. Deploy the Move
+                  package via <code>publish/</code> and add the resulting object
+                  ID to <code>dapp/.env</code> to enable on-chain saves.
+                </p>
+              )}
+              {status.kind === "error" && (
+                <p className="text-sm text-destructive">{status.message}</p>
+              )}
+              {status.kind === "saved" && (
+                <p className="text-sm text-emerald-700">
+                  ✓ Form created. Redirecting to{" "}
+                  <code>/forms/{status.formId.slice(0, 10)}…</code>
+                </p>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <aside className="hidden lg:block">

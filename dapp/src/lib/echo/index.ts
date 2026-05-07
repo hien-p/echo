@@ -8,6 +8,8 @@ export {
   getWalrusClient,
   uploadJsonBlob,
   uploadBytesBlob,
+  uploadJsonViaPublisher,
+  uploadBytesViaPublisher,
   readJsonBlob,
   readBytesBlob,
 } from "./walrus";

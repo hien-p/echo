@@ -73,6 +73,36 @@ export async function uploadBytesBlob(
   return { blobId: result.blobId, blobObjectId: result.blobObject.id };
 }
 
+/**
+ * Upload bytes through the /api/walrus/upload publisher proxy. Zero gas for
+ * the caller — the publisher pays. Falls back to throwing on non-2xx so the
+ * caller can surface the error.
+ */
+export async function uploadBytesViaPublisher(
+  bytes: Uint8Array,
+  opts?: { epochs?: number },
+): Promise<{ blobId: string }> {
+  const epochs = opts?.epochs ?? 5;
+  const resp = await fetch(`/api/walrus/upload?epochs=${epochs}`, {
+    method: "POST",
+    headers: { "content-type": "application/octet-stream" },
+    body: new Blob([bytes as unknown as ArrayBuffer]),
+  });
+  const data = (await resp.json()) as { blobId?: string; error?: string };
+  if (!resp.ok || !data.blobId) {
+    throw new Error(data.error ?? `publisher HTTP ${resp.status}`);
+  }
+  return { blobId: data.blobId };
+}
+
+export async function uploadJsonViaPublisher(
+  data: unknown,
+  opts?: { epochs?: number },
+): Promise<{ blobId: string }> {
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  return uploadBytesViaPublisher(bytes, opts);
+}
+
 /** Read a JSON-encoded blob and parse it. */
 export async function readJsonBlob<T = unknown>(
   client: WalrusClient,

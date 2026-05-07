@@ -14,11 +14,10 @@ import {
   executeSponsored,
   getSealClient,
   getWalrusClient,
-  makeWalletSigner,
   readJsonBlob,
   tierIdentity,
-  uploadBytesBlob,
-  uploadJsonBlob,
+  uploadBytesViaPublisher,
+  uploadJsonViaPublisher,
   type FormField,
   type FormMetadata,
   type FormSchema,
@@ -287,9 +286,6 @@ function SubmitForm({
       return;
     }
     try {
-      const walrus = getWalrusClient(suiClient, clientConfig.WALRUS_NETWORK);
-      const signer = makeWalletSigner(dAppKit, { address: accountAddress });
-
       const payload: SubmissionPayload = {
         schemaVersion,
         answers,
@@ -328,9 +324,9 @@ function SubmitForm({
         });
         setStatus({
           kind: "submitting",
-          step: "Uploading ciphertext to Walrus…",
+          step: "Uploading ciphertext to Walrus (publisher)…",
         });
-        const out = await uploadBytesBlob(walrus, signer, ciphertext);
+        const out = await uploadBytesViaPublisher(ciphertext);
         blobId = out.blobId;
       } else {
         if (!isPublic) {
@@ -339,8 +335,11 @@ function SubmitForm({
             "Echo: privacy tier !== Public but NEXT_PUBLIC_SEAL_KEY_SERVERS not set; uploading plaintext.",
           );
         }
-        setStatus({ kind: "submitting", step: "Uploading payload to Walrus…" });
-        const out = await uploadJsonBlob(walrus, signer, payload);
+        setStatus({
+          kind: "submitting",
+          step: "Uploading payload to Walrus (publisher)…",
+        });
+        const out = await uploadJsonViaPublisher(payload);
         blobId = out.blobId;
       }
 
