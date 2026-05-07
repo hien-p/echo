@@ -23,46 +23,207 @@ const FULLNODE =
   process.env.SUI_FULLNODE_URL ?? "https://fullnode.testnet.sui.io:443";
 const PROD_URL = "https://echo-20u.pages.dev";
 
-const SCHEMA = {
-  version: 1,
-  fields: [
-    {
-      id: "rating",
-      type: "rating",
-      label: "How was your Echo demo experience?",
-      scale: 5,
-      required: true,
-    },
-    {
-      id: "category",
-      type: "single_select",
-      label: "What did you try?",
-      required: true,
-      options: [
-        { value: "create", label: "Created a form" },
-        { value: "submit", label: "Submitted a response" },
-        { value: "admin", label: "Opened the admin viewer" },
-        { value: "browse", label: "Just clicked around" },
+// Pick a form to create via FORM env var (default = "demo").
+const FORM_KEY = process.env.FORM ?? "demo";
+
+interface FormSpec {
+  schema: { version: 1; fields: Array<Record<string, unknown>> };
+  metadata: { title: string; description: string };
+}
+
+const FORMS: Record<string, FormSpec> = {
+  demo: {
+    schema: {
+      version: 1,
+      fields: [
+        {
+          id: "rating",
+          type: "rating",
+          label: "How was your Echo demo experience?",
+          scale: 5,
+          required: true,
+        },
+        {
+          id: "category",
+          type: "single_select",
+          label: "What did you try?",
+          required: true,
+          options: [
+            { value: "create", label: "Created a form" },
+            { value: "submit", label: "Submitted a response" },
+            { value: "admin", label: "Opened the admin viewer" },
+            { value: "browse", label: "Just clicked around" },
+          ],
+        },
+        {
+          id: "feedback",
+          type: "long_text",
+          label: "Anything that worked well, or felt rough?",
+        },
+        {
+          id: "wallet",
+          type: "url",
+          label: "Twitter / GitHub link (optional)",
+        },
       ],
     },
-    {
-      id: "feedback",
-      type: "long_text",
-      label: "Anything that worked well, or felt rough?",
+    metadata: {
+      title: "Echo demo · try it out",
+      description:
+        "Submit anything — gas is sponsored by Enoki, your answer lands on Walrus, the chain records the SubmissionRef. Feedback informs the v0.2 roadmap.",
     },
-    {
-      id: "wallet",
-      type: "url",
-      label: "Twitter / GitHub link (optional)",
+  },
+
+  hackathon: {
+    schema: {
+      version: 1,
+      fields: [
+        {
+          id: "project",
+          type: "short_text",
+          label: "What did you build?",
+          required: true,
+        },
+        {
+          id: "stack",
+          type: "multi_select",
+          label: "Mysten primitives you used",
+          options: [
+            { value: "sui", label: "Sui Move" },
+            { value: "walrus", label: "Walrus" },
+            { value: "seal", label: "Seal" },
+            { value: "enoki", label: "Enoki / zkLogin" },
+            { value: "memwal", label: "Memwal" },
+            { value: "suins", label: "SuiNS" },
+          ],
+        },
+        { id: "demo", type: "url", label: "Live demo URL", required: true },
+        {
+          id: "story",
+          type: "long_text",
+          label: "What problem does it solve and what's next?",
+          required: true,
+        },
+        {
+          id: "shoutout",
+          type: "short_text",
+          label: "Anyone you want to shout out? (optional)",
+        },
+      ],
     },
-  ],
+    metadata: {
+      title: "What did you build at the hackathon?",
+      description:
+        "Share your project. Public form — answers go in the recap. Anonymous mode available if you'd rather skip the credit.",
+    },
+  },
+
+  roadmap: {
+    schema: {
+      version: 1,
+      fields: [
+        {
+          id: "nps",
+          type: "rating",
+          label:
+            "0 = haven't tried Echo yet, 10 = already replacing Google Forms",
+          scale: 10,
+          required: true,
+        },
+        {
+          id: "priority",
+          type: "single_select",
+          label: "Which v0.2 feature should ship first?",
+          required: true,
+          options: [
+            { value: "a", label: "Browser-side indexer for encrypted tiers" },
+            {
+              value: "b",
+              label: "Seal threshold reveal UI (N-of-M admin sigs)",
+            },
+            { value: "c", label: "Form templates marketplace (Walrus blobs)" },
+            { value: "d", label: "Mainnet deploy" },
+            { value: "e", label: "More privacy primitives — TLSN, nullifier" },
+          ],
+        },
+        {
+          id: "rough",
+          type: "long_text",
+          label: "Where did Echo feel rough today?",
+        },
+        {
+          id: "wishlist",
+          type: "long_text",
+          label: "What's missing? (one idea per line)",
+        },
+      ],
+    },
+    metadata: {
+      title: "Echo v0.2 — what should ship first?",
+      description:
+        "Public form. We'll RAG over the answers via /insights and prioritize the next sprint. ~60 seconds.",
+    },
+  },
+
+  bug: {
+    schema: {
+      version: 1,
+      fields: [
+        {
+          id: "where",
+          type: "short_text",
+          label: "Which page or flow broke?",
+          required: true,
+          placeholder: "e.g. /forms/new save flow",
+        },
+        {
+          id: "expected",
+          type: "long_text",
+          label: "What did you expect to happen?",
+          required: true,
+        },
+        {
+          id: "actual",
+          type: "long_text",
+          label: "What actually happened?",
+          required: true,
+        },
+        {
+          id: "severity",
+          type: "single_select",
+          label: "Severity",
+          required: true,
+          options: [
+            { value: "low", label: "Low — annoyance" },
+            { value: "med", label: "Medium — workaround exists" },
+            { value: "high", label: "High — blocks my work" },
+            { value: "crit", label: "Critical — data loss / security" },
+          ],
+        },
+        {
+          id: "screenshot",
+          type: "url",
+          label: "Screenshot or recording link",
+        },
+      ],
+    },
+    metadata: {
+      title: "Echo bug report",
+      description:
+        "Found something broken? Steps + expected vs actual + screenshot link helps us reproduce in minutes.",
+    },
+  },
 };
 
-const METADATA = {
-  title: "Echo demo · try it out",
-  description:
-    "Submit anything — gas is sponsored by Enoki, your answer lands on Walrus, the chain records the SubmissionRef. Feedback informs the v0.2 roadmap.",
-};
+const SELECTED = FORMS[FORM_KEY];
+if (!SELECTED) {
+  console.error(
+    `Unknown FORM=${FORM_KEY}. Available: ${Object.keys(FORMS).join(", ")}`,
+  );
+  process.exit(1);
+}
+const SCHEMA = SELECTED.schema;
+const METADATA = SELECTED.metadata;
 
 async function uploadJson(data: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify(data));
