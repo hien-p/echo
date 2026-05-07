@@ -6,7 +6,7 @@ import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { Database, Sparkles } from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
-import { getWalrusClient, readJsonBlob, type FormMetadata } from "@/lib/echo";
+import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 
 interface OnChainForm {
   metadata_blob_id: string;
@@ -52,7 +52,7 @@ export const InsightsConsole = () => {
         objectIds: ids,
         include: { json: true },
       });
-      const walrus = getWalrusClient(suiClient, clientConfig.WALRUS_NETWORK);
+      const network = clientConfig.WALRUS_NETWORK;
       return Promise.all(
         formObjs.objects.map(async (obj) => {
           const fobj = obj as unknown as {
@@ -61,9 +61,9 @@ export const InsightsConsole = () => {
           };
           let title = "(metadata unavailable)";
           try {
-            const meta = await readJsonBlob<FormMetadata>(
-              walrus,
+            const meta = await readJsonViaAggregator<FormMetadata>(
               fobj.json.metadata_blob_id,
+              { network },
             );
             title = meta.title;
           } catch {

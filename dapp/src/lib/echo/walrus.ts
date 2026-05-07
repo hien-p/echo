@@ -118,3 +118,139 @@ export async function readBytesBlob(
 ): Promise<Uint8Array> {
   return client.readBlob({ blobId });
 }
+
+// ===========================================================================
+// Aggregator-based reads (FAST path).
+//
+// WalrusClient.readBlob spins up the wasm sliver-reconstruction client; for
+// public blobs that ~5-10s warm-up is wasted work — the network already runs
+// CDN-fronted aggregator HTTP endpoints that serve the reconstructed bytes
+// over a single GET. Use these for schema/metadata/payload reads.
+//
+// Walrus blob IDs are content-addressed (BLAKE2b of contents), so they're
+// immutable. We cache by id in localStorage forever — first hit ~200-500ms,
+// repeat hits ~instant.
+// ===========================================================================
+
+const DEFAULT_TESTNET_AGGREGATORS = [
+  "https://aggregator.walrus-testnet.walrus.space",
+  "https://wal-aggregator-testnet.staketab.org",
+  "https://walrus-testnet-aggregator.nodes.guru",
+];
+const DEFAULT_MAINNET_AGGREGATORS = [
+  "https://aggregator.walrus.space",
+  "https://wal-aggregator-mainnet.staketab.org",
+];
+
+function aggregatorList(network: "testnet" | "mainnet"): string[] {
+  const env =
+    typeof process !== "undefined"
+      ? process.env.NEXT_PUBLIC_WALRUS_AGGREGATOR_URL
+      : "";
+  if (env)
+    return env
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  return network === "mainnet"
+    ? DEFAULT_MAINNET_AGGREGATORS
+    : DEFAULT_TESTNET_AGGREGATORS;
+}
+
+const CACHE_PREFIX = "echo:walrus:";
+const CACHE_VERSION = "v1";
+
+function cacheKey(blobId: string): string {
+  return `${CACHE_PREFIX}${CACHE_VERSION}:${blobId}`;
+}
+
+function readCache(blobId: string): string | null {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    return localStorage.getItem(cacheKey(blobId));
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(blobId: string, base64: string): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(cacheKey(blobId), base64);
+  } catch {
+    // Quota exceeded — best-effort eviction of older entries.
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(CACHE_PREFIX)) localStorage.removeItem(k);
+      }
+      localStorage.setItem(cacheKey(blobId), base64);
+    } catch {
+      /* give up */
+    }
+  }
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return typeof btoa !== "undefined"
+    ? btoa(s)
+    : Buffer.from(bytes).toString("base64");
+}
+function base64ToBytes(s: string): Uint8Array {
+  const bin =
+    typeof atob !== "undefined"
+      ? atob(s)
+      : Buffer.from(s, "base64").toString("binary");
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/**
+ * Read raw bytes for a blob via the public Walrus aggregator HTTP endpoint.
+ * Tries each aggregator in turn until one succeeds. Result cached forever
+ * (blobs are content-addressed, can't change).
+ */
+export async function readBytesViaAggregator(
+  blobId: string,
+  opts?: { network?: "testnet" | "mainnet"; signal?: AbortSignal },
+): Promise<Uint8Array> {
+  const cached = readCache(blobId);
+  if (cached) return base64ToBytes(cached);
+
+  const network = opts?.network ?? "testnet";
+  const aggregators = aggregatorList(network);
+  let lastErr: unknown = null;
+  for (const base of aggregators) {
+    try {
+      const resp = await fetch(
+        `${base.replace(/\/$/, "")}/v1/blobs/${blobId}`,
+        { signal: opts?.signal },
+      );
+      if (!resp.ok) {
+        lastErr = new Error(`${base} HTTP ${resp.status}`);
+        continue;
+      }
+      const bytes = new Uint8Array(await resp.arrayBuffer());
+      writeCache(blobId, bytesToBase64(bytes));
+      return bytes;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw new Error(
+    `All aggregators failed for ${blobId}: ${
+      lastErr instanceof Error ? lastErr.message : String(lastErr)
+    }`,
+  );
+}
+
+export async function readJsonViaAggregator<T = unknown>(
+  blobId: string,
+  opts?: { network?: "testnet" | "mainnet"; signal?: AbortSignal },
+): Promise<T> {
+  const bytes = await readBytesViaAggregator(blobId, opts);
+  return JSON.parse(new TextDecoder().decode(bytes)) as T;
+}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { clientConfig } from "@/config/clientConfig";
-import { getWalrusClient, readJsonBlob, type FormMetadata } from "@/lib/echo";
+import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 
 interface OwnedCap {
   objectId: string;
@@ -60,7 +60,7 @@ export const FormList = () => {
         objectIds: formIds,
         include: { json: true },
       });
-      const walrus = getWalrusClient(suiClient, clientConfig.WALRUS_NETWORK);
+      const network = clientConfig.WALRUS_NETWORK;
       const items = await Promise.all(
         formObjs.objects.map(async (obj) => {
           const asUnknown = obj as unknown as Record<string, unknown>;
@@ -71,9 +71,9 @@ export const FormList = () => {
           };
           let title = "(metadata unavailable)";
           try {
-            const meta = await readJsonBlob<FormMetadata>(
-              walrus,
+            const meta = await readJsonViaAggregator<FormMetadata>(
               fobj.json.metadata_blob_id,
+              { network },
             );
             title = meta.title;
           } catch {

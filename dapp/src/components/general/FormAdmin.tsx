@@ -19,9 +19,8 @@ import {
   buildCloseFormTx,
   buildSealApproveTxBytes,
   getSealClient,
-  getWalrusClient,
-  readBytesBlob,
-  readJsonBlob,
+  readBytesViaAggregator,
+  readJsonViaAggregator,
   SessionKey,
   tierIdentity,
   type FormMetadata,
@@ -91,14 +90,14 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       });
       const onChain = resp.object.json as OnChainForm | null;
       if (!onChain) throw new Error("Form not found.");
-      const walrus = getWalrusClient(suiClient, clientConfig.WALRUS_NETWORK);
+      const network = clientConfig.WALRUS_NETWORK;
       const [schema, metadata] = await Promise.all([
-        readJsonBlob<FormSchema>(walrus, onChain.schema_blob_id).catch(
-          () => null,
-        ),
-        readJsonBlob<FormMetadata>(walrus, onChain.metadata_blob_id).catch(
-          () => ({ title: "(metadata unavailable)" }),
-        ),
+        readJsonViaAggregator<FormSchema>(onChain.schema_blob_id, {
+          network,
+        }).catch(() => null),
+        readJsonViaAggregator<FormMetadata>(onChain.metadata_blob_id, {
+          network,
+        }).catch(() => ({ title: "(metadata unavailable)" })),
       ]);
       return { onChain, schema, metadata };
     },
@@ -140,7 +139,7 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
         eventType,
       );
       const rows = events.filter((e) => e.form_id === formId);
-      const walrus = getWalrusClient(suiClient, clientConfig.WALRUS_NETWORK);
+      const network = clientConfig.WALRUS_NETWORK;
 
       const isPublic = formQuery.data?.onChain.privacy_tier === 0;
 
@@ -159,9 +158,9 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
           let payloadError: string | undefined;
           if (isPublic && payloadBlobId) {
             try {
-              payload = await readJsonBlob<SubmissionPayload>(
-                walrus,
+              payload = await readJsonViaAggregator<SubmissionPayload>(
                 payloadBlobId,
+                { network },
               );
             } catch (err) {
               payloadError = err instanceof Error ? err.message : String(err);
@@ -444,9 +443,10 @@ function SubmissionRowView({
         >[0]["suiClient"],
       });
 
-      // Fetch encrypted ciphertext bytes from Walrus.
-      const walrus = getWalrusClient(suiClient, clientConfig.WALRUS_NETWORK);
-      const ciphertext = await readBytesBlob(walrus, row.payloadBlobId);
+      // Fetch encrypted ciphertext bytes from Walrus aggregator (cached).
+      const ciphertext = await readBytesViaAggregator(row.payloadBlobId, {
+        network: clientConfig.WALRUS_NETWORK,
+      });
 
       const threshold = privacyTier === PrivacyTier.Threshold ? 1 : 1; // form's own threshold; for now 1
       await seal.fetchKeys({

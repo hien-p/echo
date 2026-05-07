@@ -13,8 +13,7 @@ import {
   encryptForTier,
   executeSponsored,
   getSealClient,
-  getWalrusClient,
-  readJsonBlob,
+  readJsonViaAggregator,
   tierIdentity,
   uploadBytesViaPublisher,
   uploadJsonViaPublisher,
@@ -68,10 +67,12 @@ export const FormViewer = ({ formId }: { formId: string }) => {
       });
       const onChain = resp.object.json as OnChainForm | null;
       if (!onChain) throw new Error("Form has no JSON content; bad object id?");
-      const walrus = getWalrusClient(suiClient, clientConfig.WALRUS_NETWORK);
+      const network = clientConfig.WALRUS_NETWORK;
       const [schema, metadata] = await Promise.all([
-        readJsonBlob<FormSchema>(walrus, onChain.schema_blob_id),
-        readJsonBlob<FormMetadata>(walrus, onChain.metadata_blob_id),
+        readJsonViaAggregator<FormSchema>(onChain.schema_blob_id, { network }),
+        readJsonViaAggregator<FormMetadata>(onChain.metadata_blob_id, {
+          network,
+        }),
       ]);
       return { onChain, schema, metadata };
     },

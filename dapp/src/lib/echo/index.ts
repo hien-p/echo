@@ -12,6 +12,8 @@ export {
   uploadBytesViaPublisher,
   readJsonBlob,
   readBytesBlob,
+  readJsonViaAggregator,
+  readBytesViaAggregator,
 } from "./walrus";
 export {
   getSealClient,
