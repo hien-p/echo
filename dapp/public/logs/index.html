@@ -162,6 +162,29 @@
         <article class="log-card" data-date="2026-05-07">
           <header>
             <time datetime="2026-05-07">2026-05-07</time>
+            <span class="log-tag" data-tag="refactor">refactor</span>
+          </header>
+          <h3>FormAdmin loads ~40% faster + node runtime fix</h3>
+          <p>
+            <code>/forms/[id]/admin</code> previously chained
+            <code>formQuery</code> → <code>submissionsQuery</code> sequentially
+            and re-fetched every 200 SubmissionMade events globally just to
+            client-filter to the form. Split into parallel
+            <code>submissionEventsQuery</code> (server-side filtered by
+            form_id via <code>All+MoveEventField</code>, falls back gracefully)
+            and a downstream payload-enrichment stage that only runs for
+            Public tier. Added <code>staleTime</code> across the three queries
+            so navigation back doesn't trigger fresh reads. Decrypt routes
+            switched to <code>nodejs</code> runtime (Edge sandbox lacked
+            <code>AbortSignal.any</code> needed by @mysten/seal) and stopped
+            using <code>WalrusClient.readBlob</code> in favor of HTTP
+            aggregator fetches (~1s vs 60s).
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-07">
+          <header>
+            <time datetime="2026-05-07">2026-05-07</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
           <h3>Browser-driven Insights indexer (zero-trust path)</h3>

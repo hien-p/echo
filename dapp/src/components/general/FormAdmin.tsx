@@ -105,6 +105,10 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       return { onChain, schema, metadata };
     },
     enabled: formId.startsWith("0x"),
+    // Form on-chain object is mostly stable (status flips rarely, schema
+    // never changes via this page). Schema/metadata are content-addressed.
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const ownerCapQuery = useQuery({
@@ -126,63 +130,109 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       return match?.objectId ?? null;
     },
     enabled: !!account?.address && packageId.startsWith("0x"),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
+  // Stage A: events + on-chain submission objects (tier-independent — runs
+  // in parallel with formQuery instead of waiting on it).
+  const submissionEventsQuery = useQuery({
+    queryKey: ["echo", "submissions-events", formId],
+    queryFn: async (): Promise<
+      Array<{
+        submissionId: string;
+        submitter: string;
+        anonymous: boolean;
+        submittedAt: string;
+        payloadBlobId: string;
+      }>
+    > => {
+      const eventType = `${packageId}::submission::SubmissionMade`;
+      // Server-side filter by form_id when supported. Falls back to the
+      // global type-only query and client-filters if the RPC doesn't
+      // accept the All+MoveEventField shape.
+      const events = await queryEventsByFormId(
+        clientConfig.SUI_FULLNODE_URL,
+        eventType,
+        formId,
+      );
+      if (events.length === 0) return [];
+      // Batch all submission getObject calls in one round-trip.
+      const subObjs = await suiClient.getObjects({
+        objectIds: events.map((e) => e.submission_id),
+        include: { json: true },
+      });
+      const byId = new Map<string, OnChainSubmissionRef>();
+      for (const obj of subObjs.objects as unknown as Array<{
+        objectId: string;
+        json?: OnChainSubmissionRef;
+      }>) {
+        if (obj.json) byId.set(obj.objectId, obj.json);
+      }
+      return events.map((e) => {
+        const sub = byId.get(e.submission_id);
+        return {
+          submissionId: e.submission_id,
+          submitter: e.submitter,
+          anonymous: e.anonymous,
+          submittedAt: sub
+            ? new Date(Number(sub.submitted_ms)).toISOString()
+            : "(unknown)",
+          payloadBlobId: sub?.payload_blob_id ?? "",
+        };
+      });
+    },
+    enabled: packageId.startsWith("0x") && formId.startsWith("0x"),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Stage B: enrich rows with payload bytes for Public tier only. Splits off
+  // so encrypted forms render rows immediately without waiting for any blob.
   const submissionsQuery = useQuery({
     queryKey: [
       "echo",
       "submissions",
       formId,
       formQuery.data?.onChain.privacy_tier,
+      submissionEventsQuery.data?.length ?? 0,
     ],
     queryFn: async (): Promise<SubmissionRow[]> => {
-      const eventType = `${packageId}::submission::SubmissionMade`;
-      const events = await jsonRpcQueryEvents(
-        clientConfig.SUI_FULLNODE_URL,
-        eventType,
-      );
-      const rows = events.filter((e) => e.form_id === formId);
-      const network = clientConfig.WALRUS_NETWORK;
-
+      const baseRows = submissionEventsQuery.data ?? [];
       const isPublic = formQuery.data?.onChain.privacy_tier === 0;
-
+      const network = clientConfig.WALRUS_NETWORK;
+      if (!isPublic) {
+        return baseRows.map((r) => ({
+          ...r,
+          payload: null,
+          encrypted: true,
+        }));
+      }
+      // Public — fetch payload bytes in parallel.
       return Promise.all(
-        rows.map(async (e): Promise<SubmissionRow> => {
-          const subResp = await suiClient.getObject({
-            objectId: e.submission_id,
-            include: { json: true },
-          });
-          const sub = subResp.object.json as OnChainSubmissionRef | null;
-          const submittedAt = sub
-            ? new Date(Number(sub.submitted_ms)).toISOString()
-            : "(unknown)";
-          const payloadBlobId = sub?.payload_blob_id ?? "";
+        baseRows.map(async (r): Promise<SubmissionRow> => {
           let payload: SubmissionPayload | null = null;
           let payloadError: string | undefined;
-          if (isPublic && payloadBlobId) {
+          if (r.payloadBlobId) {
             try {
               payload = await readJsonViaAggregator<SubmissionPayload>(
-                payloadBlobId,
+                r.payloadBlobId,
                 { network },
               );
             } catch (err) {
               payloadError = err instanceof Error ? err.message : String(err);
             }
           }
-          return {
-            submissionId: e.submission_id,
-            submitter: e.submitter,
-            anonymous: e.anonymous,
-            submittedAt,
-            payloadBlobId,
-            payload,
-            payloadError,
-            encrypted: !isPublic,
-          };
+          return { ...r, payload, payloadError, encrypted: false };
         }),
       );
     },
-    enabled: !!formQuery.data && packageId.startsWith("0x"),
+    enabled:
+      !!submissionEventsQuery.data &&
+      !!formQuery.data &&
+      packageId.startsWith("0x"),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   const closeMutation = useMutation({
@@ -858,6 +908,54 @@ async function jsonRpcQueryEvents(
   return (data.result?.data ?? [])
     .map((e) => e.parsedJson)
     .filter((p): p is SubmissionEvent => !!p);
+}
+
+/**
+ * Fetch SubmissionMade events scoped to a single form. Uses the All+
+ * MoveEventField filter so the RPC returns only matching rows — much
+ * faster than the global 200-event scan when testnet has many other
+ * forms emitting the same event type. Falls back to the global type-only
+ * query if the RPC rejects the combined filter.
+ */
+async function queryEventsByFormId(
+  fullnodeUrl: string,
+  moveEventType: string,
+  formId: string,
+): Promise<SubmissionEvent[]> {
+  try {
+    const resp = await fetch(fullnodeUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "suix_queryEvents",
+        params: [
+          {
+            All: [
+              { MoveEventType: moveEventType },
+              { MoveEventField: { path: "/form_id", value: formId } },
+            ],
+          },
+          null,
+          200,
+          true,
+        ],
+      }),
+    });
+    const data = (await resp.json()) as {
+      result?: { data?: Array<{ parsedJson?: SubmissionEvent }> };
+      error?: unknown;
+    };
+    if (data.error) throw new Error(JSON.stringify(data.error));
+    return (data.result?.data ?? [])
+      .map((e) => e.parsedJson)
+      .filter((p): p is SubmissionEvent => !!p);
+  } catch {
+    // Some RPCs reject the All+MoveEventField combination — fall back.
+    const all = await jsonRpcQueryEvents(fullnodeUrl, moveEventType);
+    return all.filter((e) => e.form_id === formId);
+  }
 }
 
 function exportCsv(
