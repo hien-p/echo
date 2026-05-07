@@ -8,7 +8,9 @@ interface QueryRequest {
   question: string;
 }
 
-const DEFAULT_MODEL = "anthropic/claude-3.5-sonnet";
+// Defaults to gpt-4o-mini — cheapest workable RAG model on OpenRouter.
+// Override with OPENROUTER_MODEL for higher-fidelity providers.
+const DEFAULT_MODEL = "openai/gpt-4o-mini";
 
 /**
  * RAG over a form's Memwal namespace via OpenRouter.
