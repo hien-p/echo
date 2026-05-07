@@ -58,6 +58,10 @@ export async function POST(request: Request) {
       transactionKindBytes: body.transactionKindBytes,
       sender: body.sender,
       allowedMoveCallTargets: [
+        `${ECHO_PACKAGE_ID}::form::create_form`,
+        `${ECHO_PACKAGE_ID}::form::close_form`,
+        `${ECHO_PACKAGE_ID}::form::archive_form`,
+        `${ECHO_PACKAGE_ID}::form::update_schema`,
         `${ECHO_PACKAGE_ID}::submission::submit`,
         `${ECHO_PACKAGE_ID}::submission::submit_anonymous`,
         `${ECHO_PACKAGE_ID}::reputation::mint`,

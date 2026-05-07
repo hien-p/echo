@@ -29,6 +29,7 @@ import {
   type FormSchema,
 } from "@/lib/echo/types";
 import { buildCreateFormTx } from "@/lib/echo/tx";
+import { executeSponsored } from "@/lib/echo/sponsor";
 import { getWalrusClient, uploadJsonBlob } from "@/lib/echo/walrus";
 import { makeWalletSigner } from "@/lib/echo/walletSigner";
 import { FormPreview } from "./FormPreview";
@@ -314,7 +315,10 @@ export const FormBuilder = () => {
         metadata,
       );
 
-      setStatus({ kind: "saving", step: "Creating form on chain…" });
+      setStatus({
+        kind: "saving",
+        step: "Creating form on chain (gas sponsored)…",
+      });
       const tx = buildCreateFormTx({
         packageId,
         senderAddress: currentAccount.address,
@@ -331,21 +335,17 @@ export const FormBuilder = () => {
           tier === PrivacyTier.Conditional ? policyId : undefined,
       });
 
-      const result = await dAppKit.signAndExecuteTransaction({
-        transaction: tx,
+      const sponsored = await executeSponsored({
+        tx,
+        sender: currentAccount.address,
+        suiClient,
+        dAppKit,
+        waitForEffects: true,
       });
-
-      if (result.$kind === "FailedTransaction") {
-        setStatus({
-          kind: "error",
-          message: `Transaction failed: ${result.FailedTransaction.digest}`,
-        });
-        return;
-      }
 
       // Form is the only shared object created in this tx; FormOwnerCap is
       // address-owned. Filter changedObjects to find the Created+Shared one.
-      const created = result.Transaction.effects?.changedObjects ?? [];
+      const created = sponsored.effects?.changedObjects ?? [];
       const formChange = created.find(
         (c) => c.idOperation === "Created" && c.outputOwner?.$kind === "Shared",
       );
@@ -353,7 +353,7 @@ export const FormBuilder = () => {
       if (!formId) {
         setStatus({
           kind: "error",
-          message: `Form created but couldn't find shared object id. Tx digest: ${result.Transaction.digest}`,
+          message: `Form created (digest ${sponsored.digest.slice(0, 12)}…) but couldn't extract Form id from effects. Open My forms to see it.`,
         });
         return;
       }
@@ -728,6 +728,77 @@ const SortableFieldRow = ({
           <Trash2 size={14} />
         </button>
       </div>
+      {(field.type === "single_select" ||
+        field.type === "multi_select" ||
+        field.type === "dropdown") && (
+        <OptionsEditor
+          options={field.options}
+          onChange={(options) => onUpdate(field.id, { options })}
+        />
+      )}
     </li>
+  );
+};
+
+const OptionsEditor = ({
+  options,
+  onChange,
+}: {
+  options: { value: string; label: string }[];
+  onChange: (next: { value: string; label: string }[]) => void;
+}) => {
+  const update = (
+    i: number,
+    patch: Partial<{ value: string; label: string }>,
+  ) => onChange(options.map((o, j) => (i === j ? { ...o, ...patch } : o)));
+  const remove = (i: number) => onChange(options.filter((_, j) => j !== i));
+  const add = () => {
+    const next = `opt${options.length + 1}`;
+    onChange([
+      ...options,
+      { value: next, label: `Option ${options.length + 1}` },
+    ]);
+  };
+
+  return (
+    <details className="text-xs flex flex-col gap-1 ml-6 border-l pl-2" open>
+      <summary className="cursor-pointer text-muted-foreground select-none">
+        Options ({options.length})
+      </summary>
+      <ul className="flex flex-col gap-1 mt-1">
+        {options.map((o, i) => (
+          <li key={i} className="flex items-center gap-1">
+            <input
+              className="border rounded px-1 py-0.5 w-24 font-mono text-[11px]"
+              value={o.value}
+              placeholder="value"
+              onChange={(e) => update(i, { value: e.target.value })}
+            />
+            <input
+              className="border rounded px-1 py-0.5 flex-1"
+              value={o.label}
+              placeholder="label"
+              onChange={(e) => update(i, { label: e.target.value })}
+            />
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              disabled={options.length <= 1}
+              className="text-destructive hover:opacity-80 disabled:opacity-40"
+              aria-label="Remove option"
+            >
+              <Trash2 size={12} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={add}
+        className="border rounded px-2 py-0.5 w-fit hover:bg-accent inline-flex items-center gap-1 mt-1"
+      >
+        <Plus size={11} /> Add option
+      </button>
+    </details>
   );
 };

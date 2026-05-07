@@ -14,7 +14,7 @@
  */
 
 import { Transaction } from "@mysten/sui/transactions";
-import type { ClientWithCoreApi } from "@mysten/sui/client";
+import type { ClientWithCoreApi, SuiClientTypes } from "@mysten/sui/client";
 
 interface DAppKitLike {
   signTransaction(args: { transaction: Transaction | string }): Promise<{
@@ -23,12 +23,20 @@ interface DAppKitLike {
   }>;
 }
 
+interface SponsoredResult {
+  digest: string;
+  /** Populated when waitForEffects=true. Contains the executed tx's effects. */
+  effects?: SuiClientTypes.TransactionEffects;
+}
+
 export async function executeSponsored(args: {
   tx: Transaction;
   sender: string;
   suiClient: ClientWithCoreApi;
   dAppKit: DAppKitLike;
-}): Promise<{ digest: string }> {
+  /** Polls getTransaction after execute to surface effects. Default false. */
+  waitForEffects?: boolean;
+}): Promise<SponsoredResult> {
   const txKindBytes = await args.tx.build({
     client: args.suiClient,
     onlyTransactionKind: true,
@@ -72,6 +80,34 @@ export async function executeSponsored(args: {
     );
   }
   const { digest: finalDigest } = (await execResp.json()) as { digest: string };
+
+  if (!args.waitForEffects) return { digest: finalDigest };
+
+  // Poll getTransaction until effects show up (Enoki's executeSponsored
+  // returns immediately after submission; the chain may take 1-2s).
+  const client = args.suiClient as unknown as {
+    getTransaction(input: {
+      digest: string;
+      include: { effects: true };
+    }): Promise<{
+      $kind: "Transaction" | "FailedTransaction";
+      Transaction?: { effects?: SuiClientTypes.TransactionEffects };
+      FailedTransaction?: { effects?: SuiClientTypes.TransactionEffects };
+    }>;
+  };
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      const r = await client.getTransaction({
+        digest: finalDigest,
+        include: { effects: true },
+      });
+      const effects = r.Transaction?.effects ?? r.FailedTransaction?.effects;
+      if (effects) return { digest: finalDigest, effects };
+    } catch {
+      /* not yet visible */
+    }
+    await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+  }
   return { digest: finalDigest };
 }
 
