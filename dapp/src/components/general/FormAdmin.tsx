@@ -349,6 +349,7 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
         formOwnerCapId: ownerCapQuery.data ?? undefined,
         privacyTier: onChain.privacy_tier as PrivacyTier,
         identity,
+        senderAddress: account.address,
         suiClient: suiClient as unknown as Parameters<
           typeof buildSealApproveTxBytes
         >[0]["suiClient"],
@@ -446,6 +447,32 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
   const isOwner = !!ownerCapQuery.data;
   const submissions = submissionsQuery.data ?? [];
 
+  // Authority matrix per privacy tier — drives every "can the user click this"
+  // decision so the UI never offers actions that fail with a cryptic SDK
+  // error. Single source of truth for permission gating.
+  const tier = onChain.privacy_tier;
+  const isPublicTier = tier === 0;
+  const isTimeLockedTier = tier === 3;
+  const unlockMs = onChain.unlock_ms ? Number(onChain.unlock_ms) : 0;
+  const isUnlocked = isTimeLockedTier && unlockMs > 0 && Date.now() >= unlockMs;
+  // Decrypt eligibility:
+  //   Public:                no decrypt needed
+  //   TimeLocked + unlocked: anyone can decrypt (permissionless)
+  //   TimeLocked locked:     nobody can decrypt yet
+  //   AdminOnly/Threshold/Conditional:
+  //     - cap holder (own wallet) ✓
+  //     - demo mode (server signs as demo cap holder) ✓
+  //     - anyone else ✗
+  const canDecrypt =
+    isPublicTier ||
+    (isTimeLockedTier && isUnlocked) ||
+    (!isTimeLockedTier && (isOwner || demoMode));
+  const decryptDisabledReason = !canDecrypt
+    ? isTimeLockedTier
+      ? `Time-locked until ${new Date(unlockMs).toLocaleString()} — no one can decrypt yet.`
+      : "You don't hold the FormOwnerCap. Toggle Demo admin (if available) or connect the owner wallet."
+    : null;
+
   return (
     <div className="flex flex-col gap-md">
       <header className="flex flex-col gap-1">
@@ -533,9 +560,10 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
           <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
             Submissions ({submissions.length})
           </h2>
-          {isOwner &&
+          {canDecrypt &&
+            !isPublicTier &&
             !demoMode &&
-            onChain.privacy_tier !== 0 &&
+            isOwner &&
             submissions.length > 0 && (
               <button
                 type="button"
@@ -602,6 +630,8 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
                 suiClient={suiClient}
                 accountAddress={account?.address ?? ""}
                 demoMode={demoMode}
+                canDecrypt={canDecrypt}
+                decryptDisabledReason={decryptDisabledReason}
               />
             ))}
           </ul>
@@ -639,6 +669,8 @@ function SubmissionRowView({
   suiClient,
   accountAddress,
   demoMode,
+  canDecrypt,
+  decryptDisabledReason,
 }: {
   row: SubmissionRow;
   schema: FormSchema | null;
@@ -651,6 +683,8 @@ function SubmissionRowView({
   suiClient: ReturnType<ReturnType<typeof useDAppKit>["getClient"]>;
   accountAddress: string;
   demoMode: boolean;
+  canDecrypt: boolean;
+  decryptDisabledReason: string | null;
 }) {
   const [decrypted, setDecrypted] = useState<SubmissionPayload | null>(null);
   const [decryptError, setDecryptError] = useState<string | null>(null);
@@ -724,6 +758,7 @@ function SubmissionRowView({
         formOwnerCapId: formOwnerCapId ?? undefined,
         privacyTier: privacyTier as PrivacyTier,
         identity,
+        senderAddress: accountAddress,
         suiClient: suiClient as unknown as Parameters<
           typeof buildSealApproveTxBytes
         >[0]["suiClient"],
@@ -787,15 +822,28 @@ function SubmissionRowView({
           <button
             type="button"
             onClick={() => void decrypt()}
-            disabled={decrypting}
-            className="border rounded px-3 py-1 text-xs w-fit hover:bg-accent disabled:opacity-60"
+            disabled={decrypting || !canDecrypt}
+            title={decryptDisabledReason ?? undefined}
+            className={cn(
+              "border rounded px-3 py-1 text-xs w-fit",
+              canDecrypt && !decrypting
+                ? "hover:bg-accent"
+                : "opacity-60 cursor-not-allowed",
+            )}
           >
             {decrypting
               ? "Decrypting…"
-              : demoMode
-                ? "Decrypt (server, demo mode)"
-                : "Decrypt with Seal"}
+              : !canDecrypt
+                ? "🔒 No permission"
+                : demoMode
+                  ? "Decrypt (server, demo mode)"
+                  : "Decrypt with Seal"}
           </button>
+          {!canDecrypt && decryptDisabledReason && (
+            <p className="text-xs text-muted-foreground">
+              {decryptDisabledReason}
+            </p>
+          )}
           {decryptError && (
             <p className="text-xs text-destructive">{decryptError}</p>
           )}

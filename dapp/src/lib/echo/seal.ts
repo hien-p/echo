@@ -105,6 +105,12 @@ function encodeTierExtra(args: {
 /**
  * Build the seal_approve_* PTB body matching a form's privacy tier. Returns
  * the kind-only tx bytes that get passed to fetchKeys + decrypt.
+ *
+ * `senderAddress` is required for AdminOnly/Threshold/Conditional tiers
+ * because the underlying `seal_approve_*` calls reference the FormOwnerCap
+ * (an owned object) and the SDK pre-flights ownership against the sender
+ * even when `onlyTransactionKind: true`. TimeLocked references no owned
+ * objects, so sender is harmless either way.
  */
 export async function buildSealApproveTxBytes(args: {
   packageId: string;
@@ -113,6 +119,8 @@ export async function buildSealApproveTxBytes(args: {
   privacyTier: PrivacyTier;
   identity: Uint8Array;
   suiClient: SealCompatibleSuiClient;
+  /** Wallet address that owns the FormOwnerCap. Required for non-TimeLocked tiers. */
+  senderAddress?: string;
 }): Promise<Uint8Array> {
   const tx = new Transaction();
   const idArg = tx.pure.vector("u8", Array.from(args.identity));
@@ -162,6 +170,7 @@ export async function buildSealApproveTxBytes(args: {
     default:
       throw new Error("Public tier needs no Seal decrypt.");
   }
+  if (args.senderAddress) tx.setSender(args.senderAddress);
   return tx.build({ client: args.suiClient, onlyTransactionKind: true });
 }
 
