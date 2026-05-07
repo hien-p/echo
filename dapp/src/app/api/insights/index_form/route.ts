@@ -13,8 +13,23 @@ const WALRUS_NETWORK = (process.env.NEXT_PUBLIC_WALRUS_NETWORK ?? "testnet") as
   | "testnet"
   | "mainnet";
 
+const PRIVACY_PUBLIC = 0;
+const PRIVACY_ADMIN_ONLY = 1;
+const PRIVACY_THRESHOLD = 2;
+const PRIVACY_TIME_LOCKED = 3;
+const PRIVACY_CONDITIONAL = 4;
+
 interface IndexRequest {
   formId: string;
+}
+
+interface OnChainForm {
+  privacy_tier: number;
+  metadata_blob_id: string;
+  unlock_ms?: string;
+  conditional_policy_id?: string;
+  threshold_m?: number;
+  owner: string;
 }
 
 interface SubmissionMadeEvent {
@@ -26,16 +41,30 @@ interface SubmissionMadeEvent {
 }
 
 /**
- * Index a form's existing Public submissions into a Memwal namespace so the
- * /query route can RAG over them. Encrypted-tier submissions are skipped —
- * indexing those would require decrypt-on-server which needs a session-key
- * delegation we don't have. Indexing is idempotent at the namespace key level.
+ * Index a form's submissions into a Memwal namespace so /api/insights/query
+ * can RAG over them. Supported paths:
+ *
+ *   - Public:                      no Seal needed, plaintext bytes are the payload.
+ *   - TimeLocked (post-unlock):    Seal policy is permissionless after unlock_ms,
+ *                                  any keypair signs the SessionKey.
+ *   - AdminOnly / Threshold / Conditional + form.owner == indexer:
+ *                                  indexer holds the FormOwnerCap and signs
+ *                                  the SessionKey on its own behalf. This is
+ *                                  the demo-mode path — typically only
+ *                                  DEMO_ADMIN_SECRET_KEY's address satisfies
+ *                                  the owner check.
+ *
+ * Indexer keypair priority: DEMO_ADMIN_SECRET_KEY (base64+flag) >
+ * MEMWAL_PRIVATE_KEY (hex). The demo key is preferred because it doubles as
+ * the form owner for demo-curated forms, unlocking the encrypted-tier path.
  */
 export async function POST(request: Request) {
   const memwalKey = process.env.MEMWAL_PRIVATE_KEY;
   const memwalAccountId = process.env.MEMWAL_ACCOUNT_ID;
   const memwalServerUrl =
     process.env.MEMWAL_SERVER_URL ?? "https://relayer.dev.memwal.ai";
+  const demoAdminSecret = process.env.DEMO_ADMIN_SECRET_KEY;
+
   if (!memwalKey || !memwalAccountId) {
     return NextResponse.json(
       {
@@ -81,50 +110,92 @@ export async function POST(request: Request) {
     baseUrl: SUI_FULLNODE,
   });
 
-  // 1. Read the form's tier + unlock_ms.
+  // 1. Read the form's tier + owner.
   const formObj = await suiClient.getObject({
     objectId: body.formId,
     include: { json: true },
   });
-  const onChain = formObj.object.json as {
-    privacy_tier: number;
-    metadata_blob_id: string;
-    unlock_ms?: string;
-  } | null;
+  const onChain = formObj.object.json as OnChainForm | null;
   if (!onChain) {
     return NextResponse.json({ error: "Form not found." }, { status: 404 });
   }
 
-  const PRIVACY_PUBLIC = 0;
-  const PRIVACY_TIME_LOCKED = 3;
-  const isPublic = onChain.privacy_tier === PRIVACY_PUBLIC;
-  const isTimeLocked = onChain.privacy_tier === PRIVACY_TIME_LOCKED;
+  const tier = onChain.privacy_tier;
+  const isPublic = tier === PRIVACY_PUBLIC;
+  const isTimeLocked = tier === PRIVACY_TIME_LOCKED;
   const unlockMs = onChain.unlock_ms ? Number(onChain.unlock_ms) : 0;
   const nowMs = Date.now();
   const isUnlocked = isTimeLocked && unlockMs > 0 && nowMs >= unlockMs;
+  const needsCap =
+    tier === PRIVACY_ADMIN_ONLY ||
+    tier === PRIVACY_THRESHOLD ||
+    tier === PRIVACY_CONDITIONAL;
 
-  if (!isPublic && !isUnlocked) {
+  // 2. Pick the indexer keypair (demo > memwal).
+  const { Ed25519Keypair } = await import("@mysten/sui/keypairs/ed25519");
+  const { fromBase64, fromHex, SUI_CLOCK_OBJECT_ID } =
+    await import("@mysten/sui/utils");
+  let indexerKeypair: import("@mysten/sui/keypairs/ed25519").Ed25519Keypair;
+  let indexerSource: "demo" | "memwal";
+  try {
+    if (demoAdminSecret) {
+      indexerKeypair = Ed25519Keypair.fromSecretKey(
+        fromBase64(demoAdminSecret).slice(1),
+      );
+      indexerSource = "demo";
+    } else {
+      indexerKeypair = Ed25519Keypair.fromSecretKey(fromHex(memwalKey));
+      indexerSource = "memwal";
+    }
+  } catch (e) {
     return NextResponse.json(
       {
-        error:
-          onChain.privacy_tier === PRIVACY_TIME_LOCKED
-            ? `TimeLocked form not yet unlocked (unlock_ms=${unlockMs}, now=${nowMs}). Will be auto-indexable after the deadline.`
-            : "AdminOnly / Threshold / Conditional tiers can't be indexed server-side without a session-key delegation. Use the browser-side indexer on /forms/[id]/admin (coming soon).",
+        error: `Failed to derive indexer keypair: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
       },
-      { status: 400 },
+      { status: 500 },
     );
   }
+  const indexerAddress = indexerKeypair.getPublicKey().toSuiAddress();
 
-  // 2. Pull SubmissionMade events for this form.
+  // 3. Gate non-Public tiers.
+  if (!isPublic) {
+    if (isTimeLocked && !isUnlocked) {
+      return NextResponse.json(
+        {
+          error: `TimeLocked form not yet unlocked (unlock_ms=${unlockMs}, now=${nowMs}).`,
+        },
+        { status: 400 },
+      );
+    }
+    if (
+      needsCap &&
+      onChain.owner.toLowerCase() !== indexerAddress.toLowerCase()
+    ) {
+      return NextResponse.json(
+        {
+          error: `Form owner (${onChain.owner}) doesn't match indexer (${indexerAddress}). AdminOnly/Threshold/Conditional indexing requires the indexer to hold the FormOwnerCap. Set DEMO_ADMIN_SECRET_KEY to the form owner's key, or use the browser-side indexer.`,
+        },
+        { status: 403 },
+      );
+    }
+  }
+
+  // 4. Pull SubmissionMade events for this form.
   const eventType = `${PACKAGE_ID}::submission::SubmissionMade`;
   const events = await jsonRpcQueryEvents(SUI_FULLNODE, eventType);
   const matching = events.filter((e) => e.form_id === body.formId);
 
   if (matching.length === 0) {
-    return NextResponse.json({ indexed: 0, skipped: 0 });
+    return NextResponse.json({
+      indexed: 0,
+      skipped: 0,
+      indexerSource,
+    });
   }
 
-  // 3. Walrus + Memwal clients.
+  // 5. Walrus + Memwal clients.
   const walrus = new WalrusClient({
     network: WALRUS_NETWORK,
     packageConfig:
@@ -140,16 +211,14 @@ export async function POST(request: Request) {
   });
   const namespace = `form-${body.formId.slice(2, 16)}`;
 
-  // 4. (TimeLocked only) Build a Seal SessionKey using the Memwal delegate
-  //    key as the Sui signer. The TimeLocked policy is permissionless once
-  //    unlocked, so any address — including this server's — can fetch keys.
+  // 6. Build a Seal context for any non-Public tier.
   let sealCtx: {
     seal: import("@mysten/seal").SealClient;
     sessionKey: import("@mysten/seal").SessionKey;
     txBytes: Uint8Array;
   } | null = null;
 
-  if (isTimeLocked) {
+  if (!isPublic) {
     const sealServersRaw = process.env.NEXT_PUBLIC_SEAL_KEY_SERVERS ?? "";
     let serverConfigs: { objectId: string; weight: number }[] = [];
     try {
@@ -162,25 +231,20 @@ export async function POST(request: Request) {
         weight: s.weight ?? 1,
       }));
     } catch {
-      /* empty config */
+      /* empty */
     }
     if (serverConfigs.length === 0) {
       return NextResponse.json(
         {
           error:
-            "TimeLocked indexing requires NEXT_PUBLIC_SEAL_KEY_SERVERS to be set.",
+            "Encrypted-tier indexing requires NEXT_PUBLIC_SEAL_KEY_SERVERS to be set.",
         },
         { status: 500 },
       );
     }
 
     const { SealClient, SessionKey } = await import("@mysten/seal");
-    const { Ed25519Keypair } = await import("@mysten/sui/keypairs/ed25519");
     const { Transaction } = await import("@mysten/sui/transactions");
-    const { fromHex, SUI_CLOCK_OBJECT_ID } = await import("@mysten/sui/utils");
-
-    const indexerKeypair = Ed25519Keypair.fromSecretKey(fromHex(memwalKey));
-    const indexerAddress = indexerKeypair.getPublicKey().toSuiAddress();
 
     const seal = new SealClient({
       suiClient: suiClient as unknown as ConstructorParameters<
@@ -200,30 +264,90 @@ export async function POST(request: Request) {
       >[0]["suiClient"],
     });
 
-    // Build seal_approve_time_locked PTB matching the form's tier identity.
-    const formIdHex = body.formId.replace(/^0x/, "");
-    const formIdBytes = fromHex(formIdHex);
-    const tierByte = new Uint8Array([PRIVACY_TIME_LOCKED]);
-    const u64 = new Uint8Array(8);
-    let v = BigInt(unlockMs);
-    for (let i = 7; i >= 0; i--) {
-      u64[i] = Number(v & BigInt(0xff));
-      v = v >> BigInt(8);
+    // Look up the FormOwnerCap if the tier requires one.
+    let formOwnerCapId: string | null = null;
+    if (needsCap) {
+      const owned = await suiClient.listOwnedObjects({
+        owner: indexerAddress,
+        type: `${PACKAGE_ID}::form::FormOwnerCap`,
+        include: { json: true },
+        limit: 200,
+      });
+      const match = (
+        owned.objects as unknown as Array<{
+          objectId: string;
+          json: { form_id: string };
+        }>
+      ).find((c) => c.json?.form_id === body.formId);
+      formOwnerCapId = match?.objectId ?? null;
+      if (!formOwnerCapId) {
+        return NextResponse.json(
+          {
+            error:
+              "Indexer-derived address claims to own the form but no matching FormOwnerCap was found in its object list. Did transferDemoCaps run?",
+          },
+          { status: 412 },
+        );
+      }
     }
-    const identity = new Uint8Array(formIdBytes.length + 1 + u64.length);
-    identity.set(formIdBytes, 0);
-    identity.set(tierByte, formIdBytes.length);
-    identity.set(u64, formIdBytes.length + 1);
+
+    // Identity bytes match the on-chain seal_approve_*'s expected layout.
+    const identity = buildTierIdentity({
+      formId: body.formId,
+      tier,
+      unlockMs: BigInt(unlockMs),
+      conditionalPolicyId: onChain.conditional_policy_id ?? "",
+    });
 
     const tx = new Transaction();
-    tx.moveCall({
-      target: `${PACKAGE_ID}::form::seal_approve_time_locked`,
-      arguments: [
-        tx.pure.vector("u8", Array.from(identity)),
-        tx.object(body.formId),
-        tx.object(SUI_CLOCK_OBJECT_ID),
-      ],
-    });
+    const idArg = tx.pure.vector("u8", Array.from(identity));
+    switch (tier) {
+      case PRIVACY_ADMIN_ONLY:
+        tx.moveCall({
+          target: `${PACKAGE_ID}::form::seal_approve_admin_only`,
+          arguments: [
+            idArg,
+            tx.object(body.formId),
+            tx.object(formOwnerCapId!),
+          ],
+        });
+        break;
+      case PRIVACY_THRESHOLD:
+        tx.moveCall({
+          target: `${PACKAGE_ID}::form::seal_approve_threshold`,
+          arguments: [
+            idArg,
+            tx.object(body.formId),
+            tx.object(formOwnerCapId!),
+          ],
+        });
+        break;
+      case PRIVACY_TIME_LOCKED:
+        tx.moveCall({
+          target: `${PACKAGE_ID}::form::seal_approve_time_locked`,
+          arguments: [
+            idArg,
+            tx.object(body.formId),
+            tx.object(SUI_CLOCK_OBJECT_ID),
+          ],
+        });
+        break;
+      case PRIVACY_CONDITIONAL:
+        tx.moveCall({
+          target: `${PACKAGE_ID}::form::seal_approve_conditional`,
+          arguments: [
+            idArg,
+            tx.object(body.formId),
+            tx.object(formOwnerCapId!),
+          ],
+        });
+        break;
+      default:
+        return NextResponse.json(
+          { error: `Unsupported tier ${tier}.` },
+          { status: 400 },
+        );
+    }
     const txBytes = await tx.build({
       client: suiClient,
       onlyTransactionKind: true,
@@ -232,8 +356,7 @@ export async function POST(request: Request) {
     sealCtx = { seal, sessionKey: session, txBytes };
   }
 
-  // 4. For each submission: read on-chain ref → walrus blob → flatten answers
-  //    to text → remember.
+  // 7. Per-submission: walrus → (decrypt) → flatten → remember.
   let indexed = 0;
   let skipped = 0;
   const errors: string[] = [];
@@ -253,7 +376,6 @@ export async function POST(request: Request) {
 
       let plaintext: Uint8Array;
       if (sealCtx) {
-        // TimeLocked: bytes are Seal ciphertext. Decrypt server-side.
         plaintext = await sealCtx.seal.decrypt({
           data: bytes,
           sessionKey: sealCtx.sessionKey,
@@ -287,8 +409,54 @@ export async function POST(request: Request) {
     indexed,
     skipped,
     namespace,
+    indexerSource,
+    tier,
     errors: errors.slice(0, 5),
   });
+}
+
+function buildTierIdentity(args: {
+  formId: string;
+  tier: number;
+  unlockMs?: bigint;
+  conditionalPolicyId?: string;
+}): Uint8Array {
+  const formIdBytes = hexToBytes(args.formId.replace(/^0x/, ""));
+  const tierByte = new Uint8Array([args.tier]);
+  let extra: Uint8Array;
+  if (args.tier === PRIVACY_TIME_LOCKED) {
+    extra = u64ToBytes(args.unlockMs ?? BigInt(0));
+  } else if (args.tier === PRIVACY_CONDITIONAL) {
+    extra = new TextEncoder().encode(args.conditionalPolicyId ?? "");
+  } else {
+    extra = new Uint8Array(0);
+  }
+  const out = new Uint8Array(
+    formIdBytes.length + tierByte.length + extra.length,
+  );
+  out.set(formIdBytes, 0);
+  out.set(tierByte, formIdBytes.length);
+  out.set(extra, formIdBytes.length + tierByte.length);
+  return out;
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  if (hex.length % 2) throw new Error("invalid hex length");
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
+function u64ToBytes(value: bigint): Uint8Array {
+  const out = new Uint8Array(8);
+  const mask = BigInt(0xff);
+  let v = value;
+  for (let i = 7; i >= 0; i--) {
+    out[i] = Number(v & mask);
+    v = v >> BigInt(8);
+  }
+  return out;
 }
 
 function flattenAnswersToText(

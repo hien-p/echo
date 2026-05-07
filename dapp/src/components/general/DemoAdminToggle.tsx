@@ -91,9 +91,7 @@ export const DemoAdminToggle = () => {
       <span
         className={cn(
           "relative inline-flex shrink-0 h-5 w-9 items-center rounded-full border transition-colors duration-300",
-          on
-            ? "bg-amber-400 border-amber-500"
-            : "bg-muted border-border",
+          on ? "bg-amber-400 border-amber-500" : "bg-muted border-border",
         )}
       >
         <span

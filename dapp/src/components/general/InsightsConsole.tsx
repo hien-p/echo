@@ -149,12 +149,17 @@ export const InsightsConsole = () => {
           {forms.map((f) => {
             const isPublic = f.privacyTier === 0;
             const isTimeLocked = f.privacyTier === 3;
-            const indexableServerSide = isPublic || isTimeLocked;
+            // In demo mode, the server uses DEMO_ADMIN_SECRET_KEY to sign the
+            // SessionKey and looks up the FormOwnerCap on the demo address —
+            // so AdminOnly/Threshold/Conditional are also indexable.
+            const indexableServerSide = isPublic || isTimeLocked || demoMode;
             const tag = isPublic
               ? ""
               : isTimeLocked
                 ? "(time-locked · indexable post-unlock)"
-                : "(admin-only · use browser indexer)";
+                : demoMode
+                  ? "(encrypted · demo-key indexable)"
+                  : "(admin-only · use browser indexer)";
             return (
               <option
                 key={f.id}
@@ -165,7 +170,9 @@ export const InsightsConsole = () => {
                     ? "Public — server can index plaintext directly."
                     : isTimeLocked
                       ? "Time-locked — server auto-decrypts after unlock_ms via permissionless Seal policy."
-                      : "AdminOnly / Threshold / Conditional — needs browser-side indexer (admin signs SessionKey, decrypts locally, sends only embeddings)."
+                      : demoMode
+                        ? "Demo mode — server uses DEMO_ADMIN_SECRET_KEY to sign the SessionKey and decrypt as the form owner."
+                        : "AdminOnly / Threshold / Conditional — needs browser-side indexer (admin signs SessionKey, decrypts locally, sends only embeddings)."
                 }
               >
                 {f.title} {tag}

@@ -164,6 +164,26 @@
             <time datetime="2026-05-07">2026-05-07</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
+          <h3>Insights indexer covers all encrypted tiers</h3>
+          <p>
+            <code>/api/insights/index_form</code> now indexes AdminOnly,
+            Threshold, and Conditional forms whose owner matches the indexer
+            keypair (typically <code>DEMO_ADMIN_SECRET_KEY</code>). Server
+            looks up the <code>FormOwnerCap</code> on its own derived address,
+            builds the matching <code>seal_approve_*</code> PTB, signs the
+            <code>SessionKey</code>, decrypts each submission, and remembers
+            the flattened text in Memwal. <code>/insights</code> dropdown
+            stops greying out non-Public forms whenever the demo toggle is on.
+            Indexer key priority: <code>DEMO_ADMIN_SECRET_KEY</code> &gt;
+            <code>MEMWAL_PRIVATE_KEY</code>.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-07">
+          <header>
+            <time datetime="2026-05-07">2026-05-07</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
           <h3>Encrypted demo forms + seed-submissions script</h3>
           <p>
             <code>createSampleForm.ts</code> picks up three new variants —

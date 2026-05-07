@@ -129,42 +129,44 @@ export const FormList = () => {
           <Sparkles size={12} className="mt-0.5 shrink-0" />
           <span>
             Showing forms owned by the demo address (
-            <code>{demoAddress.slice(0, 10)}…{demoAddress.slice(-4)}</code>
+            <code>
+              {demoAddress.slice(0, 10)}…{demoAddress.slice(-4)}
+            </code>
             ). Server-side decrypt is enabled for these.
           </span>
         </p>
       )}
       <ul className="flex flex-col gap-2">
-      {forms.map((f) => (
-        <li
-          key={f.id}
-          className="border rounded p-3 flex flex-col gap-1 bg-card"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <Link
-              href={`/forms/${f.id}/admin`}
-              className="font-medium hover:underline"
-            >
-              {f.title}
-            </Link>
-            <span className="text-xs text-muted-foreground">
-              {f.id.slice(0, 10)}…
-            </span>
-          </div>
-          <div className="flex gap-2 text-xs text-muted-foreground">
-            <span>{TIER_LABELS[f.onChain.privacy_tier] ?? "?"}</span>
-            <span>·</span>
-            <span>{STATUS_LABELS[f.onChain.status] ?? "?"}</span>
-            <span>·</span>
-            <span>{f.onChain.submission_count} submissions</span>
-            <span className="ml-auto">
-              <Link className="underline" href={`/forms/${f.id}`}>
-                public link →
+        {forms.map((f) => (
+          <li
+            key={f.id}
+            className="border rounded p-3 flex flex-col gap-1 bg-card"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <Link
+                href={`/forms/${f.id}/admin`}
+                className="font-medium hover:underline"
+              >
+                {f.title}
               </Link>
-            </span>
-          </div>
-        </li>
-      ))}
+              <span className="text-xs text-muted-foreground">
+                {f.id.slice(0, 10)}…
+              </span>
+            </div>
+            <div className="flex gap-2 text-xs text-muted-foreground">
+              <span>{TIER_LABELS[f.onChain.privacy_tier] ?? "?"}</span>
+              <span>·</span>
+              <span>{STATUS_LABELS[f.onChain.status] ?? "?"}</span>
+              <span>·</span>
+              <span>{f.onChain.submission_count} submissions</span>
+              <span className="ml-auto">
+                <Link className="underline" href={`/forms/${f.id}`}>
+                  public link →
+                </Link>
+              </span>
+            </div>
+          </li>
+        ))}
       </ul>
     </div>
   );
