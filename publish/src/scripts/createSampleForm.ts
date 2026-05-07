@@ -29,6 +29,13 @@ const FORM_KEY = process.env.FORM ?? "demo";
 interface FormSpec {
   schema: { version: 1; fields: Array<Record<string, unknown>> };
   metadata: { title: string; description: string };
+  /** 0=Public, 1=AdminOnly, 2=Threshold, 3=TimeLocked, 4=Conditional. Default 0. */
+  tier?: number;
+  thresholdN?: number;
+  thresholdM?: number;
+  /** Absolute ms timestamp. Compute via Date.now() + offsetMs in main(). */
+  unlockMs?: bigint;
+  conditionalPolicyId?: string;
 }
 
 const FORMS: Record<string, FormSpec> = {
@@ -213,6 +220,109 @@ const FORMS: Record<string, FormSpec> = {
         "Found something broken? Steps + expected vs actual + screenshot link helps us reproduce in minutes.",
     },
   },
+
+  // ---- Encrypted-tier demo variants. Submissions are Seal-encrypted before
+  // upload to Walrus. Decryption requires the FormOwnerCap (or, in demo mode,
+  // the Echo dapp's /api/demo/admin/decrypt endpoint signs with the demo key).
+
+  admin: {
+    schema: {
+      version: 1,
+      fields: [
+        {
+          id: "salary",
+          type: "short_text",
+          label: "Current annual compensation (USD)",
+          required: true,
+          placeholder: "e.g. 145000",
+        },
+        {
+          id: "concerns",
+          type: "long_text",
+          label: "What's keeping you up at night about work?",
+          required: true,
+        },
+        {
+          id: "stay",
+          type: "single_select",
+          label: "If a competitor offered +20% today, would you leave?",
+          required: true,
+          options: [
+            { value: "yes", label: "Yes — instantly" },
+            { value: "maybe", label: "Maybe — depends on the company" },
+            { value: "no", label: "No — I like it here" },
+          ],
+        },
+      ],
+    },
+    metadata: {
+      title: "Compensation pulse (AdminOnly demo)",
+      description:
+        "Encrypted to the FormOwnerCap holder via Seal. Only the form owner can decrypt — try /forms/<id>/admin in demo mode.",
+    },
+    tier: 1,
+  },
+
+  threshold: {
+    schema: {
+      version: 1,
+      fields: [
+        {
+          id: "incident",
+          type: "long_text",
+          label: "Describe the incident in your own words",
+          required: true,
+        },
+        {
+          id: "involved",
+          type: "short_text",
+          label: "Who else was involved? (names or roles)",
+          required: true,
+        },
+        {
+          id: "evidence",
+          type: "url",
+          label: "Optional: link to evidence",
+        },
+      ],
+    },
+    metadata: {
+      title: "Whistleblower channel (Threshold 1-of-1 demo)",
+      description:
+        "Threshold-encrypted with n=1, m=1. The cap holder (or any quorum > threshold) can decrypt. Demo simplification: 1-of-1 acts like AdminOnly under Seal but exercises the threshold path.",
+    },
+    tier: 2,
+    thresholdN: 1,
+    thresholdM: 1,
+  },
+
+  timelocked: {
+    schema: {
+      version: 1,
+      fields: [
+        {
+          id: "prediction",
+          type: "long_text",
+          label: "Your prediction for the team's Q3 launch",
+          required: true,
+        },
+        {
+          id: "confidence",
+          type: "rating",
+          label: "How confident are you? (1 = guess, 10 = certain)",
+          scale: 10,
+          required: true,
+        },
+      ],
+    },
+    metadata: {
+      title: "Sealed prediction (TimeLocked demo)",
+      description:
+        "Encrypted until the unlock deadline (5 minutes from creation, for demo). Anyone can decrypt after the deadline — Seal key servers refuse before. Watch /forms/<id>/admin auto-flip from 'encrypted' to 'decryptable'.",
+    },
+    tier: 3,
+    // unlockMs is set in main() — Date.now() + 5min
+  },
 };
 
 const SELECTED = FORMS[FORM_KEY];
@@ -267,17 +377,30 @@ async function main() {
 
   const client = new SuiGrpcClient({ network: "testnet", baseUrl: FULLNODE });
 
+  const tier = SELECTED.tier ?? 0;
+  const thresholdN = SELECTED.thresholdN ?? 0;
+  const thresholdM = SELECTED.thresholdM ?? 0;
+  // For TimeLocked, default unlock to "now + 5 min" so testers see auto-unlock
+  // within one demo session. Override per-spec via SELECTED.unlockMs if needed.
+  const unlockMs =
+    SELECTED.unlockMs ?? (tier === 3 ? BigInt(Date.now() + 5 * 60 * 1000) : 0n);
+  const conditionalPolicyId = SELECTED.conditionalPolicyId ?? "";
+
+  console.log(
+    `tier=${tier} n=${thresholdN} m=${thresholdM} unlockMs=${unlockMs}`,
+  );
+
   const tx = new Transaction();
   const cap = tx.moveCall({
     target: `${PACKAGE_ID}::form::create_form`,
     arguments: [
       tx.pure.string(schemaBlobId),
       tx.pure.string(metadataBlobId),
-      tx.pure.u8(0),
-      tx.pure.u8(0),
-      tx.pure.u8(0),
-      tx.pure.u64(0n),
-      tx.pure.string(""),
+      tx.pure.u8(tier),
+      tx.pure.u8(thresholdN),
+      tx.pure.u8(thresholdM),
+      tx.pure.u64(unlockMs),
+      tx.pure.string(conditionalPolicyId),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
   });

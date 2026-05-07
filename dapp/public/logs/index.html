@@ -164,6 +164,41 @@
             <time datetime="2026-05-07">2026-05-07</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
+          <h3>Encrypted demo forms + seed-submissions script</h3>
+          <p>
+            <code>createSampleForm.ts</code> picks up three new variants —
+            <code>FORM=admin</code>, <code>FORM=threshold</code>,
+            <code>FORM=timelocked</code> — that mint AdminOnly, Threshold(1/1),
+            and TimeLocked(now+5min) forms so the demo decrypt path actually has
+            something to decrypt. New <code>seedSubmissions.ts</code> reads a
+            form's tier from chain, generates plausible answers from the schema,
+            encrypts via Seal when the tier requires it, and submits N=3 fake
+            responses through the publish admin keypair.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-07">
+          <header>
+            <time datetime="2026-05-07">2026-05-07</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Demo admin: animated switch + cross-page demo views</h3>
+          <p>
+            <code>DemoAdminToggle</code> now renders an iOS-style switch with a
+            sliding thumb (300ms ease-out). Connect Wallet hides while demo mode
+            is on so visitors can browse anonymously. <code>/forms</code>,
+            <code>/insights</code>, and <code>/reputation</code> all key off the
+            demo address when the toggle is on — the demo wallet's caps + badge
+            are visible without connecting. Mint/Claim stay disabled in demo
+            mode (those need a real wallet).
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-07">
+          <header>
+            <time datetime="2026-05-07">2026-05-07</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
           <h3>Demo admin toggle + server-side Seal decrypt</h3>
           <p>
             New header pill flips on a demo-mode admin path:

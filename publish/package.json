@@ -19,6 +19,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@mysten/seal": "1.1.1",
     "@mysten/sui": "^2.2.0",
     "zod": "^4.2.1"
   }

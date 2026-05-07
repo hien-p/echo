@@ -184,6 +184,9 @@ importers:
 
   publish:
     dependencies:
+      '@mysten/seal':
+        specifier: 1.1.1
+        version: 1.1.1(@mysten/sui@2.9.1(typescript@5.9.3))
       '@mysten/sui':
         specifier: ^2.2.0
         version: 2.9.1(typescript@5.9.3)
@@ -6938,6 +6941,13 @@ snapshots:
     dependencies:
       '@mysten/bcs': 2.0.3
       '@mysten/sui': 2.16.0(typescript@5.9.3)
+      '@noble/curves': 2.0.1
+      '@noble/hashes': 2.0.1
+
+  '@mysten/seal@1.1.1(@mysten/sui@2.9.1(typescript@5.9.3))':
+    dependencies:
+      '@mysten/bcs': 2.0.3
+      '@mysten/sui': 2.9.1(typescript@5.9.3)
       '@noble/curves': 2.0.1
       '@noble/hashes': 2.0.1
 

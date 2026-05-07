@@ -32,19 +32,21 @@ async function listOwnedCaps(
   const out: OwnedCap[] = [];
   let cursor: string | null | undefined = undefined;
   // The SDK paginates owned objects. Loop until the page is exhausted.
+  // Cast page response to a structural type so TS can infer through the loop.
+  type PageShape = {
+    objects: Array<{ objectId: string; json: { form_id: string } }>;
+    hasNextPage?: boolean;
+    nextCursor?: string | null;
+  };
   while (true) {
-    const page = await client.listOwnedObjects({
+    const page = (await client.listOwnedObjects({
       owner,
       type: `${PACKAGE_ID}::form::FormOwnerCap`,
       include: { json: true },
       limit: 200,
       ...(cursor ? { cursor } : {}),
-    });
-    const objects = page.objects as unknown as Array<{
-      objectId: string;
-      json: { form_id: string };
-    }>;
-    for (const o of objects) {
+    })) as unknown as PageShape;
+    for (const o of page.objects) {
       if (o.json?.form_id) {
         out.push({ objectId: o.objectId, formId: o.json.form_id });
       }
