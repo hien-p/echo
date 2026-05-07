@@ -162,6 +162,26 @@
         <article class="log-card" data-date="2026-05-07">
           <header>
             <time datetime="2026-05-07">2026-05-07</time>
+            <span class="log-tag" data-tag="chore">chore</span>
+          </header>
+          <h3>RAG pipeline verified end-to-end on AdminOnly form</h3>
+          <p>
+            Seeded a fresh AdminOnly form with realistic per-field answers
+            (salary numbers, burnout-style concerns, churn-risk choices),
+            indexed via <code>/api/insights/index_form</code> against a Memwal
+            namespace, queried via <code>/api/insights/query</code> through
+            OpenRouter. Answers cite individual submissions verbatim ("9pm
+            Slack threads", "every Friday I'm running on empty"). Cost
+            ~$0.00014 per query on gpt-4o-mini. <code>seedSubmissions.ts</code>
+            picks plausible content per field-label keyword (salary, concerns,
+            incidents, bugs, predictions) so future demos don't ship with
+            generic placeholder text.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-07">
+          <header>
+            <time datetime="2026-05-07">2026-05-07</time>
             <span class="log-tag" data-tag="refactor">refactor</span>
           </header>
           <h3>FormAdmin loads ~40% faster + node runtime fix</h3>
@@ -170,15 +190,15 @@
             <code>formQuery</code> → <code>submissionsQuery</code> sequentially
             and re-fetched every 200 SubmissionMade events globally just to
             client-filter to the form. Split into parallel
-            <code>submissionEventsQuery</code> (server-side filtered by
-            form_id via <code>All+MoveEventField</code>, falls back gracefully)
-            and a downstream payload-enrichment stage that only runs for
-            Public tier. Added <code>staleTime</code> across the three queries
-            so navigation back doesn't trigger fresh reads. Decrypt routes
-            switched to <code>nodejs</code> runtime (Edge sandbox lacked
+            <code>submissionEventsQuery</code> (server-side filtered by form_id
+            via <code>All+MoveEventField</code>, falls back gracefully) and a
+            downstream payload-enrichment stage that only runs for Public tier.
+            Added <code>staleTime</code> across the three queries so navigation
+            back doesn't trigger fresh reads. Decrypt routes switched to
+            <code>nodejs</code> runtime (Edge sandbox lacked
             <code>AbortSignal.any</code> needed by @mysten/seal) and stopped
-            using <code>WalrusClient.readBlob</code> in favor of HTTP
-            aggregator fetches (~1s vs 60s).
+            using <code>WalrusClient.readBlob</code> in favor of HTTP aggregator
+            fetches (~1s vs 60s).
           </p>
         </article>
 

@@ -105,6 +105,84 @@ async function fetchJson<T>(blobId: string): Promise<T> {
   return (await resp.json()) as T;
 }
 
+// Per-field-keyword sample pools. Picked by index so each seeded submission
+// gives the form distinct, plausible answers rather than generic templates.
+const SAMPLES = {
+  salary: ["145000", "182000", "215000", "98000", "240000"],
+  concerns: [
+    "Burnout — every Friday I'm running on empty and I don't see the team scaling fast enough.",
+    "Career growth has plateaued. I haven't shipped anything that I'm genuinely proud of in two quarters.",
+    "Work-life balance got worse after the reorg. Async expectations turned into 9pm Slack threads.",
+    "Compensation is below market for senior IC. The last refresh barely matched cost-of-living.",
+    "Team cohesion — three engineers left in six weeks and morale never recovered.",
+  ],
+  predictions: [
+    "We'll hit the launch deadline but the v1 will need a follow-up patch within two weeks.",
+    "Q3 slips to Q4. The auth integration alone will eat 3 sprints we haven't planned for.",
+    "Strong launch, but adoption stalls until we ship the mobile companion app.",
+    "Quiet launch with positive feedback from existing users; new acquisition stays flat.",
+    "Pushed back to early Q4 — the partner API contract isn't going to land in time.",
+  ],
+  incidents: [
+    "Customer data was visible to the wrong tenant for ~40 minutes during the schema migration on Tuesday.",
+    "I overheard a vendor discussing internal pricing terms in a coffee shop. Possibly an NDA breach.",
+    "A teammate mass-deleted production logs to cover up a failed deploy. I have screenshots.",
+    "The on-call rotation is being skipped by a senior who delegates pages without notifying ops.",
+    "Recruiting promised candidates RSU values that don't match what HR finalizes. Trust is eroding.",
+  ],
+  bugs: [
+    "Save flow on /forms/new doesn't surface validation errors until after the wallet popup.",
+    "Mobile Safari freezes when scrolling a long submissions list — happens after ~50 rows.",
+    "Decrypt button shows 'Loading…' forever if the Walrus aggregator is down. No error state.",
+    "Header pill animates twice on cold load — looks like a hydration mismatch flash.",
+  ],
+  generic_short: [
+    "Echo demo at the meetup last week",
+    "Ship the new admin tooling",
+    "Prototype shipped on Tuesday",
+    "Migrate to mainnet after the audit",
+    "Internal feedback cycle for v0.2",
+  ],
+  generic_long: [
+    "Things have been intense — we shipped fast but cut corners on tests, and now the on-call rotation is paying for it. Need a sprint to pay down.",
+    "Mostly positive. The team gelled after the offsite, and the new auth flow is finally landing reliably. Concerned about how long the migration will take.",
+    "Open question on whether to keep iterating on the current architecture or rewrite the data layer. Both options have ~6 weeks of risk attached.",
+    "User feedback this week was sharper than usual. Three asked for the same feature; we should put it on the roadmap.",
+  ],
+  url: [
+    "https://github.com/example/repo",
+    "https://twitter.com/example",
+    "https://example.com/demo",
+    "https://drive.example.com/share/abc",
+  ],
+};
+
+function pickSample(pool: string[], index: number): string {
+  return pool[index % pool.length];
+}
+
+function pickByLabel(
+  label: string,
+  fieldType: string,
+  index: number,
+): string | null {
+  const lower = label.toLowerCase();
+  if (/(salary|compensation|comp\b|pay)/i.test(lower))
+    return pickSample(SAMPLES.salary, index);
+  if (/(concern|worry|keeping you up|rough|wrong|pain)/i.test(lower))
+    return pickSample(SAMPLES.concerns, index);
+  if (/(predict|forecast|launch|q[1-4]\b|deadline)/i.test(lower))
+    return pickSample(SAMPLES.predictions, index);
+  if (/(incident|whistle|witnessed|abuse|breach|complaint)/i.test(lower))
+    return pickSample(SAMPLES.incidents, index);
+  if (/(broke|bug|expected|actual|where)/i.test(lower))
+    return pickSample(SAMPLES.bugs, index);
+  if (fieldType === "url") return pickSample(SAMPLES.url, index);
+  if (fieldType === "long_text" || fieldType === "rich_text")
+    return pickSample(SAMPLES.generic_long, index);
+  return pickSample(SAMPLES.generic_short, index);
+}
+
 function generateAnswers(
   schema: FormSchema,
   index: number,
@@ -113,23 +191,13 @@ function generateAnswers(
   for (const f of schema.fields) {
     switch (f.type) {
       case "short_text":
-      case "url":
-        answers[f.id] = {
-          kind: "text",
-          value: `Demo response ${index + 1} — ${f.label.slice(0, 40)}`,
-        };
-        break;
       case "long_text":
       case "rich_text":
-        answers[f.id] = {
-          kind: "text",
-          value: `Sample submission #${
-            index + 1
-          }. This is encrypted demo content seeded by seedSubmissions.ts. Field: "${
-            f.label
-          }".`,
-        };
+      case "url": {
+        const value = pickByLabel(f.label, f.type, index) ?? "(empty)";
+        answers[f.id] = { kind: "text", value };
         break;
+      }
       case "single_select":
       case "dropdown": {
         const opt = f.options?.[index % (f.options?.length || 1)];
@@ -138,19 +206,23 @@ function generateAnswers(
       }
       case "multi_select": {
         const optList = f.options ?? [];
-        answers[f.id] = {
-          kind: "choice",
-          value: optList
-            .slice(0, Math.min(2, optList.length))
-            .map((o) => o.value),
-        };
+        // Pick 1-3 options, varying by index for diversity.
+        const count = Math.min(optList.length, 1 + (index % 3));
+        const start = index % Math.max(1, optList.length);
+        const picked: string[] = [];
+        for (let i = 0; i < count; i++) {
+          picked.push(optList[(start + i) % optList.length].value);
+        }
+        answers[f.id] = { kind: "choice", value: picked };
         break;
       }
       case "rating": {
         const scale = f.scale ?? 5;
+        // Realistic distribution: cluster mid-high (3-4 on /5, 6-9 on /10).
+        const candidates = scale >= 10 ? [6, 7, 8, 9, 7] : [3, 4, 5, 4, 3];
         answers[f.id] = {
           kind: "rating",
-          value: Math.min(scale, Math.max(1, index + 3)),
+          value: Math.min(scale, candidates[index % candidates.length]),
         };
         break;
       }
@@ -161,7 +233,9 @@ function generateAnswers(
       case "time":
         answers[f.id] = {
           kind: "date",
-          value: new Date().toISOString().slice(0, 10),
+          value: new Date(Date.now() - index * 86400_000)
+            .toISOString()
+            .slice(0, 10),
         };
         break;
       default:
