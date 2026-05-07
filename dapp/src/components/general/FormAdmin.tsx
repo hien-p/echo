@@ -229,6 +229,146 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
     },
   });
 
+  const [indexProgress, setIndexProgress] = useState<{
+    running: boolean;
+    total: number;
+    current: number;
+    indexed: number;
+    errors: string[];
+  } | null>(null);
+
+  const indexAllMutation = useMutation({
+    mutationFn: async () => {
+      if (!account) throw new Error("Connect a wallet first.");
+      if (!ownerCapQuery.data && !demoToggleOn) {
+        throw new Error(
+          "Only the FormOwnerCap holder can index encrypted forms.",
+        );
+      }
+      const onChain = formQuery.data?.onChain;
+      if (!onChain) throw new Error("Form metadata not loaded.");
+      const subs = submissionsQuery.data ?? [];
+      if (subs.length === 0) {
+        setIndexProgress({
+          running: false,
+          total: 0,
+          current: 0,
+          indexed: 0,
+          errors: [],
+        });
+        return { indexed: 0, total: 0 };
+      }
+
+      const sealServers = parseSealServers(clientConfig.SEAL_KEY_SERVERS);
+      if (sealServers.length === 0) {
+        throw new Error(
+          "NEXT_PUBLIC_SEAL_KEY_SERVERS not configured; can't decrypt.",
+        );
+      }
+      const seal = getSealClient({
+        suiClient: suiClient as unknown as Parameters<
+          typeof getSealClient
+        >[0]["suiClient"],
+        serverConfigs: sealServers,
+        verifyKeyServers: false,
+      });
+
+      // One SessionKey + one wallet popup for the whole batch.
+      const session = await SessionKey.create({
+        address: account.address,
+        packageId,
+        ttlMin: 30,
+        suiClient: suiClient as unknown as Parameters<
+          typeof SessionKey.create
+        >[0]["suiClient"],
+      });
+      const personalMessage = session.getPersonalMessage();
+      const sig = await dAppKit.signPersonalMessage({
+        message: personalMessage,
+      });
+      await session.setPersonalMessageSignature(sig.signature);
+
+      const identity = tierIdentity({
+        formId,
+        tier: onChain.privacy_tier as PrivacyTier,
+        unlockMs: onChain.unlock_ms ? BigInt(onChain.unlock_ms) : undefined,
+      });
+      const txBytes = await buildSealApproveTxBytes({
+        packageId,
+        formId,
+        formOwnerCapId: ownerCapQuery.data ?? undefined,
+        privacyTier: onChain.privacy_tier as PrivacyTier,
+        identity,
+        suiClient: suiClient as unknown as Parameters<
+          typeof buildSealApproveTxBytes
+        >[0]["suiClient"],
+      });
+      const idHex = bytesToHex(identity);
+      const network = clientConfig.WALRUS_NETWORK;
+      const threshold = onChain.privacy_tier === PrivacyTier.Threshold ? 1 : 1;
+
+      setIndexProgress({
+        running: true,
+        total: subs.length,
+        current: 0,
+        indexed: 0,
+        errors: [],
+      });
+
+      let indexed = 0;
+      const errors: string[] = [];
+      for (let i = 0; i < subs.length; i++) {
+        const s = subs[i];
+        setIndexProgress((prev) => (prev ? { ...prev, current: i + 1 } : prev));
+        try {
+          const cipher = await readBytesViaAggregator(s.payloadBlobId, {
+            network,
+          });
+          await seal.fetchKeys({
+            ids: [idHex],
+            txBytes,
+            sessionKey: session,
+            threshold,
+          });
+          const plainBytes = await seal.decrypt({
+            data: cipher,
+            sessionKey: session,
+            txBytes,
+          });
+          const payload = JSON.parse(
+            new TextDecoder().decode(plainBytes),
+          ) as SubmissionPayload;
+          const text = flattenAnswersToText(payload, s.submissionId);
+          if (!text) continue;
+          const resp = await fetch("/api/insights/index_one", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ formId, text }),
+          });
+          if (!resp.ok) {
+            const j = (await resp.json().catch(() => ({}))) as {
+              error?: string;
+            };
+            throw new Error(j.error ?? `HTTP ${resp.status}`);
+          }
+          indexed++;
+          setIndexProgress((prev) => (prev ? { ...prev, indexed } : prev));
+        } catch (e) {
+          errors.push(
+            `${s.submissionId.slice(0, 10)}: ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+          );
+        }
+      }
+
+      setIndexProgress((prev) =>
+        prev ? { ...prev, running: false, errors } : prev,
+      );
+      return { indexed, total: subs.length, errors };
+    },
+  });
+
   if (formQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
@@ -339,9 +479,59 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       )}
 
       <section>
-        <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground mb-2">
-          Submissions ({submissions.length})
-        </h2>
+        <div className="flex items-baseline justify-between gap-2 mb-2">
+          <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
+            Submissions ({submissions.length})
+          </h2>
+          {isOwner &&
+            !demoMode &&
+            onChain.privacy_tier !== 0 &&
+            submissions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => indexAllMutation.mutate()}
+                disabled={indexAllMutation.isPending}
+                title="Decrypts each submission locally in your browser, then sends only the flattened text to Memwal. Server never sees ciphertext or session keys."
+                className={cn(
+                  "border rounded px-3 py-1 text-xs flex items-center gap-1",
+                  indexAllMutation.isPending
+                    ? "opacity-60 cursor-not-allowed"
+                    : "hover:bg-accent",
+                )}
+              >
+                <Sparkles size={12} />
+                {indexAllMutation.isPending
+                  ? indexProgress
+                    ? `Indexing ${indexProgress.current}/${indexProgress.total}…`
+                    : "Indexing…"
+                  : "Index for Insights"}
+              </button>
+            )}
+        </div>
+        {indexProgress && !indexProgress.running && (
+          <p className="text-xs text-muted-foreground mb-2">
+            ✓ Indexed {indexProgress.indexed}/{indexProgress.total} via Memwal.
+            {indexProgress.errors.length > 0 && (
+              <>
+                {" "}
+                {indexProgress.errors.length} skipped:{" "}
+                <code>{indexProgress.errors[0]}</code>
+                {indexProgress.errors.length > 1 &&
+                  ` (+${indexProgress.errors.length - 1} more)`}
+              </>
+            )}{" "}
+            Ask questions on{" "}
+            <Link href="/insights" className="underline">
+              /insights
+            </Link>
+            .
+          </p>
+        )}
+        {indexAllMutation.error instanceof Error && (
+          <p className="text-xs text-destructive mb-2">
+            {indexAllMutation.error.message}
+          </p>
+        )}
         {submissionsQuery.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading submissions…</p>
         ) : submissions.length === 0 ? (
@@ -589,6 +779,21 @@ function bytesToHex(bytes: Uint8Array): string {
   let hex = "";
   for (const b of bytes) hex += b.toString(16).padStart(2, "0");
   return hex;
+}
+
+/** Flatten a decrypted SubmissionPayload to a single text blob for indexing. */
+function flattenAnswersToText(
+  payload: SubmissionPayload,
+  submissionId: string,
+): string {
+  const parts: string[] = [`[submission ${submissionId.slice(0, 10)}]`];
+  for (const [fieldId, ans] of Object.entries(payload.answers)) {
+    const text = stringifyAnswer(ans);
+    if (text && text.trim() && !text.startsWith("[blob ")) {
+      parts.push(`${fieldId}: ${text}`);
+    }
+  }
+  return parts.length > 1 ? parts.join("\n") : "";
 }
 
 function AnswerList({

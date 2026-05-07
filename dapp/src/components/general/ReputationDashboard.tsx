@@ -142,9 +142,9 @@ export const ReputationDashboard = () => {
     <div className="flex flex-col gap-md">
       {demoMode && (
         <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
-          Read-only demo view of <code>{demoAddress.slice(0, 10)}…</code>'s
-          reputation. Mint/Claim are disabled — connect a wallet to act on your
-          own badge.
+          Read-only demo view of <code>{demoAddress.slice(0, 10)}…</code>
+          &apos;s reputation. Mint/Claim are disabled — connect a wallet to act
+          on your own badge.
         </p>
       )}
       <section className="border rounded p-4 bg-card flex items-center gap-3">

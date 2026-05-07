@@ -164,17 +164,38 @@
             <time datetime="2026-05-07">2026-05-07</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
+          <h3>Browser-driven Insights indexer (zero-trust path)</h3>
+          <p>
+            New <code>/api/insights/index_one</code> endpoint accepts only
+            <code>{ formId, text }</code> — plaintext that the browser already
+            decrypted. Server never sees ciphertext, never holds Seal keys, no
+            decrypt capability. <code>/forms/[id]/admin</code> picks up an
+            "Index for Insights" button (visible to non-demo cap holders for
+            non-Public forms) that creates one wallet-signed
+            <code>SessionKey</code>, decrypts every submission locally, and
+            posts only flattened answer text. The server-side
+            <code>/api/insights/index_form</code> path stays available for
+            demo-owned forms; this new path is the privacy-preserving option for
+            real users.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-07">
+          <header>
+            <time datetime="2026-05-07">2026-05-07</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
           <h3>Insights indexer covers all encrypted tiers</h3>
           <p>
             <code>/api/insights/index_form</code> now indexes AdminOnly,
             Threshold, and Conditional forms whose owner matches the indexer
-            keypair (typically <code>DEMO_ADMIN_SECRET_KEY</code>). Server
-            looks up the <code>FormOwnerCap</code> on its own derived address,
-            builds the matching <code>seal_approve_*</code> PTB, signs the
-            <code>SessionKey</code>, decrypts each submission, and remembers
-            the flattened text in Memwal. <code>/insights</code> dropdown
-            stops greying out non-Public forms whenever the demo toggle is on.
-            Indexer key priority: <code>DEMO_ADMIN_SECRET_KEY</code> &gt;
+            keypair (typically <code>DEMO_ADMIN_SECRET_KEY</code>). Server looks
+            up the <code>FormOwnerCap</code> on its own derived address, builds
+            the matching <code>seal_approve_*</code> PTB, signs the
+            <code>SessionKey</code>, decrypts each submission, and remembers the
+            flattened text in Memwal. <code>/insights</code> dropdown stops
+            greying out non-Public forms whenever the demo toggle is on. Indexer
+            key priority: <code>DEMO_ADMIN_SECRET_KEY</code> &gt;
             <code>MEMWAL_PRIVATE_KEY</code>.
           </p>
         </article>
