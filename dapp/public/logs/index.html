@@ -159,6 +159,80 @@
         Tag values: feat | fix | chore | docs | refactor
       -->
 
+        <article class="log-card" data-date="2026-05-07">
+          <header>
+            <time datetime="2026-05-07">2026-05-07</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Zero-gas form authoring + JSON edit mode</h3>
+          <p>
+            <code>/api/walrus/upload</code> proxy now forwards bytes to the
+            Walrus testnet publisher — schema/metadata/payload uploads pay zero
+            gas. Combined with sponsored <code>create_form</code> and sponsored
+            <code>submit</code>, both authors and respondents can ship without
+            holding SUI. Builder picks up a Visual ↔ Edit-JSON toggle: power
+            users edit raw <code>{ metadata, tier, schema }</code>
+            in a textarea, Apply validates JSON before writing back to state.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-07">
+          <header>
+            <time datetime="2026-05-07">2026-05-07</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Builder UX trio + interactive preview + option editor</h3>
+          <p>
+            Live preview pane on <code>/forms/new</code> (lg+) renders the
+            schema as respondents will see it — fully interactive (test answers
+            stay local, never sent). Inline tier badges above Save spell out
+            what happens after save per privacy tier. Single/multi- select /
+            dropdown rows now expose an Options editor with add/ remove.
+            <code>/</code> landing replaced with a 3-card grid: Create form / My
+            forms / Insights.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-07">
+          <header>
+            <time datetime="2026-05-07">2026-05-07</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Admin Decrypt + SuiNS resolver + Memwal RAG</h3>
+          <p>
+            <code
+              >seal_approve_admin_only / threshold / time_locked /
+              conditional</code
+            >
+            Move fns added (republished package <code>0x16dc…0e46</code>);
+            FormAdmin gets a Decrypt button per encrypted row that builds a
+            SessionKey, signs the seal_approve PTB via dApp Kit, fetchKeys +
+            decrypts in-place. <code>/s/[name]</code> resolves SuiNS user-data
+            <code>app:echo:form_id</code> via the testnet API, 302-redirects.
+            <code>/insights</code> wires <code>@mysten-incubation/memwal</code>
+            + OpenRouter for natural-language Q&amp;A across a form's
+            submissions; index-form button seeds the namespace.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-07">
+          <header>
+            <time datetime="2026-05-07">2026-05-07</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Form lifecycle UI: list, submit, admin, bounty, reputation</h3>
+          <p>
+            <code>/forms</code> lists user's owned FormOwnerCaps;
+            <code>/forms/[id]</code> renders the schema with sponsored submit
+            via Enoki + anonymous mode + multi-page + conditional logic +
+            token/NFT gating; <code>/forms/[id]/admin</code> shows submission
+            stream, CSV export, close/archive, plus a BountyPanel (create_bounty
+            / top-up / payout / close). <code>/reputation</code>
+            ships mint/claim/leaderboard. Embed widget at
+            <code>/embed.js</code>.
+          </p>
+        </article>
+
         <article class="log-card" data-date="2026-05-06">
           <header>
             <time datetime="2026-05-06">2026-05-06</time>
