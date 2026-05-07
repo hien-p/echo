@@ -16,8 +16,12 @@ import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { SealClient } from "@mysten/seal";
 
+// Default package id matches createSampleForm.ts so the two scripts stay in
+// sync even when publish/.env doesn't set ECHO_PACKAGE_ID explicitly.
 const PACKAGE_ID =
-  process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID ?? process.env.ECHO_PACKAGE_ID ?? "";
+  process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID ??
+  process.env.ECHO_PACKAGE_ID ??
+  "0x16dc79451d3035133b33e36acb2e4ccdc50e6a454c603c8feb4707d932da0e46";
 const PUBLISHER =
   process.env.NEXT_PUBLIC_WALRUS_PUBLISHER_URL ??
   "https://publisher.walrus-testnet.walrus.space";

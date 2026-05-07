@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-export const runtime = "edge";
+// Node runtime — @mysten/seal needs AbortSignal.any() and crypto APIs that
+// aren't reliably available in the Edge runtime sandbox.
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PACKAGE_ID = process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID ?? "";
@@ -98,11 +100,6 @@ export async function POST(request: Request) {
   }
 
   const { SuiGrpcClient } = await import("@mysten/sui/grpc");
-  const {
-    WalrusClient,
-    TESTNET_WALRUS_PACKAGE_CONFIG,
-    MAINNET_WALRUS_PACKAGE_CONFIG,
-  } = await import("@mysten/walrus");
   const { MemWal } = await import("@mysten-incubation/memwal");
 
   const suiClient = new SuiGrpcClient({
@@ -195,15 +192,7 @@ export async function POST(request: Request) {
     });
   }
 
-  // 5. Walrus + Memwal clients.
-  const walrus = new WalrusClient({
-    network: WALRUS_NETWORK,
-    packageConfig:
-      WALRUS_NETWORK === "mainnet"
-        ? MAINNET_WALRUS_PACKAGE_CONFIG
-        : TESTNET_WALRUS_PACKAGE_CONFIG,
-    suiClient,
-  });
+  // 5. Memwal client (Walrus blobs are fetched via the public aggregator).
   const memwal = MemWal.create({
     key: memwalKey,
     accountId: memwalAccountId,
@@ -348,6 +337,10 @@ export async function POST(request: Request) {
           { status: 400 },
         );
     }
+    // Sender must own any owned objects referenced in the PTB (FormOwnerCap
+    // for AdminOnly/Threshold/Conditional). TimeLocked uses only the shared
+    // Form + Clock, so setSender is harmless either way.
+    tx.setSender(indexerAddress);
     const txBytes = await tx.build({
       client: suiClient,
       onlyTransactionKind: true,
@@ -372,7 +365,10 @@ export async function POST(request: Request) {
         skipped++;
         continue;
       }
-      const bytes = await walrus.readBlob({ blobId: sub.payload_blob_id });
+      const bytes = await readBytesViaAggregator(
+        sub.payload_blob_id,
+        WALRUS_NETWORK,
+      );
 
       let plaintext: Uint8Array;
       if (sealCtx) {
@@ -473,6 +469,41 @@ function flattenAnswersToText(
     if (text.trim()) parts.push(`${fieldId}: ${text}`);
   }
   return parts.length > 1 ? parts.join("\n") : "";
+}
+
+const TESTNET_AGGREGATORS = [
+  "https://aggregator.walrus-testnet.walrus.space",
+  "https://wal-aggregator-testnet.staketab.org",
+];
+const MAINNET_AGGREGATORS = [
+  "https://aggregator.walrus.atalma.io",
+  "https://walrus-mainnet-aggregator.nodes.guru",
+];
+
+async function readBytesViaAggregator(
+  blobId: string,
+  network: "testnet" | "mainnet",
+): Promise<Uint8Array> {
+  const list =
+    network === "mainnet" ? MAINNET_AGGREGATORS : TESTNET_AGGREGATORS;
+  let lastErr: unknown = null;
+  for (const base of list) {
+    try {
+      const resp = await fetch(`${base}/v1/blobs/${blobId}`);
+      if (!resp.ok) {
+        lastErr = new Error(`${base} HTTP ${resp.status}`);
+        continue;
+      }
+      return new Uint8Array(await resp.arrayBuffer());
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw new Error(
+    `All aggregators failed for ${blobId}: ${
+      lastErr instanceof Error ? lastErr.message : String(lastErr)
+    }`,
+  );
 }
 
 async function jsonRpcQueryEvents(

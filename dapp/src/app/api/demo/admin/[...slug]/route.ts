@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-export const runtime = "edge";
+// Node runtime — @mysten/seal needs AbortSignal.any() and crypto APIs that
+// aren't reliably available in the Edge runtime sandbox.
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PACKAGE_ID = process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID ?? "";
@@ -225,17 +227,11 @@ async function handleDecrypt(args: {
     { Ed25519Keypair },
     { Transaction },
     { fromBase64, SUI_CLOCK_OBJECT_ID },
-    {
-      WalrusClient,
-      TESTNET_WALRUS_PACKAGE_CONFIG,
-      MAINNET_WALRUS_PACKAGE_CONFIG,
-    },
   ] = await Promise.all([
     import("@mysten/seal"),
     import("@mysten/sui/keypairs/ed25519"),
     import("@mysten/sui/transactions"),
     import("@mysten/sui/utils"),
-    import("@mysten/walrus"),
   ]);
 
   const adminKeypair = Ed25519Keypair.fromSecretKey(
@@ -335,6 +331,9 @@ async function handleDecrypt(args: {
       );
   }
 
+  // Sender must own the FormOwnerCap referenced in the PTB. Even with
+  // onlyTransactionKind: true the SDK's pre-flight ownership check fires.
+  tx.setSender(adminAddress);
   const txBytes = await tx.build({
     client: suiClient,
     onlyTransactionKind: true,
@@ -357,15 +356,10 @@ async function handleDecrypt(args: {
     >[0]["suiClient"],
   });
 
-  const walrus = new WalrusClient({
-    network: WALRUS_NETWORK,
-    packageConfig:
-      WALRUS_NETWORK === "mainnet"
-        ? MAINNET_WALRUS_PACKAGE_CONFIG
-        : TESTNET_WALRUS_PACKAGE_CONFIG,
-    suiClient,
-  });
-  const ciphertext = await walrus.readBlob({ blobId: payloadBlobId });
+  const ciphertext = await readBytesViaAggregator(
+    payloadBlobId,
+    WALRUS_NETWORK,
+  );
 
   const threshold = tier === PRIVACY_THRESHOLD ? 1 : 1;
   await seal.fetchKeys({
@@ -444,6 +438,41 @@ function u64ToBytes(value: bigint): Uint8Array {
     v = v >> BigInt(8);
   }
   return out;
+}
+
+const TESTNET_AGGREGATORS = [
+  "https://aggregator.walrus-testnet.walrus.space",
+  "https://wal-aggregator-testnet.staketab.org",
+];
+const MAINNET_AGGREGATORS = [
+  "https://aggregator.walrus.atalma.io",
+  "https://walrus-mainnet-aggregator.nodes.guru",
+];
+
+async function readBytesViaAggregator(
+  blobId: string,
+  network: "testnet" | "mainnet",
+): Promise<Uint8Array> {
+  const list =
+    network === "mainnet" ? MAINNET_AGGREGATORS : TESTNET_AGGREGATORS;
+  let lastErr: unknown = null;
+  for (const base of list) {
+    try {
+      const resp = await fetch(`${base}/v1/blobs/${blobId}`);
+      if (!resp.ok) {
+        lastErr = new Error(`${base} HTTP ${resp.status}`);
+        continue;
+      }
+      return new Uint8Array(await resp.arrayBuffer());
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw new Error(
+    `All aggregators failed for ${blobId}: ${
+      lastErr instanceof Error ? lastErr.message : String(lastErr)
+    }`,
+  );
 }
 
 async function jsonRpcQueryEvents(
