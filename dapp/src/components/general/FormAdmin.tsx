@@ -287,6 +287,158 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
     errors: string[];
   } | null>(null);
 
+  // Cached decrypted payloads keyed by submissionId. Populated by either the
+  // per-row Decrypt button or the bulk "Reveal all" button. Once populated,
+  // SubmissionRowView renders the plaintext directly instead of showing a
+  // Decrypt button — owner sees every answer with no extra clicks.
+  const [revealedById, setRevealedById] = useState<
+    Record<string, SubmissionPayload>
+  >({});
+
+  const revealAllMutation = useMutation({
+    mutationFn: async () => {
+      const onChain = formQuery.data?.onChain;
+      if (!onChain) throw new Error("Form metadata not loaded.");
+      const subs = submissionsQuery.data ?? [];
+      const targets = subs.filter(
+        (s) => s.encrypted && !revealedById[s.submissionId],
+      );
+      if (targets.length === 0) return { revealed: 0, errors: [] };
+
+      // Demo mode: server decrypts each row, no wallet popup.
+      if (demoToggleOn && onChain.owner.toLowerCase() === demoAdminAddr) {
+        const results = await Promise.allSettled(
+          targets.map(async (s) => {
+            const resp = await fetch("/api/demo/admin/decrypt", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                formId,
+                submissionId: s.submissionId,
+                payloadBlobId: s.payloadBlobId,
+              }),
+            });
+            const json = (await resp.json()) as {
+              payload?: SubmissionPayload;
+              error?: string;
+            };
+            if (!resp.ok || !json.payload) {
+              throw new Error(json.error ?? `HTTP ${resp.status}`);
+            }
+            return { id: s.submissionId, payload: json.payload };
+          }),
+        );
+        const next: Record<string, SubmissionPayload> = { ...revealedById };
+        const errors: string[] = [];
+        let revealed = 0;
+        for (let i = 0; i < results.length; i++) {
+          const r = results[i];
+          if (r.status === "fulfilled") {
+            next[r.value.id] = r.value.payload;
+            revealed++;
+          } else {
+            errors.push(
+              `${targets[i].submissionId.slice(0, 10)}: ${
+                r.reason instanceof Error ? r.reason.message : String(r.reason)
+              }`,
+            );
+          }
+        }
+        setRevealedById(next);
+        return { revealed, errors };
+      }
+
+      // Owner path — one wallet popup, then parallel decrypt.
+      if (!account) throw new Error("Connect a wallet first.");
+      if (!ownerCapQuery.data) {
+        throw new Error("You don't hold the FormOwnerCap.");
+      }
+      const sealServers = parseSealServers(clientConfig.SEAL_KEY_SERVERS);
+      if (sealServers.length === 0) {
+        throw new Error("NEXT_PUBLIC_SEAL_KEY_SERVERS not configured.");
+      }
+      const seal = getSealClient({
+        suiClient: suiClient as unknown as Parameters<
+          typeof getSealClient
+        >[0]["suiClient"],
+        serverConfigs: sealServers,
+        verifyKeyServers: false,
+      });
+      const session = await SessionKey.create({
+        address: account.address,
+        packageId,
+        ttlMin: 30,
+        suiClient: suiClient as unknown as Parameters<
+          typeof SessionKey.create
+        >[0]["suiClient"],
+      });
+      const sig = await dAppKit.signPersonalMessage({
+        message: session.getPersonalMessage(),
+      });
+      await session.setPersonalMessageSignature(sig.signature);
+      const identity = tierIdentity({
+        formId,
+        tier: onChain.privacy_tier as PrivacyTier,
+        unlockMs: onChain.unlock_ms ? BigInt(onChain.unlock_ms) : undefined,
+      });
+      const txBytes = await buildSealApproveTxBytes({
+        packageId,
+        formId,
+        formOwnerCapId: ownerCapQuery.data,
+        privacyTier: onChain.privacy_tier as PrivacyTier,
+        identity,
+        senderAddress: account.address,
+        suiClient: suiClient as unknown as Parameters<
+          typeof buildSealApproveTxBytes
+        >[0]["suiClient"],
+      });
+      const idHex = bytesToHex(identity);
+      const network = clientConfig.WALRUS_NETWORK;
+      const threshold = onChain.privacy_tier === PrivacyTier.Threshold ? 1 : 1;
+      // fetchKeys once — cached for all subsequent decrypts on the same id.
+      await seal.fetchKeys({
+        ids: [idHex],
+        txBytes,
+        sessionKey: session,
+        threshold,
+      });
+      const results = await Promise.allSettled(
+        targets.map(async (s) => {
+          const cipher = await readBytesViaAggregator(s.payloadBlobId, {
+            network,
+          });
+          const plain = await seal.decrypt({
+            data: cipher,
+            sessionKey: session,
+            txBytes,
+          });
+          const payload = JSON.parse(
+            new TextDecoder().decode(plain),
+          ) as SubmissionPayload;
+          return { id: s.submissionId, payload };
+        }),
+      );
+      const next: Record<string, SubmissionPayload> = { ...revealedById };
+      const errors: string[] = [];
+      let revealed = 0;
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        if (r.status === "fulfilled") {
+          next[r.value.id] = r.value.payload;
+          revealed++;
+        } else {
+          errors.push(
+            `${targets[i].submissionId.slice(0, 10)}: ${
+              r.reason instanceof Error ? r.reason.message : String(r.reason)
+            }`,
+          );
+        }
+      }
+      setRevealedById(next);
+      return { revealed, errors };
+    },
+  });
+
   const indexAllMutation = useMutation({
     mutationFn: async () => {
       if (!account) throw new Error("Connect a wallet first.");
@@ -556,10 +708,41 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       )}
 
       <section>
-        <div className="flex items-baseline justify-between gap-2 mb-2">
+        <div className="flex items-baseline justify-between gap-2 mb-2 flex-wrap">
           <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
             Submissions ({submissions.length})
           </h2>
+          {canDecrypt &&
+            !isPublicTier &&
+            submissions.some(
+              (s) => s.encrypted && !revealedById[s.submissionId],
+            ) && (
+              <button
+                type="button"
+                onClick={() => revealAllMutation.mutate()}
+                disabled={revealAllMutation.isPending}
+                title={
+                  demoMode
+                    ? "Server decrypts every submission via the demo key — no wallet popup."
+                    : "Sign one personal message; this dapp decrypts every encrypted row in parallel locally."
+                }
+                className={cn(
+                  "border rounded px-3 py-1 text-xs flex items-center gap-1",
+                  revealAllMutation.isPending
+                    ? "opacity-60 cursor-not-allowed"
+                    : "bg-foreground text-background hover:opacity-90",
+                )}
+              >
+                <Unlock size={12} />
+                {revealAllMutation.isPending
+                  ? "Revealing…"
+                  : `Reveal all (${
+                      submissions.filter(
+                        (s) => s.encrypted && !revealedById[s.submissionId],
+                      ).length
+                    })`}
+              </button>
+            )}
           {canDecrypt &&
             !isPublicTier &&
             !demoMode &&
@@ -610,6 +793,19 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
             {indexAllMutation.error.message}
           </p>
         )}
+        {revealAllMutation.error instanceof Error && (
+          <p className="text-xs text-destructive mb-2">
+            {revealAllMutation.error.message}
+          </p>
+        )}
+        {revealAllMutation.data && revealAllMutation.data.revealed > 0 && (
+          <p className="text-xs text-emerald-700 mb-2">
+            ✓ Revealed {revealAllMutation.data.revealed} submission
+            {revealAllMutation.data.revealed === 1 ? "" : "s"}.
+            {revealAllMutation.data.errors.length > 0 &&
+              ` ${revealAllMutation.data.errors.length} failed.`}
+          </p>
+        )}
         {submissionsQuery.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading submissions…</p>
         ) : submissions.length === 0 ? (
@@ -632,6 +828,7 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
                 demoMode={demoMode}
                 canDecrypt={canDecrypt}
                 decryptDisabledReason={decryptDisabledReason}
+                preDecrypted={revealedById[s.submissionId] ?? null}
               />
             ))}
           </ul>
@@ -671,6 +868,7 @@ function SubmissionRowView({
   demoMode,
   canDecrypt,
   decryptDisabledReason,
+  preDecrypted,
 }: {
   row: SubmissionRow;
   schema: FormSchema | null;
@@ -685,8 +883,19 @@ function SubmissionRowView({
   demoMode: boolean;
   canDecrypt: boolean;
   decryptDisabledReason: string | null;
+  /** Set when "Reveal all" decrypted this row at the form level. */
+  preDecrypted: SubmissionPayload | null;
 }) {
-  const [decrypted, setDecrypted] = useState<SubmissionPayload | null>(null);
+  const [decrypted, setDecrypted] = useState<SubmissionPayload | null>(
+    preDecrypted,
+  );
+  // Sync when bulk reveal updates the cache after we've mounted.
+  if (preDecrypted && !decrypted) {
+    // setState during render is fine when guarded — this only runs once per
+    // bulk reveal completion since `decrypted` becomes truthy on the next
+    // render and skips the branch.
+    setDecrypted(preDecrypted);
+  }
   const [decryptError, setDecryptError] = useState<string | null>(null);
   const [decrypting, setDecrypting] = useState(false);
 
