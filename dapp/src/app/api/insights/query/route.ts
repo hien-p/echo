@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-export const runtime = "edge";
+// Node runtime — @mysten/seal (used internally by Memwal recall) needs
+// AbortSignal.any() and crypto APIs the Edge runtime sandbox doesn't expose.
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface QueryRequest {
@@ -12,11 +14,27 @@ interface QueryRequest {
 // Override with OPENROUTER_MODEL for higher-fidelity providers.
 const DEFAULT_MODEL = "openai/gpt-4o-mini";
 
+// Memwal vector search returns up to N matches sorted by distance. For the
+// demo's form scale (~3-100 submissions per form) we just pull all of them
+// and inject as context — way more reliable than depending on semantic
+// recall to match vague questions like "summary to me".
+const MAX_MEMORIES_PER_QUERY = 50;
+
 /**
  * RAG over a form's Memwal namespace via OpenRouter.
- * - withMemWal middleware injects relevant memories into the model context.
- * - We constrain via a system prompt to only answer from the indexed memories
- *   so the LLM doesn't hallucinate beyond submission text.
+ *
+ * Approach: bypass the `withMemWal` middleware (which does a single semantic
+ * recall on the user's question and silently returns 0 memories for vague
+ * prompts). Instead we run TWO recalls:
+ *
+ *   1. Focused: `recall(question)` — top semantic matches.
+ *   2. Broad:   `recall("submission feedback answer response", 50)` — pulls
+ *      essentially every memory in the namespace for small forms, since the
+ *      generic terms are similar to anything submission-like.
+ *
+ * We dedupe by blob_id, format the merged set as a system context block,
+ * and let the LLM synthesize. This means even "summary to me" gets full
+ * data and the LLM stops claiming it has no access.
  */
 export async function POST(request: Request) {
   const memwalKey = process.env.MEMWAL_PRIVATE_KEY;
@@ -56,33 +74,90 @@ export async function POST(request: Request) {
   }
 
   const { generateText } = await import("ai");
-  const { withMemWal } = await import("@mysten-incubation/memwal/ai");
+  const { MemWal } = await import("@mysten-incubation/memwal");
   const { createOpenRouter } = await import("@openrouter/ai-sdk-provider");
 
   const namespace = `form-${body.formId.slice(2, 16)}`;
-  const openrouter = createOpenRouter({ apiKey: openRouterKey });
-  const baseModel = openrouter(modelId);
-  const wrapped = withMemWal(baseModel, {
+  const memwal = MemWal.create({
     key: memwalKey,
     accountId: memwalAccountId,
     serverUrl: memwalServerUrl,
-    namespace,
-    maxMemories: 8,
-    autoSave: false,
   });
 
+  // Pull memories from both passes in parallel.
+  let memories: Array<{ blob_id: string; text: string; distance?: number }> =
+    [];
+  try {
+    const [focused, broad] = await Promise.all([
+      memwal.recall(body.question, 12, namespace).catch(() => ({
+        results: [],
+      })),
+      memwal
+        .recall(
+          "submission response feedback answer comment",
+          MAX_MEMORIES_PER_QUERY,
+          namespace,
+        )
+        .catch(() => ({ results: [] })),
+    ]);
+    const seen = new Set<string>();
+    for (const m of [...focused.results, ...broad.results]) {
+      const r = m as { blob_id: string; text?: string; distance?: number };
+      if (!r.text || seen.has(r.blob_id)) continue;
+      seen.add(r.blob_id);
+      memories.push({
+        blob_id: r.blob_id,
+        text: r.text,
+        distance: r.distance,
+      });
+    }
+    // Cap total memories so we stay well within gpt-4o-mini's context.
+    memories = memories.slice(0, MAX_MEMORIES_PER_QUERY);
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error: `Memwal recall failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      },
+      { status: 502 },
+    );
+  }
+
+  if (memories.length === 0) {
+    return NextResponse.json({
+      answer:
+        "No indexed submissions for this form yet. Click “Index this form” above first, then ask again.",
+      tokens: { totalTokens: 0 },
+      namespace,
+      memoriesUsed: 0,
+    });
+  }
+
+  const contextBlock = memories
+    .map(
+      (m, i) =>
+        `--- memory ${i + 1} (blob ${m.blob_id.slice(0, 10)}…) ---\n${m.text}`,
+    )
+    .join("\n\n");
+
+  const openrouter = createOpenRouter({ apiKey: openRouterKey });
   try {
     const result = await generateText({
-      model: wrapped,
+      model: openrouter(modelId),
       messages: [
         {
           role: "system",
           content: [
             "You analyze feedback submissions from an Echo form.",
-            "Only answer using facts from the injected memories (each is one submission).",
-            "If the memories don't answer the question, say so plainly.",
-            "Cite the [submission id] tag at the start of each memory you use.",
-          ].join(" "),
+            "The user has authority to read every submission — they are the form owner.",
+            "Use the memory blocks below as your only source of truth.",
+            "Quote relevant text verbatim and cite the [submission ...] tag at the start of each memory.",
+            "If the memories don't answer the question, say so plainly — don't claim 'no access'.",
+            "",
+            "Memory blocks:",
+            contextBlock,
+          ].join("\n"),
         },
         { role: "user", content: body.question },
       ],
@@ -92,6 +167,7 @@ export async function POST(request: Request) {
       answer: result.text,
       tokens: result.usage,
       namespace,
+      memoriesUsed: memories.length,
     });
   } catch (err) {
     return NextResponse.json(
