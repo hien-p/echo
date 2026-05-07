@@ -57,8 +57,9 @@ export const DemoAdminToggle = () => {
   if (!enabled) return null;
   if (!mounted) {
     return (
-      <span className="text-xs px-2 py-1 rounded-full border opacity-0">
-        Demo admin
+      <span className="inline-flex items-center gap-2 opacity-0">
+        <span className="text-xs">Demo admin</span>
+        <span className="w-9 h-5 rounded-full" />
       </span>
     );
   }
@@ -66,6 +67,8 @@ export const DemoAdminToggle = () => {
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={on}
       onClick={() => writeStored(!on)}
       title={
         on
@@ -73,14 +76,33 @@ export const DemoAdminToggle = () => {
           : "Demo admin mode OFF — wallet-driven decrypt only."
       }
       className={cn(
-        "text-xs px-2 py-1 rounded-full border inline-flex items-center gap-1 transition-colors",
-        on
-          ? "bg-amber-100 border-amber-300 text-amber-900 hover:bg-amber-200"
-          : "border-border text-muted-foreground hover:bg-accent",
+        "inline-flex items-center gap-2 text-xs select-none cursor-pointer rounded-full px-2 py-1 transition-colors",
+        on ? "text-amber-900 bg-amber-50" : "text-muted-foreground",
       )}
     >
-      <Sparkles size={12} />
-      Demo admin {on ? "on" : "off"}
+      <Sparkles
+        size={12}
+        className={cn(
+          "transition-transform duration-300",
+          on && "rotate-12 text-amber-600",
+        )}
+      />
+      <span className="font-medium">Demo admin</span>
+      <span
+        className={cn(
+          "relative inline-flex shrink-0 h-5 w-9 items-center rounded-full border transition-colors duration-300",
+          on
+            ? "bg-amber-400 border-amber-500"
+            : "bg-muted border-border",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-300 ease-out",
+            on ? "translate-x-[18px]" : "translate-x-0.5",
+          )}
+        />
+      </span>
     </button>
   );
 };

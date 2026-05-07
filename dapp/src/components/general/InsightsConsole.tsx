@@ -7,6 +7,7 @@ import { Database, Sparkles } from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
+import { useDemoAdminMode } from "./DemoAdminToggle";
 
 interface OnChainForm {
   metadata_blob_id: string;
@@ -29,16 +30,19 @@ export const InsightsConsole = () => {
   const dAppKit = useDAppKit();
   const suiClient = dAppKit.getClient();
   const packageId = clientConfig.ECHO_PACKAGE_ID;
+  const demoMode = useDemoAdminMode();
+  const demoAddress = clientConfig.DEMO_ADMIN_ADDRESS;
+  const ownerAddress = demoMode ? demoAddress : account?.address;
 
   const [selectedFormId, setSelectedFormId] = useState("");
   const [question, setQuestion] = useState("");
 
   const formsQuery = useQuery({
-    queryKey: ["echo", "insights", "forms", account?.address],
+    queryKey: ["echo", "insights", "forms", ownerAddress, demoMode],
     queryFn: async (): Promise<FormChoice[]> => {
-      if (!account) return [];
+      if (!ownerAddress) return [];
       const owned = await suiClient.listOwnedObjects({
-        owner: account.address,
+        owner: ownerAddress,
         type: `${packageId}::form::FormOwnerCap`,
         include: { json: true },
         limit: 100,
@@ -77,7 +81,7 @@ export const InsightsConsole = () => {
         }),
       );
     },
-    enabled: !!account?.address && packageId.startsWith("0x"),
+    enabled: !!ownerAddress && packageId.startsWith("0x"),
   });
 
   const indexMutation = useMutation({
@@ -122,7 +126,7 @@ export const InsightsConsole = () => {
     },
   });
 
-  if (!account) {
+  if (!ownerAddress) {
     return (
       <p className="text-sm text-muted-foreground">
         Connect a wallet to see your forms.

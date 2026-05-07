@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
+import { Sparkles } from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
 import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
+import { useDemoAdminMode } from "./DemoAdminToggle";
 
 interface OwnedCap {
   objectId: string;
@@ -39,14 +41,17 @@ export const FormList = () => {
   const dAppKit = useDAppKit();
   const suiClient = dAppKit.getClient();
   const packageId = clientConfig.ECHO_PACKAGE_ID;
+  const demoMode = useDemoAdminMode();
+  const demoAddress = clientConfig.DEMO_ADMIN_ADDRESS;
+  const ownerAddress = demoMode ? demoAddress : account?.address;
 
   const formsQuery = useQuery({
-    queryKey: ["echo", "forms", "owned", account?.address],
+    queryKey: ["echo", "forms", "owned", ownerAddress, demoMode],
     queryFn: async () => {
-      if (!account) return [];
+      if (!ownerAddress) return [];
       const capType = `${packageId}::form::FormOwnerCap`;
       const owned = await suiClient.listOwnedObjects({
-        owner: account.address,
+        owner: ownerAddress,
         type: capType,
         include: { json: true },
         limit: 100,
@@ -84,10 +89,10 @@ export const FormList = () => {
       );
       return items.filter((x): x is NonNullable<typeof x> => x !== null);
     },
-    enabled: !!account?.address && packageId.startsWith("0x"),
+    enabled: !!ownerAddress && packageId.startsWith("0x"),
   });
 
-  if (!account) {
+  if (!ownerAddress) {
     return (
       <p className="text-sm text-muted-foreground">
         Connect a wallet to see your forms.
@@ -118,7 +123,18 @@ export const FormList = () => {
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2">
+      {demoMode && (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 inline-flex items-start gap-2">
+          <Sparkles size={12} className="mt-0.5 shrink-0" />
+          <span>
+            Showing forms owned by the demo address (
+            <code>{demoAddress.slice(0, 10)}…{demoAddress.slice(-4)}</code>
+            ). Server-side decrypt is enabled for these.
+          </span>
+        </p>
+      )}
+      <ul className="flex flex-col gap-2">
       {forms.map((f) => (
         <li
           key={f.id}
@@ -149,6 +165,7 @@ export const FormList = () => {
           </div>
         </li>
       ))}
-    </ul>
+      </ul>
+    </div>
   );
 };

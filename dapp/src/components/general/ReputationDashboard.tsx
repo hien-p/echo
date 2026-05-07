@@ -6,6 +6,7 @@ import { Award, Plus, Trophy } from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import { buildClaimCreditTx, buildMintReputationTx } from "@/lib/echo";
+import { useDemoAdminMode } from "./DemoAdminToggle";
 
 interface OwnedRep {
   objectId: string;
@@ -37,20 +38,23 @@ export const ReputationDashboard = () => {
   const suiClient = dAppKit.getClient();
   const queryClient = useQueryClient();
   const packageId = clientConfig.ECHO_PACKAGE_ID;
+  const demoMode = useDemoAdminMode();
+  const demoAddress = clientConfig.DEMO_ADMIN_ADDRESS;
+  const viewerAddress = demoMode ? demoAddress : account?.address;
 
   const repQuery = useQuery({
-    queryKey: ["echo", "reputation", account?.address],
+    queryKey: ["echo", "reputation", viewerAddress, demoMode],
     queryFn: async () => {
-      if (!account) return { rep: null, tickets: [] as OwnedTicket[] };
+      if (!viewerAddress) return { rep: null, tickets: [] as OwnedTicket[] };
       const [reps, tickets] = await Promise.all([
         suiClient.listOwnedObjects({
-          owner: account.address,
+          owner: viewerAddress,
           type: `${packageId}::reputation::Reputation`,
           include: { json: true },
           limit: 50,
         }),
         suiClient.listOwnedObjects({
-          owner: account.address,
+          owner: viewerAddress,
           type: `${packageId}::reputation::CreditTicket`,
           include: { json: true },
           limit: 100,
@@ -60,7 +64,7 @@ export const ReputationDashboard = () => {
       const ticketList = tickets.objects as unknown as OwnedTicket[];
       return { rep: repList[0] ?? null, tickets: ticketList };
     },
-    enabled: !!account?.address && packageId.startsWith("0x"),
+    enabled: !!viewerAddress && packageId.startsWith("0x"),
   });
 
   const leaderboardQuery = useQuery({
@@ -95,7 +99,7 @@ export const ReputationDashboard = () => {
     },
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: ["echo", "reputation", account?.address],
+        queryKey: ["echo", "reputation", viewerAddress, demoMode],
       }),
   });
 
@@ -116,13 +120,13 @@ export const ReputationDashboard = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["echo", "reputation", account?.address],
+        queryKey: ["echo", "reputation", viewerAddress, demoMode],
       });
       queryClient.invalidateQueries({ queryKey: ["echo", "leaderboard"] });
     },
   });
 
-  if (!account) {
+  if (!viewerAddress) {
     return (
       <p className="text-sm text-muted-foreground">
         Connect a wallet to see your reputation.
@@ -132,9 +136,17 @@ export const ReputationDashboard = () => {
 
   const rep = repQuery.data?.rep ?? null;
   const tickets = repQuery.data?.tickets ?? [];
+  const canMutate = !!account;
 
   return (
     <div className="flex flex-col gap-md">
+      {demoMode && (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+          Read-only demo view of <code>{demoAddress.slice(0, 10)}…</code>'s
+          reputation. Mint/Claim are disabled — connect a wallet to act on your
+          own badge.
+        </p>
+      )}
       <section className="border rounded p-4 bg-card flex items-center gap-3">
         <Award size={32} className="text-amber-600" />
         {rep ? (
@@ -155,10 +167,12 @@ export const ReputationDashboard = () => {
             <button
               type="button"
               onClick={() => mintMutation.mutate()}
-              disabled={mintMutation.isPending}
+              disabled={mintMutation.isPending || !canMutate}
               className={cn(
                 "border rounded px-3 py-1 text-sm flex items-center gap-1",
-                mintMutation.isPending ? "opacity-60" : "hover:bg-accent",
+                mintMutation.isPending || !canMutate
+                  ? "opacity-60 cursor-not-allowed"
+                  : "hover:bg-accent",
               )}
             >
               <Plus size={14} /> Mint badge
@@ -191,11 +205,11 @@ export const ReputationDashboard = () => {
                   type="button"
                   className={cn(
                     "ml-auto border rounded px-3 py-1",
-                    rep && !claimMutation.isPending
+                    rep && canMutate && !claimMutation.isPending
                       ? "hover:bg-accent"
                       : "opacity-60 cursor-not-allowed",
                   )}
-                  disabled={!rep || claimMutation.isPending}
+                  disabled={!rep || !canMutate || claimMutation.isPending}
                   onClick={() =>
                     rep &&
                     claimMutation.mutate({
@@ -204,7 +218,11 @@ export const ReputationDashboard = () => {
                     })
                   }
                 >
-                  {rep ? "Claim" : "Mint badge first"}
+                  {!canMutate
+                    ? "Connect wallet"
+                    : rep
+                      ? "Claim"
+                      : "Mint badge first"}
                 </button>
               </li>
             ))}

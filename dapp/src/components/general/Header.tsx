@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import { ConnectWalletMenu } from "./ConnectWalletMenu";
-import { DemoAdminToggle } from "./DemoAdminToggle";
+import { DemoAdminToggle, useDemoAdminMode } from "./DemoAdminToggle";
 
 export const Header = () => {
+  const demoMode = useDemoAdminMode();
   return (
     <header className="p-2xs bg-background border-b text-foreground sticky top-0 flex items-center justify-between">
       <div className="flex items-center gap-md">
@@ -29,7 +32,7 @@ export const Header = () => {
       </div>
       <div className="flex items-center gap-sm">
         <DemoAdminToggle />
-        <ConnectWalletMenu />
+        {!demoMode && <ConnectWalletMenu />}
       </div>
     </header>
   );
