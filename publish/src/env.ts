@@ -6,6 +6,7 @@ const envSchema = z.object({
   ADMIN_ADDRESS: z.string().optional(),
   ADMIN_SECRET_KEY: z.string().optional(),
   MOVE_PACKAGE_PATH: z.string().optional(),
+  DEMO_ADMIN_ADDRESS: z.string().optional(),
 });
 
 export const ENV = envSchema.parse({
@@ -14,4 +15,5 @@ export const ENV = envSchema.parse({
   ADMIN_ADDRESS: process.env.ADMIN_ADDRESS,
   ADMIN_SECRET_KEY: process.env.ADMIN_SECRET_KEY,
   MOVE_PACKAGE_PATH: process.env.MOVE_PACKAGE_PATH,
+  DEMO_ADMIN_ADDRESS: process.env.DEMO_ADMIN_ADDRESS,
 });

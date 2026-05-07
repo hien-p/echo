@@ -18,6 +18,13 @@ export const clientConfigSchema = z.object({
    * still work but submissions are uploaded plaintext with a UI warning.
    */
   SEAL_KEY_SERVERS: z.string().default(""),
+  /**
+   * Sui address holding demo FormOwnerCaps. When set, the DemoAdminToggle
+   * pill is shown in the header; flipping it on routes admin reads through
+   * /api/demo/admin/* (server-side Seal decrypt) instead of wallet-driven
+   * decrypt. Demo-only — server holds decrypt capability for these caps.
+   */
+  DEMO_ADMIN_ADDRESS: z.string().default(""),
 });
 
 export const clientConfig = clientConfigSchema.parse({
@@ -28,4 +35,5 @@ export const clientConfig = clientConfigSchema.parse({
   ECHO_PACKAGE_ID: process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID,
   WALRUS_NETWORK: process.env.NEXT_PUBLIC_WALRUS_NETWORK,
   SEAL_KEY_SERVERS: process.env.NEXT_PUBLIC_SEAL_KEY_SERVERS ?? "",
+  DEMO_ADMIN_ADDRESS: process.env.NEXT_PUBLIC_DEMO_ADMIN_ADDRESS ?? "",
 });

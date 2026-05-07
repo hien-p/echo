@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ConnectWalletMenu } from "./ConnectWalletMenu";
+import { DemoAdminToggle } from "./DemoAdminToggle";
 
 export const Header = () => {
   return (
@@ -26,7 +27,10 @@ export const Header = () => {
           </Link>
         </nav>
       </div>
-      <ConnectWalletMenu />
+      <div className="flex items-center gap-sm">
+        <DemoAdminToggle />
+        <ConnectWalletMenu />
+      </div>
     </header>
   );
 };

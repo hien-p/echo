@@ -164,6 +164,26 @@
             <time datetime="2026-05-07">2026-05-07</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
+          <h3>Demo admin toggle + server-side Seal decrypt</h3>
+          <p>
+            New header pill flips on a demo-mode admin path:
+            <code>/api/demo/admin/{list,decrypt}</code> route handlers sign Seal
+            <code>SessionKey</code> server-side using
+            <code>DEMO_ADMIN_SECRET_KEY</code> and decrypt submissions for any
+            form whose owner matches
+            <code>NEXT_PUBLIC_DEMO_ADMIN_ADDRESS</code>. Lets visitors explore
+            admin features without holding the <code>FormOwnerCap</code>.
+            <code>publish/transferDemoCaps.ts</code>
+            re-homes existing caps to the demo address in one PTB. Demo-only —
+            real AdminOnly tiers stay wallet-driven.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-07">
+          <header>
+            <time datetime="2026-05-07">2026-05-07</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
           <h3>Zero-gas form authoring + JSON edit mode</h3>
           <p>
             <code>/api/walrus/upload</code> proxy now forwards bytes to the

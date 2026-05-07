@@ -10,6 +10,7 @@ import {
   Unlock,
   Archive,
   Unlock as UnlockIcon,
+  Sparkles,
 } from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ import {
   type SubmissionPayload,
 } from "@/lib/echo";
 import { BountyPanel } from "./BountyPanel";
+import { useDemoAdminMode } from "./DemoAdminToggle";
 
 interface OnChainForm {
   schema_blob_id: string;
@@ -80,6 +82,7 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
   const suiClient = dAppKit.getClient();
   const queryClient = useQueryClient();
   const packageId = clientConfig.ECHO_PACKAGE_ID;
+  const demoToggleOn = useDemoAdminMode();
 
   const formQuery = useQuery({
     queryKey: ["echo", "form-admin", formId],
@@ -226,13 +229,6 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
     },
   });
 
-  if (!account) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Connect a wallet to view admin tools.
-      </p>
-    );
-  }
   if (formQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
@@ -245,6 +241,18 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
   }
 
   const { onChain, schema, metadata } = formQuery.data;
+  const demoAdminAddr = clientConfig.DEMO_ADMIN_ADDRESS.toLowerCase();
+  const demoMode =
+    demoToggleOn &&
+    !!demoAdminAddr &&
+    onChain.owner.toLowerCase() === demoAdminAddr;
+  if (!account && !demoMode) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Connect a wallet to view admin tools.
+      </p>
+    );
+  }
   const isOwner = !!ownerCapQuery.data;
   const submissions = submissionsQuery.data ?? [];
 
@@ -264,7 +272,17 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
         </p>
       </header>
 
-      {!isOwner && (
+      {demoMode && (
+        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 inline-flex items-start gap-2">
+          <Sparkles size={14} className="mt-0.5 shrink-0" />
+          <span>
+            <strong>Demo admin mode.</strong> Reads happen server-side using a
+            shared demo key. Treat this as a public showcase — never enable for
+            forms that depend on the AdminOnly trust boundary.
+          </span>
+        </p>
+      )}
+      {!isOwner && !demoMode && (
         <p className="text-sm text-amber-700">
           You don&apos;t hold the FormOwnerCap. Close/Archive disabled.
         </p>
@@ -342,19 +360,22 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
                 formOwnerCapId={ownerCapQuery.data ?? null}
                 dAppKit={dAppKit}
                 suiClient={suiClient}
-                accountAddress={account.address}
+                accountAddress={account?.address ?? ""}
+                demoMode={demoMode}
               />
             ))}
           </ul>
         )}
       </section>
 
-      <BountyPanel
-        formId={formId}
-        formOwnerCapId={ownerCapQuery.data ?? null}
-        isOwner={isOwner}
-        callerAddress={account.address}
-      />
+      {account && (
+        <BountyPanel
+          formId={formId}
+          formOwnerCapId={ownerCapQuery.data ?? null}
+          isOwner={isOwner}
+          callerAddress={account.address}
+        />
+      )}
 
       {onChain.status === 2 && (
         <p className="text-sm text-amber-700 inline-flex items-center gap-1">
@@ -377,6 +398,7 @@ function SubmissionRowView({
   dAppKit,
   suiClient,
   accountAddress,
+  demoMode,
 }: {
   row: SubmissionRow;
   schema: FormSchema | null;
@@ -388,6 +410,7 @@ function SubmissionRowView({
   dAppKit: ReturnType<typeof useDAppKit>;
   suiClient: ReturnType<ReturnType<typeof useDAppKit>["getClient"]>;
   accountAddress: string;
+  demoMode: boolean;
 }) {
   const [decrypted, setDecrypted] = useState<SubmissionPayload | null>(null);
   const [decryptError, setDecryptError] = useState<string | null>(null);
@@ -397,6 +420,29 @@ function SubmissionRowView({
     setDecryptError(null);
     setDecrypting(true);
     try {
+      if (demoMode) {
+        const resp = await fetch("/api/demo/admin/decrypt", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            formId,
+            submissionId: row.submissionId,
+            payloadBlobId: row.payloadBlobId,
+          }),
+        });
+        const json = (await resp.json()) as {
+          payload?: SubmissionPayload;
+          error?: string;
+        };
+        if (!resp.ok) {
+          throw new Error(json.error ?? `HTTP ${resp.status}`);
+        }
+        if (!json.payload) {
+          throw new Error("Demo decrypt returned no payload.");
+        }
+        setDecrypted(json.payload);
+        return;
+      }
       const sealServers = parseSealServers(clientConfig.SEAL_KEY_SERVERS);
       if (sealServers.length === 0) {
         throw new Error(
@@ -504,7 +550,11 @@ function SubmissionRowView({
             disabled={decrypting}
             className="border rounded px-3 py-1 text-xs w-fit hover:bg-accent disabled:opacity-60"
           >
-            {decrypting ? "Decrypting…" : "Decrypt with Seal"}
+            {decrypting
+              ? "Decrypting…"
+              : demoMode
+                ? "Decrypt (server, demo mode)"
+                : "Decrypt with Seal"}
           </button>
           {decryptError && (
             <p className="text-xs text-destructive">{decryptError}</p>
