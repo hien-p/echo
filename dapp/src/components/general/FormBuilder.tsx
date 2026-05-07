@@ -31,6 +31,7 @@ import {
 import { buildCreateFormTx } from "@/lib/echo/tx";
 import { getWalrusClient, uploadJsonBlob } from "@/lib/echo/walrus";
 import { makeWalletSigner } from "@/lib/echo/walletSigner";
+import { FormPreview } from "./FormPreview";
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "short_text", label: "Short text" },
@@ -378,184 +379,196 @@ export const FormBuilder = () => {
   };
 
   return (
-    <div className="flex flex-col gap-md">
-      <BuilderSection title="Start from a template">
-        <div className="flex flex-wrap gap-2">
-          {TEMPLATES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => applyTemplate(t.id)}
-              className="border rounded px-3 py-1 text-sm hover:bg-accent"
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </BuilderSection>
-
-      <BuilderSection title="Metadata">
-        <Field label="Title">
-          <input
-            className="w-full border rounded px-2 py-1"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-        </Field>
-        <Field label="Description">
-          <textarea
-            className="w-full border rounded px-2 py-1 min-h-[60px]"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </Field>
-      </BuilderSection>
-
-      <BuilderSection title="Privacy tier">
-        <select
-          className="border rounded px-2 py-1 w-fit"
-          value={tier}
-          onChange={(e) => setTier(Number(e.target.value) as PrivacyTier)}
-        >
-          {TIER_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <p className="text-sm text-muted-foreground">
-          {TIER_OPTIONS.find((o) => o.value === tier)?.help}
-        </p>
-        {tier === PrivacyTier.Threshold && (
-          <div className="flex gap-2 items-center">
-            <Field label="N (required)">
-              <input
-                type="number"
-                min={1}
-                max={thresholdM}
-                className="border rounded px-2 py-1 w-20"
-                value={thresholdN}
-                onChange={(e) => setThresholdN(Number(e.target.value))}
-              />
-            </Field>
-            <Field label="M (total)">
-              <input
-                type="number"
-                min={thresholdN}
-                className="border rounded px-2 py-1 w-20"
-                value={thresholdM}
-                onChange={(e) => setThresholdM(Number(e.target.value))}
-              />
-            </Field>
-          </div>
-        )}
-        {tier === PrivacyTier.TimeLocked && (
-          <Field label="Unlock at (unix ms)">
-            <input
-              className="border rounded px-2 py-1 w-full"
-              placeholder="1746000000000"
-              value={unlockMs}
-              onChange={(e) => setUnlockMs(e.target.value)}
-            />
-          </Field>
-        )}
-        {tier === PrivacyTier.Conditional && (
-          <Field label="Policy ID">
-            <input
-              className="border rounded px-2 py-1 w-full"
-              placeholder="airdrop_holder_v1"
-              value={policyId}
-              onChange={(e) => setPolicyId(e.target.value)}
-            />
-          </Field>
-        )}
-      </BuilderSection>
-
-      <BuilderSection title="Fields">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={fields.map((f) => f.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <ol className="flex flex-col gap-2">
-              {fields.map((f) => (
-                <SortableFieldRow
-                  key={f.id}
-                  field={f}
-                  onUpdate={updateField}
-                  onRemove={removeField}
-                />
-              ))}
-            </ol>
-          </SortableContext>
-        </DndContext>
-        <div className="flex gap-2 items-center">
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            id="add-field-type"
-            defaultValue="short_text"
-          >
-            {FIELD_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] gap-md">
+      <div className="flex flex-col gap-md">
+        <BuilderSection title="Start from a template">
+          <div className="flex flex-wrap gap-2">
+            {TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => applyTemplate(t.id)}
+                className="border rounded px-3 py-1 text-sm hover:bg-accent"
+              >
                 {t.label}
+              </button>
+            ))}
+          </div>
+        </BuilderSection>
+
+        <BuilderSection title="Metadata">
+          <Field label="Title">
+            <input
+              className="w-full border rounded px-2 py-1"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </Field>
+          <Field label="Description">
+            <textarea
+              className="w-full border rounded px-2 py-1 min-h-[60px]"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </Field>
+        </BuilderSection>
+
+        <BuilderSection title="Privacy tier">
+          <select
+            className="border rounded px-2 py-1 w-fit"
+            value={tier}
+            onChange={(e) => setTier(Number(e.target.value) as PrivacyTier)}
+          >
+            {TIER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>
-          <button
-            className="border rounded px-3 py-1 text-sm flex items-center gap-1 hover:bg-accent"
-            onClick={() => {
-              const sel = document.getElementById(
-                "add-field-type",
-              ) as HTMLSelectElement | null;
-              if (sel) addField(sel.value as FieldType);
-            }}
-            type="button"
-          >
-            <Plus size={14} />
-            Add field
-          </button>
-        </div>
-      </BuilderSection>
-
-      <div className="flex flex-col gap-2">
-        <button
-          className={cn(
-            "border rounded px-4 py-2 font-medium",
-            currentAccount && status.kind !== "saving"
-              ? "bg-foreground text-background hover:opacity-90"
-              : "opacity-60 cursor-not-allowed",
+          <p className="text-sm text-muted-foreground">
+            {TIER_OPTIONS.find((o) => o.value === tier)?.help}
+          </p>
+          {tier === PrivacyTier.Threshold && (
+            <div className="flex gap-2 items-center">
+              <Field label="N (required)">
+                <input
+                  type="number"
+                  min={1}
+                  max={thresholdM}
+                  className="border rounded px-2 py-1 w-20"
+                  value={thresholdN}
+                  onChange={(e) => setThresholdN(Number(e.target.value))}
+                />
+              </Field>
+              <Field label="M (total)">
+                <input
+                  type="number"
+                  min={thresholdN}
+                  className="border rounded px-2 py-1 w-20"
+                  value={thresholdM}
+                  onChange={(e) => setThresholdM(Number(e.target.value))}
+                />
+              </Field>
+            </div>
           )}
-          onClick={() => void handleSave()}
-          type="button"
-          disabled={!currentAccount || status.kind === "saving"}
-        >
-          {status.kind === "saving"
-            ? status.step
-            : currentAccount
-              ? "Save form"
-              : "Connect wallet to save"}
-        </button>
-        {!packageDeployed && (
-          <p className="text-xs text-amber-600">
-            ⚠ NEXT_PUBLIC_ECHO_PACKAGE_ID is not set yet. Deploy the Move
-            package via <code>publish/</code> and add the resulting object ID to{" "}
-            <code>dapp/.env</code> to enable on-chain saves.
-          </p>
-        )}
-        {status.kind === "error" && (
-          <p className="text-sm text-destructive">{status.message}</p>
-        )}
-        {status.kind === "saved" && (
-          <p className="text-sm text-emerald-700">
-            ✓ Form created. Redirecting to{" "}
-            <code>/forms/{status.formId.slice(0, 10)}…</code>
-          </p>
-        )}
+          {tier === PrivacyTier.TimeLocked && (
+            <Field label="Unlock at (unix ms)">
+              <input
+                className="border rounded px-2 py-1 w-full"
+                placeholder="1746000000000"
+                value={unlockMs}
+                onChange={(e) => setUnlockMs(e.target.value)}
+              />
+            </Field>
+          )}
+          {tier === PrivacyTier.Conditional && (
+            <Field label="Policy ID">
+              <input
+                className="border rounded px-2 py-1 w-full"
+                placeholder="airdrop_holder_v1"
+                value={policyId}
+                onChange={(e) => setPolicyId(e.target.value)}
+              />
+            </Field>
+          )}
+        </BuilderSection>
+
+        <BuilderSection title="Fields">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={fields.map((f) => f.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ol className="flex flex-col gap-2">
+                {fields.map((f) => (
+                  <SortableFieldRow
+                    key={f.id}
+                    field={f}
+                    onUpdate={updateField}
+                    onRemove={removeField}
+                  />
+                ))}
+              </ol>
+            </SortableContext>
+          </DndContext>
+          <div className="flex gap-2 items-center">
+            <select
+              className="border rounded px-2 py-1 text-sm"
+              id="add-field-type"
+              defaultValue="short_text"
+            >
+              {FIELD_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <button
+              className="border rounded px-3 py-1 text-sm flex items-center gap-1 hover:bg-accent"
+              onClick={() => {
+                const sel = document.getElementById(
+                  "add-field-type",
+                ) as HTMLSelectElement | null;
+                if (sel) addField(sel.value as FieldType);
+              }}
+              type="button"
+            >
+              <Plus size={14} />
+              Add field
+            </button>
+          </div>
+        </BuilderSection>
+
+        <div className="flex flex-col gap-2">
+          <TierBadge
+            tier={tier}
+            thresholdN={thresholdN}
+            thresholdM={thresholdM}
+            unlockMs={unlockMs}
+          />
+          <button
+            className={cn(
+              "border rounded px-4 py-2 font-medium",
+              currentAccount && status.kind !== "saving"
+                ? "bg-foreground text-background hover:opacity-90"
+                : "opacity-60 cursor-not-allowed",
+            )}
+            onClick={() => void handleSave()}
+            type="button"
+            disabled={!currentAccount || status.kind === "saving"}
+          >
+            {status.kind === "saving"
+              ? status.step
+              : currentAccount
+                ? "Save form"
+                : "Connect wallet to save"}
+          </button>
+          {!packageDeployed && (
+            <p className="text-xs text-amber-600">
+              ⚠ NEXT_PUBLIC_ECHO_PACKAGE_ID is not set yet. Deploy the Move
+              package via <code>publish/</code> and add the resulting object ID
+              to <code>dapp/.env</code> to enable on-chain saves.
+            </p>
+          )}
+          {status.kind === "error" && (
+            <p className="text-sm text-destructive">{status.message}</p>
+          )}
+          {status.kind === "saved" && (
+            <p className="text-sm text-emerald-700">
+              ✓ Form created. Redirecting to{" "}
+              <code>/forms/{status.formId.slice(0, 10)}…</code>
+            </p>
+          )}
+        </div>
       </div>
+
+      <aside className="hidden lg:block">
+        <FormPreview schema={schema} metadata={metadata} privacyTier={tier} />
+      </aside>
     </div>
   );
 };
@@ -574,6 +587,58 @@ const BuilderSection = ({
     <div className="flex flex-col gap-2">{children}</div>
   </section>
 );
+
+function TierBadge({
+  tier,
+  thresholdN,
+  thresholdM,
+  unlockMs,
+}: {
+  tier: PrivacyTier;
+  thresholdN: number;
+  thresholdM: number;
+  unlockMs: string;
+}) {
+  if (tier === PrivacyTier.Public) return null;
+  let body: React.ReactNode = null;
+  switch (tier) {
+    case PrivacyTier.AdminOnly:
+      body = (
+        <>🔒 Encrypted with Seal · only your wallet can decrypt after save.</>
+      );
+      break;
+    case PrivacyTier.Threshold:
+      body = (
+        <>
+          🔒 Encrypted with Seal · {thresholdN}-of-{thresholdM} admin shares
+          required to decrypt.
+        </>
+      );
+      break;
+    case PrivacyTier.TimeLocked: {
+      const ts = unlockMs ? new Date(Number(unlockMs)) : null;
+      body = (
+        <>
+          ⏳ Encrypted with Seal · auto-decrypts at{" "}
+          {ts && !isNaN(ts.getTime())
+            ? ts.toISOString().replace("T", " ").slice(0, 16) + " UTC"
+            : "(set unlock_ms above)"}
+        </>
+      );
+      break;
+    }
+    case PrivacyTier.Conditional:
+      body = (
+        <>🔒 Encrypted with Seal · decrypts when on-chain policy matches.</>
+      );
+      break;
+  }
+  return (
+    <p className="text-xs text-amber-700 dark:text-amber-400 inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-50 dark:bg-amber-950/30 w-fit">
+      {body}
+    </p>
+  );
+}
 
 const Field = ({
   label,
