@@ -5,6 +5,7 @@ import { Upload, Image as ImageIcon, Video, FileIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { uploadBytesViaPublisher } from "@/lib/echo/walrus";
 import type { FormField, SubmissionAnswer } from "@/lib/echo/types";
+import { MarkdownEditor } from "./MarkdownEditor";
 
 const TESTNET_AGGREGATORS = [
   "https://aggregator.walrus-testnet.walrus.space",
@@ -69,7 +70,6 @@ export function FormFieldInput({
         </label>
       );
     case "long_text":
-    case "rich_text":
       return (
         <label className="flex flex-col gap-1">
           {Label}
@@ -80,6 +80,16 @@ export function FormFieldInput({
             onChange={(e) => onChange({ kind: "text", value: e.target.value })}
           />
         </label>
+      );
+    case "rich_text":
+      return (
+        <div className="flex flex-col gap-1">
+          {Label}
+          <MarkdownEditor
+            value={value?.kind === "text" ? value.value : ""}
+            onChange={(next) => onChange({ kind: "text", value: next })}
+          />
+        </div>
       );
     case "single_select":
     case "dropdown":

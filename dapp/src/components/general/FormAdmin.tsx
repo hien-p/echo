@@ -32,6 +32,7 @@ import {
 import { BountyPanel } from "./BountyPanel";
 import { useDemoAdminMode } from "./DemoAdminToggle";
 import { TimeLockBadge } from "./TimeLockBadge";
+import { MarkdownView } from "./MarkdownView";
 
 interface OnChainForm {
   schema_blob_id: string;
@@ -1328,15 +1329,22 @@ function AnswerList({
 }) {
   const fields = schema?.fields ?? [];
   return (
-    <ul className="flex flex-col gap-1 text-sm">
+    <ul className="flex flex-col gap-2 text-sm">
       {Object.entries(payload.answers).map(([fieldId, ans]) => {
         const field = fields.find((f) => f.id === fieldId);
+        const isRichText = field?.type === "rich_text" && ans.kind === "text";
         return (
-          <li key={fieldId}>
+          <li key={fieldId} className="flex flex-col gap-0.5">
             <strong className="text-muted-foreground text-xs">
               {field?.label ?? fieldId}:
-            </strong>{" "}
-            <span>{stringifyAnswer(ans)}</span>
+            </strong>
+            {isRichText && ans.kind === "text" ? (
+              <div className="border-l-2 border-border pl-3">
+                <MarkdownView source={ans.value} />
+              </div>
+            ) : (
+              <span>{stringifyAnswer(ans)}</span>
+            )}
           </li>
         );
       })}

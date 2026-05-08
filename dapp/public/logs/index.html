@@ -164,6 +164,28 @@
             <time datetime="2026-05-09">2026-05-09</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
+          <h3>Markdown rich text + drop-to-Walrus image paste</h3>
+          <p>
+            <code>rich_text</code> field type now uses a real markdown editor
+            instead of a plain textarea. Type GFM (headings, bold, italics,
+            code, tables, task lists).
+            <strong>Paste or drag-drop an image</strong> into the editor and the
+            bytes auto-upload to Walrus via the publisher proxy; an
+            <code>![alt](aggregator-url)</code> tag inserts at the cursor.
+            Toolbar with B/I/Link/Image buttons and an Edit ↔ Preview tab so
+            respondents see formatted output before submitting. On the admin
+            side, decrypted rich_text answers render through
+            <code>react-markdown</code> + <code>remark-gfm</code> so the
+            Walrus-backed images, links, and formatting all show up properly in
+            the submission viewer.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-09">
+          <header>
+            <time datetime="2026-05-09">2026-05-09</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
           <h3>
             UX round 2: demo nudge, TimeLock countdown, +reputation button
           </h3>
