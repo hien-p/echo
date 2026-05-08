@@ -18,6 +18,7 @@ import {
   PrivacyTier,
   buildArchiveFormTx,
   buildCloseFormTx,
+  buildIssueCreditTx,
   buildSealApproveTxBytes,
   getSealClient,
   readBytesViaAggregator,
@@ -30,6 +31,7 @@ import {
 } from "@/lib/echo";
 import { BountyPanel } from "./BountyPanel";
 import { useDemoAdminMode } from "./DemoAdminToggle";
+import { TimeLockBadge } from "./TimeLockBadge";
 
 interface OnChainForm {
   schema_blob_id: string;
@@ -254,6 +256,46 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       queryClient.invalidateQueries({
         queryKey: ["echo", "form-admin", formId],
       });
+    },
+  });
+
+  // Per-row "+ reputation" — issues a CreditTicket of `scoreDelta` to the
+  // submission's submitter address. Only the cap holder can issue, so we
+  // gate the button on isOwner. Anonymous rows have submitter=@0x0 and are
+  // explicitly excluded since the on-chain submitter is unknown.
+  const [creditedIds, setCreditedIds] = useState<
+    Record<string, { delta: number; digest: string }>
+  >({});
+  const issueCreditMutation = useMutation({
+    mutationFn: async (args: {
+      submissionId: string;
+      recipient: string;
+      delta: number;
+    }) => {
+      if (!ownerCapQuery.data)
+        throw new Error("Owner cap required to issue credit.");
+      const tx = buildIssueCreditTx({
+        packageId,
+        formOwnerCapId: ownerCapQuery.data,
+        recipient: args.recipient,
+        scoreDelta: args.delta,
+      });
+      const result = await dAppKit.signAndExecuteTransaction({
+        transaction: tx,
+      });
+      if (result.$kind === "FailedTransaction")
+        throw new Error("issue_credit transaction failed.");
+      return {
+        submissionId: args.submissionId,
+        delta: args.delta,
+        digest: result.Transaction.digest,
+      };
+    },
+    onSuccess: (out) => {
+      setCreditedIds((curr) => ({
+        ...curr,
+        [out.submissionId]: { delta: out.delta, digest: out.digest },
+      }));
     },
   });
 
@@ -675,12 +717,17 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
           ← All forms
         </Link>
         <h1 className="text-2xl font-semibold">{metadata.title}</h1>
-        <p className="text-xs text-muted-foreground">
-          {STATUS_LABELS[onChain.status] ?? "?"} · {onChain.submission_count}{" "}
-          submissions ·{" "}
-          <Link href={`/forms/${formId}`} className="underline">
-            public link
-          </Link>
+        <p className="text-xs text-muted-foreground inline-flex items-center gap-2 flex-wrap">
+          <span>
+            {STATUS_LABELS[onChain.status] ?? "?"} · {onChain.submission_count}{" "}
+            submissions ·{" "}
+            <Link href={`/forms/${formId}`} className="underline">
+              public link
+            </Link>
+          </span>
+          {isTimeLockedTier && unlockMs > 0 && (
+            <TimeLockBadge unlockMs={unlockMs} />
+          )}
         </p>
       </header>
 
@@ -949,6 +996,19 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
                 canDecrypt={canDecrypt}
                 decryptDisabledReason={decryptDisabledReason}
                 preDecrypted={revealedById[s.submissionId] ?? null}
+                isOwner={isOwner}
+                onIssueCredit={(delta) =>
+                  issueCreditMutation.mutate({
+                    submissionId: s.submissionId,
+                    recipient: s.submitter,
+                    delta,
+                  })
+                }
+                issuingCredit={
+                  issueCreditMutation.isPending &&
+                  issueCreditMutation.variables?.submissionId === s.submissionId
+                }
+                credited={creditedIds[s.submissionId] ?? null}
               />
             ))}
           </ul>
@@ -989,6 +1049,10 @@ function SubmissionRowView({
   canDecrypt,
   decryptDisabledReason,
   preDecrypted,
+  isOwner,
+  onIssueCredit,
+  issuingCredit,
+  credited,
 }: {
   row: SubmissionRow;
   schema: FormSchema | null;
@@ -1005,6 +1069,10 @@ function SubmissionRowView({
   decryptDisabledReason: string | null;
   /** Set when "Reveal all" decrypted this row at the form level. */
   preDecrypted: SubmissionPayload | null;
+  isOwner: boolean;
+  onIssueCredit: (delta: number) => void;
+  issuingCredit: boolean;
+  credited: { delta: number; digest: string } | null;
 }) {
   const [decrypted, setDecrypted] = useState<SubmissionPayload | null>(
     preDecrypted,
@@ -1121,9 +1189,11 @@ function SubmissionRowView({
     }
   };
 
+  const canIssueCredit = isOwner && !row.anonymous && !demoMode;
+
   return (
     <li className="border rounded p-3 bg-card flex flex-col gap-1 text-sm">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
         <code>{row.submissionId.slice(0, 10)}…</code>
         <span>·</span>
         <span>{row.submittedAt}</span>
@@ -1131,16 +1201,42 @@ function SubmissionRowView({
         <span>
           {row.anonymous ? "anonymous" : `${row.submitter.slice(0, 10)}…`}
         </span>
-        {row.encrypted && !decrypted && (
-          <span className="ml-auto inline-flex items-center gap-1 text-amber-700">
-            <Lock size={12} /> encrypted
-          </span>
-        )}
-        {decrypted && (
-          <span className="ml-auto inline-flex items-center gap-1 text-emerald-700">
-            <UnlockIcon size={12} /> decrypted
-          </span>
-        )}
+        <span className="ml-auto flex items-center gap-2">
+          {canIssueCredit && !credited && (
+            <button
+              type="button"
+              onClick={() => onIssueCredit(5)}
+              disabled={issuingCredit}
+              title="Issue +5 reputation to this submitter (mints a CreditTicket on chain)."
+              className={cn(
+                "border rounded px-2 py-0.5 text-xs flex items-center gap-1",
+                issuingCredit
+                  ? "opacity-60 cursor-not-allowed"
+                  : "hover:bg-accent",
+              )}
+            >
+              {issuingCredit ? "Issuing…" : "+5 reputation"}
+            </button>
+          )}
+          {credited && (
+            <span
+              className="text-xs text-emerald-700 inline-flex items-center gap-1"
+              title={`tx ${credited.digest}`}
+            >
+              ✓ +{credited.delta} issued
+            </span>
+          )}
+          {row.encrypted && !decrypted && (
+            <span className="inline-flex items-center gap-1 text-amber-700">
+              <Lock size={12} /> encrypted
+            </span>
+          )}
+          {decrypted && (
+            <span className="inline-flex items-center gap-1 text-emerald-700">
+              <UnlockIcon size={12} /> decrypted
+            </span>
+          )}
+        </span>
       </div>
 
       {row.encrypted && !decrypted ? (

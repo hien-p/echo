@@ -7,6 +7,7 @@ import { Sparkles } from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
 import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 import { useDemoAdminMode } from "./DemoAdminToggle";
+import { TimeLockBadge } from "./TimeLockBadge";
 
 interface OwnedCap {
   objectId: string;
@@ -21,6 +22,7 @@ interface OnChainForm {
   status: number;
   submission_count: string;
   created_ms: string;
+  unlock_ms?: string;
 }
 
 const STATUS_LABELS: Record<number, string> = {
@@ -153,12 +155,15 @@ export const FormList = () => {
                 {f.id.slice(0, 10)}…
               </span>
             </div>
-            <div className="flex gap-2 text-xs text-muted-foreground">
+            <div className="flex gap-2 text-xs text-muted-foreground items-center flex-wrap">
               <span>{TIER_LABELS[f.onChain.privacy_tier] ?? "?"}</span>
               <span>·</span>
               <span>{STATUS_LABELS[f.onChain.status] ?? "?"}</span>
               <span>·</span>
               <span>{f.onChain.submission_count} submissions</span>
+              {f.onChain.privacy_tier === 3 && f.onChain.unlock_ms && (
+                <TimeLockBadge unlockMs={Number(f.onChain.unlock_ms)} />
+              )}
               <span className="ml-auto">
                 <Link className="underline" href={`/forms/${f.id}`}>
                   public link →

@@ -164,6 +164,54 @@
             <time datetime="2026-05-09">2026-05-09</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
+          <h3>
+            UX round 2: demo nudge, TimeLock countdown, +reputation button
+          </h3>
+          <p>
+            Three more first-time-user friction points fixed.
+            <strong>Demo admin info popover</strong>: header pill picks up a
+            <code>?</code> trigger that opens a one-paragraph explainer ("what
+            is demo mode? why is your wallet still safe?"). Auto-shows on first
+            visit, dismissed forever via localStorage.
+            <strong>TimeLocked countdown badge</strong>: new
+            <code>TimeLockBadge</code> component renders "🔓 Unlocks in 4d 12h"
+            / "🔓 Unlocked" on every TimeLocked form card in
+            <code>/forms</code> and at the top of
+            <code>/forms/[id]/admin</code>. Live-ticks every 30s pre-unlock,
+            stops once past. <strong>Per-row +reputation button</strong>: cap
+            holders see a "+5 reputation" button on each named (non-anonymous)
+            submission; click → <code>buildIssueCreditTx</code> → wallet signs →
+            on-chain <code>CreditTicket</code> minted to the submitter; row
+            flips to "✓ +5 issued" with the tx digest in its tooltip. Closes the
+            bounty/reputation loop end-to-end.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-09">
+          <header>
+            <time datetime="2026-05-09">2026-05-09</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>UX round 1: tier copy, datetime picker, honest threshold</h3>
+          <p>
+            FormBuilder cleanup: the <code>Unlock at (unix ms)</code> raw
+            textbox is now a date+time picker that previews "Anyone can decrypt
+            after Mon May 12, 9:00 AM (in ~3d 4h)". The
+            <code>Threshold</code> tier was advertising "N-of-M shares required"
+            but the implementation is OR-of-N; renamed to "Multi-admin (any one
+            decrypts)" and removed the misleading n/m number inputs (real m-of-n
+            is v0.3 work). Tier helper text rewritten in user terms — no more
+            "Seal IBE", "shares required", "on-chain policy is satisfied".
+            Anonymous toggle now expands an explainer when checked: nullifier
+            mechanic + the "once per wallet" limit.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-09">
+          <header>
+            <time datetime="2026-05-09">2026-05-09</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
           <h3>v0.2.1 polish: file uploads, filter UI, indexer dedupe</h3>
           <p>
             Three spec gaps closed in one push.
