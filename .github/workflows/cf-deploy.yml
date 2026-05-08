@@ -48,6 +48,8 @@ jobs:
           NEXT_PUBLIC_ENOKI_PUBLIC_KEY: ${{ vars.NEXT_PUBLIC_ENOKI_PUBLIC_KEY }}
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
           NEXT_PUBLIC_ECHO_PACKAGE_ID: ${{ vars.NEXT_PUBLIC_ECHO_PACKAGE_ID }}
+          NEXT_PUBLIC_SEAL_KEY_SERVERS: ${{ vars.NEXT_PUBLIC_SEAL_KEY_SERVERS }}
+          NEXT_PUBLIC_DEMO_ADMIN_ADDRESS: ${{ vars.NEXT_PUBLIC_DEMO_ADMIN_ADDRESS }}
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
-// Node runtime — @mysten/seal (used internally by Memwal recall) needs
-// AbortSignal.any() and crypto APIs the Edge runtime sandbox doesn't expose.
-export const runtime = "nodejs";
+// Edge runtime — Cloudflare Pages workers (workerd) ship a recent V8 that
+// supports AbortSignal.any() natively, so @mysten/seal works there even
+// though Next.js's local Edge sandbox is missing it.
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 interface QueryRequest {

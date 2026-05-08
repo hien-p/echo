@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
-// Node runtime — @mysten/seal needs AbortSignal.any() and crypto APIs that
-// aren't reliably available in the Edge runtime sandbox.
-export const runtime = "nodejs";
+// Edge runtime — required for Cloudflare Pages. Workerd supports
+// AbortSignal.any() and crypto.subtle natively. Local Next.js dev's Edge
+// sandbox lacks AbortSignal.any — that's a dev-only quirk; prod works.
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 const PACKAGE_ID = process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID ?? "";
