@@ -350,12 +350,40 @@ export async function POST(request: Request) {
     sealCtx = { seal, sessionKey: session, txBytes };
   }
 
-  // 7. Per-submission: walrus → (decrypt) → flatten → remember.
+  // 7. Dedupe: pull existing memories once and extract every
+  // [submission 0xabc…] prefix. Subsequent indexings of the same form
+  // skip submissions whose 10-char prefix is already stored, so the
+  // namespace doesn't bloat from re-clicking "Index this form".
+  const alreadyIndexed = new Set<string>();
+  try {
+    const existing = await memwal.recall(
+      "submission response feedback answer comment",
+      200,
+      namespace,
+    );
+    for (const m of existing.results) {
+      const r = m as { text?: string };
+      if (!r.text) continue;
+      const match = /\[submission (0x[0-9a-f]+)\]/i.exec(r.text);
+      if (match) alreadyIndexed.add(match[1].toLowerCase());
+    }
+  } catch {
+    // Empty namespace or recall error — proceed without dedupe; remember()
+    // will just create duplicates which is recoverable.
+  }
+
+  // 8. Per-submission: walrus → (decrypt) → flatten → remember.
   let indexed = 0;
   let skipped = 0;
+  let deduped = 0;
   const errors: string[] = [];
 
   for (const e of matching) {
+    const shortId = e.submission_id.slice(0, 10).toLowerCase();
+    if (alreadyIndexed.has(shortId)) {
+      deduped++;
+      continue;
+    }
     try {
       const subResp = await suiClient.getObject({
         objectId: e.submission_id,
@@ -405,6 +433,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     indexed,
     skipped,
+    deduped,
     namespace,
     indexerSource,
     tier,

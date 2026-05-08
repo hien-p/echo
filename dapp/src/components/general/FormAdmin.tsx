@@ -295,6 +295,17 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
     Record<string, SubmissionPayload>
   >({});
 
+  // Filter/sort state for the submissions list. Persisted in component
+  // state only — could lift into URL params later if shareable views matter.
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortDir, setSortDir] = useState<"newest" | "oldest">("newest");
+  const [submitterFilter, setSubmitterFilter] = useState<
+    "all" | "named" | "anonymous"
+  >("all");
+  const [stateFilter, setStateFilter] = useState<
+    "all" | "decrypted" | "encrypted"
+  >("all");
+
   const revealAllMutation = useMutation({
     mutationFn: async () => {
       const onChain = formQuery.data?.onChain;
@@ -599,6 +610,38 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
   const isOwner = !!ownerCapQuery.data;
   const submissions = submissionsQuery.data ?? [];
 
+  // Apply search + filter + sort to derive the visible row list. Search
+  // matches against the submitter address and any decrypted-payload text;
+  // submitterFilter splits anonymous vs named; stateFilter splits encrypted
+  // vs decrypted (uses revealedById/payload to detect plaintext-available).
+  const displayedSubmissions = (() => {
+    const search = searchTerm.trim().toLowerCase();
+    let rows = submissions.filter((s) => {
+      const decrypted = revealedById[s.submissionId] ?? s.payload;
+      const isDecryptedRow = !!decrypted;
+      if (submitterFilter === "anonymous" && !s.anonymous) return false;
+      if (submitterFilter === "named" && s.anonymous) return false;
+      if (stateFilter === "decrypted" && !isDecryptedRow) return false;
+      if (stateFilter === "encrypted" && isDecryptedRow) return false;
+      if (!search) return true;
+      const haystack = [
+        s.submissionId,
+        s.submitter,
+        s.payloadBlobId,
+        decrypted ? JSON.stringify(decrypted.answers) : "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(search);
+    });
+    rows = [...rows].sort((a, b) => {
+      const ta = Date.parse(a.submittedAt) || 0;
+      const tb = Date.parse(b.submittedAt) || 0;
+      return sortDir === "newest" ? tb - ta : ta - tb;
+    });
+    return rows;
+  })();
+
   // Authority matrix per privacy tier — drives every "can the user click this"
   // decision so the UI never offers actions that fail with a cryptic SDK
   // error. Single source of truth for permission gating.
@@ -710,7 +753,11 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       <section>
         <div className="flex items-baseline justify-between gap-2 mb-2 flex-wrap">
           <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
-            Submissions ({submissions.length})
+            Submissions ({displayedSubmissions.length}
+            {displayedSubmissions.length !== submissions.length
+              ? ` of ${submissions.length}`
+              : ""}
+            )
           </h2>
           {canDecrypt &&
             !isPublicTier &&
@@ -806,13 +853,86 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
               ` ${revealAllMutation.data.errors.length} failed.`}
           </p>
         )}
+        {submissions.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+            <input
+              type="text"
+              placeholder="Search address, blob, or decrypted text…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border rounded px-2 py-1 flex-1 min-w-[220px]"
+            />
+            <select
+              value={sortDir}
+              onChange={(e) =>
+                setSortDir(e.target.value as "newest" | "oldest")
+              }
+              className="border rounded px-2 py-1"
+              title="Sort by submitted_ms"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+            <FilterChip
+              label="All"
+              active={submitterFilter === "all"}
+              onClick={() => setSubmitterFilter("all")}
+            />
+            <FilterChip
+              label="Named"
+              active={submitterFilter === "named"}
+              onClick={() => setSubmitterFilter("named")}
+            />
+            <FilterChip
+              label="Anonymous"
+              active={submitterFilter === "anonymous"}
+              onClick={() => setSubmitterFilter("anonymous")}
+            />
+            {!isPublicTier && (
+              <>
+                <span className="text-muted-foreground px-1">·</span>
+                <FilterChip
+                  label="Any state"
+                  active={stateFilter === "all"}
+                  onClick={() => setStateFilter("all")}
+                />
+                <FilterChip
+                  label="Decrypted"
+                  active={stateFilter === "decrypted"}
+                  onClick={() => setStateFilter("decrypted")}
+                />
+                <FilterChip
+                  label="Encrypted"
+                  active={stateFilter === "encrypted"}
+                  onClick={() => setStateFilter("encrypted")}
+                />
+              </>
+            )}
+          </div>
+        )}
         {submissionsQuery.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading submissions…</p>
         ) : submissions.length === 0 ? (
           <p className="text-sm text-muted-foreground">None yet.</p>
+        ) : displayedSubmissions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No submissions match the current filters.{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm("");
+                setSubmitterFilter("all");
+                setStateFilter("all");
+              }}
+              className="underline"
+            >
+              Clear filters
+            </button>
+            .
+          </p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {submissions.map((s) => (
+            {displayedSubmissions.map((s) => (
               <SubmissionRowView
                 key={s.submissionId}
                 row={s}
@@ -1267,4 +1387,29 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 60);
+}
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "border rounded-full px-2 py-0.5",
+        active
+          ? "bg-foreground text-background"
+          : "border-border text-muted-foreground hover:bg-accent",
+      )}
+    >
+      {label}
+    </button>
+  );
 }

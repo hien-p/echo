@@ -159,6 +159,55 @@
         Tag values: feat | fix | chore | docs | refactor
       -->
 
+        <article class="log-card" data-date="2026-05-09">
+          <header>
+            <time datetime="2026-05-09">2026-05-09</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>v0.2.1 polish: file uploads, filter UI, indexer dedupe</h3>
+          <p>
+            Three spec gaps closed in one push.
+            <strong>File uploads</strong>: <code>FormFieldInput</code> now
+            renders <code>screenshot</code>, <code>video</code>, and
+            <code>file_upload</code> field types — drag-style picker,
+            Walrus-publisher upload via <code>/api/walrus/upload</code>, inline
+            image/video preview, MIME + size badges.
+            <strong>Submission filter/sort</strong>: <code>FormAdmin</code>
+            picks up a search box (matches address, blob id, decrypted text),
+            Newest/Oldest sort, and chip filters for Anonymous/Named +
+            Encrypted/Decrypted state. The header counter shows "X of Y" when
+            filters are active.
+            <strong>Memwal dedupe</strong>:
+            <code>/api/insights/index_form</code>
+            does one broad recall up front, parses each memory's
+            <code>[submission 0xabc…]</code> prefix, and skips re-indexing
+            anything already stored. The "9 memoriesUsed for 3-row form" bloat
+            is gone — re-clicking "Index this form" is now a no-op. New
+            <code>deduped</code> count in the response.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-08">
+          <header>
+            <time datetime="2026-05-08">2026-05-08</time>
+            <span class="log-tag" data-tag="chore">chore</span>
+          </header>
+          <h3>Shipped to prod on Cloudflare Pages</h3>
+          <p>
+            <a href="https://echo-20u.pages.dev/">echo-20u.pages.dev</a> live
+            with the v0.2 privacy bundle. CF Pages workflow had been failing for
+            5 runs because three routes used <code>nodejs</code> runtime (a
+            workaround for a Next.js dev sandbox missing
+            <code>AbortSignal.any</code>); reverted to <code>edge</code> since
+            CF's workerd ships a recent V8 with that API. Server-only secrets
+            (Memwal, OpenRouter, demo admin key) push into the Pages env via a
+            new <code>cf-secrets-sync</code> workflow that wraps
+            <code>wrangler pages secret put</code>. End-to-end verified:
+            encrypted demo form decrypts in 2.6s, indexes in 5.2s, RAG query
+            returns verbatim citations in 11s.
+          </p>
+        </article>
+
         <article class="log-card" data-date="2026-05-08">
           <header>
             <time datetime="2026-05-08">2026-05-08</time>
