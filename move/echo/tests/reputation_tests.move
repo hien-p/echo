@@ -22,6 +22,7 @@ fun create_form_for_admin(scenario: &mut ts::Scenario) {
     0,
     0,
     string::utf8(b""),
+    vector::empty<address>(),
     &clock,
     ctx,
   );

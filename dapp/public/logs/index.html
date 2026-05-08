@@ -159,6 +159,33 @@
         Tag values: feat | fix | chore | docs | refactor
       -->
 
+        <article class="log-card" data-date="2026-05-08">
+          <header>
+            <time datetime="2026-05-08">2026-05-08</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>v0.2 privacy: gating, anonymous nullifier, multi-admin caps</h3>
+          <p>
+            Three privacy-tier features land in one push.
+            <strong>Gating</strong>: <code>checkGating()</code> enforces token /
+            NFT / SuiNS predicates client-side; FormViewer banner with a "Verify
+            again" button. <strong>Anonymous nullifier</strong>:
+            <code>submit_anonymous</code> now records each commitment in a
+            <code>Table</code> on the Form and aborts
+            <code>ECommitmentAlreadyUsed</code> on double-submit. Browser
+            derives a deterministic commitment via
+            <code>deriveCommitment(walletAddress, formId)</code> — wallet signs
+            a canonical personal message; SHA-256 over the signature gives the
+            32-byte nullifier. Same wallet/form → same hash; chain catches the
+            second submit without seeing the address.
+            <strong>Multi-admin OR-of-N</strong>: <code>create_form</code> takes
+            an <code>extra_admins: vector&lt;address&gt;</code> param and mints
+            one <code>FormOwnerCap</code> per address. FormBuilder picks up a
+            Co-admins textarea (parses comma/newline lists, shows "OR-of-N — any
+            one can decrypt"). 18 Move tests + 21 dapp tests pass.
+          </p>
+        </article>
+
         <article class="log-card" data-date="2026-05-07">
           <header>
             <time datetime="2026-05-07">2026-05-07</time>
@@ -170,9 +197,9 @@
             (salary numbers, burnout-style concerns, churn-risk choices),
             indexed via <code>/api/insights/index_form</code> against a Memwal
             namespace, queried via <code>/api/insights/query</code> through
-            OpenRouter. Answers cite individual submissions verbatim ("9pm
-            Slack threads", "every Friday I'm running on empty"). Cost
-            ~$0.00014 per query on gpt-4o-mini. <code>seedSubmissions.ts</code>
+            OpenRouter. Answers cite individual submissions verbatim ("9pm Slack
+            threads", "every Friday I'm running on empty"). Cost ~$0.00014 per
+            query on gpt-4o-mini. <code>seedSubmissions.ts</code>
             picks plausible content per field-label keyword (salary, concerns,
             incidents, bugs, predictions) so future demos don't ship with
             generic placeholder text.

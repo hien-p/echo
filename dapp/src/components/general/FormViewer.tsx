@@ -10,6 +10,8 @@ import {
   PrivacyTier,
   buildSubmitAnonymousTx,
   buildSubmitTx,
+  checkGating,
+  deriveCommitment,
   encryptForTier,
   executeSponsored,
   getSealClient,
@@ -156,67 +158,33 @@ function GatedSubmit(props: GatedSubmitProps) {
 
   const gateQuery = useQuery({
     queryKey: ["echo", "gate", props.formId, accountAddress],
-    queryFn: async () => {
-      if (!gating || !accountAddress) return { ok: true } as const;
-      if (gating.type === "token" && gating.coinType) {
-        const client = suiClient as unknown as {
-          getBalance(input: {
-            owner: string;
-            coinType: string;
-          }): Promise<{ totalBalance: string }>;
-        };
-        const balance = await client.getBalance({
-          owner: accountAddress,
-          coinType: gating.coinType,
-        });
-        const required = BigInt(gating.minAmount ?? "1");
-        const have = BigInt(balance.totalBalance ?? "0");
-        if (have < required) {
-          return {
-            ok: false,
-            reason: `Token-gated: requires ${required} of ${gating.coinType}. You have ${have}.`,
-          } as const;
-        }
-        return { ok: true } as const;
-      }
-      if (gating.type === "nft" && gating.nftType) {
-        const client = suiClient as unknown as {
-          listOwnedObjects(input: {
-            owner: string;
-            type: string;
-            limit: number;
-          }): Promise<{ objects: unknown[] }>;
-        };
-        const owned = await client.listOwnedObjects({
-          owner: accountAddress,
-          type: gating.nftType,
-          limit: 1,
-        });
-        if (owned.objects.length === 0) {
-          return {
-            ok: false,
-            reason: `NFT-gated: requires owning a ${gating.nftType}.`,
-          } as const;
-        }
-        return { ok: true } as const;
-      }
-      if (gating.type === "suins" && gating.domain) {
-        return {
-          ok: false,
-          reason: `SuiNS gating ('${gating.domain}') not yet wired in viewer; treat as soft warning.`,
-        } as const;
-      }
-      return { ok: true } as const;
-    },
-    enabled: !!accountAddress,
+    queryFn: () =>
+      checkGating(
+        schema,
+        accountAddress,
+        suiClient as unknown as Parameters<typeof checkGating>[2],
+      ),
+    enabled: !!accountAddress && !!gating,
+    staleTime: 30_000,
   });
 
   if (gating && accountAddress && gateQuery.data && !gateQuery.data.ok) {
     return (
-      <div className="border rounded p-3 bg-amber-50 dark:bg-amber-950/30">
-        <p className="text-sm text-amber-700 dark:text-amber-400">
+      <div className="border rounded p-3 bg-amber-50 dark:bg-amber-950/30 flex flex-col gap-2">
+        <p className="text-sm text-amber-800 dark:text-amber-300">
           🔒 {gateQuery.data.reason}
         </p>
+        <button
+          type="button"
+          onClick={() => gateQuery.refetch()}
+          disabled={gateQuery.isFetching}
+          className={cn(
+            "border rounded px-3 py-1 text-xs w-fit",
+            gateQuery.isFetching ? "opacity-60" : "hover:bg-accent",
+          )}
+        >
+          {gateQuery.isFetching ? "Checking…" : "Verify again"}
+        </button>
       </div>
     );
   }
@@ -344,6 +312,21 @@ function SubmitForm({
         blobId = out.blobId;
       }
 
+      let commitment: Uint8Array | null = null;
+      if (anonymous) {
+        setStatus({
+          kind: "submitting",
+          step: "Deriving anonymous nullifier…",
+        });
+        commitment = await deriveCommitment({
+          formId,
+          walletAddress: accountAddress,
+          signer: dAppKit as unknown as Parameters<
+            typeof deriveCommitment
+          >[0]["signer"],
+        });
+      }
+
       setStatus({
         kind: "submitting",
         step: "Submitting on chain (gas sponsored)…",
@@ -353,7 +336,7 @@ function SubmitForm({
             packageId,
             formId,
             payloadBlobId: blobId,
-            commitment: cryptoRandomBytes(32),
+            commitment: commitment!,
           })
         : buildSubmitTx({
             packageId,
@@ -369,10 +352,14 @@ function SubmitForm({
       });
       setStatus({ kind: "submitted", digest });
     } catch (e) {
-      setStatus({
-        kind: "error",
-        message: e instanceof Error ? e.message : String(e),
-      });
+      const raw = e instanceof Error ? e.message : String(e);
+      // Move's ECommitmentAlreadyUsed = 7 in echo::form. Surface a friendly
+      // message instead of the raw "MoveAbort … 7" string.
+      const friendly =
+        /commitments_used|abort.*\b7\b|ECommitmentAlreadyUsed/i.test(raw)
+          ? "You've already submitted to this form anonymously from this wallet. Each wallet can submit anonymously once per form."
+          : raw;
+      setStatus({ kind: "error", message: friendly });
     }
   };
 

@@ -23,6 +23,8 @@ export {
   SessionKey,
 } from "./seal";
 export { WalletBackedSigner, makeWalletSigner } from "./walletSigner";
+export { checkGating, type GatingResult } from "./gating";
+export { deriveCommitment, canonicalMessage } from "./nullifier";
 export { executeSponsored } from "./sponsor";
 export {
   buildCreateFormTx,

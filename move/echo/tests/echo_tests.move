@@ -19,6 +19,7 @@ fun new_public_form_in_scenario(scenario: &mut ts::Scenario) {
     0,
     0,
     string::utf8(b""),
+    vector::empty<address>(),
     &clock,
     ctx,
   );
@@ -160,6 +161,7 @@ fun seal_approve_admin_only_passes_with_matching_cap() {
       0,
       0,
       string::utf8(b""),
+      vector::empty<address>(),
       &clock,
       ctx,
     );
@@ -195,6 +197,7 @@ fun seal_approve_time_locked_aborts_before_unlock() {
     0,
     99999999999, // far in the future
     string::utf8(b""),
+    vector::empty<address>(),
     &clock,
     ctx,
   );
@@ -228,6 +231,7 @@ fun seal_approve_admin_only_aborts_on_wrong_id() {
       0,
       0,
       string::utf8(b""),
+      vector::empty<address>(),
       &clock,
       ctx,
     );
@@ -253,6 +257,152 @@ fun seal_approve_admin_only_aborts_on_wrong_id() {
   ts::end(scenario);
 }
 
+// ---- Multi-admin (OR-of-N) tests ----------------------------------------
+
+const ADMIN_B: address = @0xA2;
+const ADMIN_C: address = @0xA3;
+
+#[test]
+fun create_form_with_extra_admins_mints_caps_to_each() {
+  let mut scenario = ts::begin(ADMIN);
+  {
+    let ctx = ts::ctx(&mut scenario);
+    let clock = clock::create_for_testing(ctx);
+    let cap = form::create_form(
+      string::utf8(b"s"),
+      string::utf8(b"m"),
+      form::privacy_threshold(),
+      1,
+      1,
+      0,
+      string::utf8(b""),
+      vector[ADMIN_B, ADMIN_C],
+      &clock,
+      ctx,
+    );
+    clock::destroy_for_testing(clock);
+    transfer::public_transfer(cap, ADMIN);
+  };
+
+  // Original sender holds a cap.
+  ts::next_tx(&mut scenario, ADMIN);
+  let cap_a = ts::take_from_sender<FormOwnerCap>(&scenario);
+  ts::return_to_sender(&scenario, cap_a);
+
+  // ADMIN_B holds a cap.
+  ts::next_tx(&mut scenario, ADMIN_B);
+  let cap_b = ts::take_from_sender<FormOwnerCap>(&scenario);
+  ts::return_to_sender(&scenario, cap_b);
+
+  // ADMIN_C holds a cap.
+  ts::next_tx(&mut scenario, ADMIN_C);
+  let cap_c = ts::take_from_sender<FormOwnerCap>(&scenario);
+  ts::return_to_sender(&scenario, cap_c);
+
+  ts::end(scenario);
+}
+
+#[test]
+fun any_extra_admin_can_seal_approve() {
+  let mut scenario = ts::begin(ADMIN);
+  {
+    let ctx = ts::ctx(&mut scenario);
+    let clock = clock::create_for_testing(ctx);
+    let cap = form::create_form(
+      string::utf8(b"s"),
+      string::utf8(b"m"),
+      form::privacy_admin_only(),
+      0,
+      0,
+      0,
+      string::utf8(b""),
+      vector[ADMIN_B],
+      &clock,
+      ctx,
+    );
+    clock::destroy_for_testing(clock);
+    transfer::public_transfer(cap, ADMIN);
+  };
+
+  // ADMIN_B (the extra admin) should be able to call seal_approve_admin_only
+  // with their own cap — proving the OR-of-N semantics work.
+  ts::next_tx(&mut scenario, ADMIN_B);
+  let cap_b = ts::take_from_sender<FormOwnerCap>(&scenario);
+  let form_obj = ts::take_shared<Form>(&scenario);
+
+  let mut id = sui::object::id_to_bytes(&form::id(&form_obj));
+  vector::push_back(&mut id, form::privacy_admin_only());
+
+  form::seal_approve_admin_only(id, &form_obj, &cap_b);
+
+  ts::return_shared(form_obj);
+  ts::return_to_sender(&scenario, cap_b);
+  ts::end(scenario);
+}
+
+// ---- Nullifier uniqueness tests -----------------------------------------
+
+#[test]
+fun anonymous_distinct_commitments_both_succeed() {
+  let mut scenario = ts::begin(ADMIN);
+  new_public_form_in_scenario(&mut scenario);
+
+  ts::next_tx(&mut scenario, USER);
+  let mut form_obj = ts::take_shared<Form>(&scenario);
+  let ctx = ts::ctx(&mut scenario);
+  let clock = clock::create_for_testing(ctx);
+  let _s1 = submission::submit_anonymous(
+    &mut form_obj,
+    string::utf8(b"p1"),
+    vector[1, 2, 3, 4],
+    &clock,
+    ctx,
+  );
+  let _s2 = submission::submit_anonymous(
+    &mut form_obj,
+    string::utf8(b"p2"),
+    vector[5, 6, 7, 8],
+    &clock,
+    ctx,
+  );
+  clock::destroy_for_testing(clock);
+  assert!(form::submission_count(&form_obj) == 2, 0);
+  assert!(form::commitment_used(&form_obj, vector[1, 2, 3, 4]), 0);
+  assert!(form::commitment_used(&form_obj, vector[5, 6, 7, 8]), 0);
+  assert!(!form::commitment_used(&form_obj, vector[9, 9]), 0);
+  ts::return_shared(form_obj);
+  ts::end(scenario);
+}
+
+#[test, expected_failure(abort_code = 7, location = echo::form)]
+fun anonymous_double_submit_with_same_commitment_aborts() {
+  let mut scenario = ts::begin(ADMIN);
+  new_public_form_in_scenario(&mut scenario);
+
+  ts::next_tx(&mut scenario, USER);
+  let mut form_obj = ts::take_shared<Form>(&scenario);
+  let ctx = ts::ctx(&mut scenario);
+  let clock = clock::create_for_testing(ctx);
+  let _s1 = submission::submit_anonymous(
+    &mut form_obj,
+    string::utf8(b"p1"),
+    vector[1, 2, 3, 4],
+    &clock,
+    ctx,
+  );
+  // Second submit with same commitment — must abort with ECommitmentAlreadyUsed (7).
+  let _s2 = submission::submit_anonymous(
+    &mut form_obj,
+    string::utf8(b"p2"),
+    vector[1, 2, 3, 4],
+    &clock,
+    ctx,
+  );
+  clock::destroy_for_testing(clock);
+  ts::return_shared(form_obj);
+  ts::end(scenario);
+}
+
 #[test, expected_failure(abort_code = 3, location = echo::form)]
 fun threshold_invalid_aborts() {
   let mut scenario = ts::begin(ADMIN);
@@ -266,6 +416,7 @@ fun threshold_invalid_aborts() {
     2,
     0,
     string::utf8(b""),
+    vector::empty<address>(),
     &clock,
     ctx,
   );

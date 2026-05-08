@@ -21,10 +21,22 @@ export interface CreateFormArgs {
   thresholdM?: number;
   unlockMs?: bigint;
   conditionalPolicyId?: string;
+  /**
+   * Optional co-admin addresses for OR-of-N forms. Each address gets its
+   * own FormOwnerCap minted by Move and `transfer::transfer`'d directly
+   * (no PTB-side transferObjects needed). Empty/undefined for single-admin
+   * forms — the sender alone receives a cap.
+   */
+  extraAdmins?: string[];
 }
 
 export function buildCreateFormTx(args: CreateFormArgs): Transaction {
   const tx = new Transaction();
+  const extraAdmins = (args.extraAdmins ?? []).filter(
+    (a) =>
+      a.startsWith("0x") &&
+      a.toLowerCase() !== args.senderAddress.toLowerCase(),
+  );
   const cap = tx.moveCall({
     target: `${args.packageId}::form::create_form`,
     arguments: [
@@ -35,6 +47,7 @@ export function buildCreateFormTx(args: CreateFormArgs): Transaction {
       tx.pure.u8(args.thresholdM ?? 0),
       tx.pure.u64(args.unlockMs ?? BigInt(0)),
       tx.pure.string(args.conditionalPolicyId ?? ""),
+      tx.pure.vector("address", extraAdmins),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
   });

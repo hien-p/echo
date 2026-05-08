@@ -70,6 +70,11 @@ public fun submit_anonymous(
   ctx: &mut TxContext,
 ): ID {
   form::assert_open(form);
+  // Aborts ECommitmentAlreadyUsed if this nullifier was already used.
+  // Frontend derives the commitment deterministically from (wallet, form),
+  // so the same wallet attempting a second anonymous submit gets rejected
+  // without revealing which wallet the commitment maps to.
+  form::record_commitment(form, commitment);
   let s = SubmissionRef {
     id: object::new(ctx),
     form_id: form::id(form),

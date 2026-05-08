@@ -7,7 +7,7 @@
 module echo::form;
 
 use std::string::String;
-use sui::{clock::Clock, event};
+use sui::{clock::Clock, event, table::{Self, Table}};
 
 // Privacy tier codes — frontend passes the matching tier-specific params,
 // the rest are zeroed/empty.
@@ -28,6 +28,7 @@ const EThresholdInvalid: u64 = 3;
 const ESealIdMismatch: u64 = 4;
 const ENotYetUnlocked: u64 = 5;
 const EWrongTier: u64 = 6;
+const ECommitmentAlreadyUsed: u64 = 7;
 
 public struct Form has key {
   id: UID,
@@ -43,6 +44,10 @@ public struct Form has key {
   status: u8,
   submission_count: u64,
   created_ms: u64,
+  /// Used commitments for anonymous submissions. Per (wallet, form) the
+  /// nullifier is deterministic, so this table is the on-chain proof that
+  /// a wallet already submitted, without revealing which wallet.
+  commitments_used: Table<vector<u8>, bool>,
 }
 
 public struct FormOwnerCap has key, store {
@@ -74,6 +79,11 @@ public fun create_form(
   threshold_m: u8,
   unlock_ms: u64,
   conditional_policy_id: String,
+  // Extra cap recipients beyond the sender. Empty for AdminOnly /
+  // single-admin forms; non-empty for OR-of-N multi-admin forms where
+  // each address gets its own FormOwnerCap and any one can decrypt
+  // or manage the form. The sender always gets one cap as the return.
+  extra_admins: vector<address>,
   clock: &Clock,
   ctx: &mut TxContext,
 ): FormOwnerCap {
@@ -96,11 +106,26 @@ public fun create_form(
     status: STATUS_OPEN,
     submission_count: 0,
     created_ms: clock.timestamp_ms(),
+    commitments_used: table::new<vector<u8>, bool>(ctx),
   };
   let form_id = object::id(&form);
   let cap = FormOwnerCap {
     id: object::new(ctx),
     form_id,
+  };
+
+  // Mint and distribute one cap per extra admin. The sender's own cap is
+  // returned by this function so the caller can chain transferObjects on it.
+  let mut i = 0;
+  let n = vector::length(&extra_admins);
+  while (i < n) {
+    let recipient = *vector::borrow(&extra_admins, i);
+    let extra_cap = FormOwnerCap {
+      id: object::new(ctx),
+      form_id,
+    };
+    transfer::transfer(extra_cap, recipient);
+    i = i + 1;
   };
 
   event::emit(FormCreated {
@@ -156,6 +181,19 @@ public fun archive_form(cap: &FormOwnerCap, form: &mut Form) {
     form_id: object::id(form),
     new_status: STATUS_ARCHIVED,
   });
+}
+
+/// Record a nullifier commitment as used. Aborts with ECommitmentAlreadyUsed
+/// if the commitment was already submitted before. Called by submission::
+/// submit_anonymous so that one wallet/form pair can submit at most once
+/// even when the wallet's address is hidden from the chain.
+public(package) fun record_commitment(form: &mut Form, c: vector<u8>) {
+  assert!(!table::contains(&form.commitments_used, c), ECommitmentAlreadyUsed);
+  table::add(&mut form.commitments_used, c, true);
+}
+
+public fun commitment_used(form: &Form, c: vector<u8>): bool {
+  table::contains(&form.commitments_used, c)
 }
 
 public(package) fun bump_submission_count(form: &mut Form) {

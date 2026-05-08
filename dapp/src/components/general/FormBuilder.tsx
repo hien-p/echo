@@ -238,6 +238,11 @@ export const FormBuilder = () => {
   const [thresholdM, setThresholdM] = useState(3);
   const [unlockMs, setUnlockMs] = useState("");
   const [policyId, setPolicyId] = useState("");
+  // Co-admins (extra cap recipients) — relevant for any encrypted tier where
+  // the form should be jointly managed. Empty by default; the creator's own
+  // address always gets a cap. Stored as comma/newline-separated string and
+  // parsed at submit time.
+  const [coAdminsText, setCoAdminsText] = useState("");
   const [fields, setFields] = useState<FormField[]>(
     blank.fields.map((f) => ({ ...f, id: newFieldId() }) as FormField),
   );
@@ -317,6 +322,7 @@ export const FormBuilder = () => {
         kind: "saving",
         step: "Creating form on chain (gas sponsored)…",
       });
+      const extraAdmins = parseCoAdmins(coAdminsText);
       const tx = buildCreateFormTx({
         packageId,
         senderAddress: currentAccount.address,
@@ -331,6 +337,7 @@ export const FormBuilder = () => {
             : undefined,
         conditionalPolicyId:
           tier === PrivacyTier.Conditional ? policyId : undefined,
+        extraAdmins,
       });
 
       const sponsored = await executeSponsored({
@@ -566,6 +573,25 @@ export const FormBuilder = () => {
                     value={policyId}
                     onChange={(e) => setPolicyId(e.target.value)}
                   />
+                </Field>
+              )}
+              {tier !== PrivacyTier.Public && (
+                <Field label="Co-admins (optional)">
+                  <textarea
+                    className="border rounded px-2 py-1 w-full font-mono text-xs"
+                    rows={3}
+                    placeholder="0x... addresses, one per line or comma-separated. Each gets a FormOwnerCap and can decrypt as you can."
+                    value={coAdminsText}
+                    onChange={(e) => setCoAdminsText(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {(() => {
+                      const list = parseCoAdmins(coAdminsText);
+                      if (list.length === 0)
+                        return "Just you — single admin (default).";
+                      return `${list.length + 1} admins total · OR-of-${list.length + 1} (any one can decrypt)`;
+                    })()}
+                  </p>
                 </Field>
               )}
             </BuilderSection>
@@ -901,3 +927,18 @@ const OptionsEditor = ({
     </details>
   );
 };
+
+/** Parse a free-form textarea of co-admin addresses into a deduped list. */
+function parseCoAdmins(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const tok of raw.split(/[\s,]+/)) {
+    const t = tok.trim().toLowerCase();
+    if (!t) continue;
+    if (!t.startsWith("0x") || t.length < 6) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
