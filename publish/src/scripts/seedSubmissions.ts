@@ -21,7 +21,7 @@ import { SealClient } from "@mysten/seal";
 const PACKAGE_ID =
   process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID ??
   process.env.ECHO_PACKAGE_ID ??
-  "0x16dc79451d3035133b33e36acb2e4ccdc50e6a454c603c8feb4707d932da0e46";
+  "0x76b0a4835148c647f0633df571d3a31969d346d50111ebe9351bfac05793bc37";
 const PUBLISHER =
   process.env.NEXT_PUBLIC_WALRUS_PUBLISHER_URL ??
   "https://publisher.walrus-testnet.walrus.space";

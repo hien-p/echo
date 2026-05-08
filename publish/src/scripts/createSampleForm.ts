@@ -15,7 +15,7 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 
 const PACKAGE_ID =
   process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID ??
-  "0x16dc79451d3035133b33e36acb2e4ccdc50e6a454c603c8feb4707d932da0e46";
+  "0x76b0a4835148c647f0633df571d3a31969d346d50111ebe9351bfac05793bc37";
 const PUBLISHER =
   process.env.NEXT_PUBLIC_WALRUS_PUBLISHER_URL ??
   "https://publisher.walrus-testnet.walrus.space";
@@ -401,6 +401,7 @@ async function main() {
       tx.pure.u8(thresholdM),
       tx.pure.u64(unlockMs),
       tx.pure.string(conditionalPolicyId),
+      tx.pure.vector("address", []),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
   });
