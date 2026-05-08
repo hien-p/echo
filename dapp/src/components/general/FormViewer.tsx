@@ -384,14 +384,23 @@ function SubmitForm({
       ))}
 
       {isLastPage && (
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={anonymous}
-            onChange={(e) => setAnonymous(e.target.checked)}
-          />
-          Submit anonymously (the chain records a commitment hash, not your
-          address)
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={anonymous}
+              onChange={(e) => setAnonymous(e.target.checked)}
+            />
+            Submit anonymously
+          </span>
+          {anonymous && (
+            <span className="text-xs text-muted-foreground pl-6">
+              Your wallet signs a one-time nullifier; only the 32-byte hash hits
+              the chain — never your address. Each wallet can submit anonymously{" "}
+              <strong>once</strong> per form (a second attempt from the same
+              wallet is rejected on chain).
+            </span>
+          )}
         </label>
       )}
 

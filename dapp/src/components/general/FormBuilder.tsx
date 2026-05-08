@@ -55,27 +55,27 @@ const TIER_OPTIONS: { value: PrivacyTier; label: string; help: string }[] = [
   {
     value: PrivacyTier.Public,
     label: "Public",
-    help: "Open submissions, plaintext on Walrus, indexed and searchable.",
+    help: "Anyone can read submissions in plain text. Best for community-facing surveys, recaps, and feedback you want to publish.",
   },
   {
     value: PrivacyTier.AdminOnly,
     label: "Admin only",
-    help: "Seal IBE — only the form owner can decrypt.",
+    help: "Encrypted; only you (and any co-admins you add below) can read submissions. Respondents see nothing after submitting.",
   },
   {
     value: PrivacyTier.Threshold,
-    label: "Threshold reveal",
-    help: "N-of-M admin shares required to decrypt.",
+    label: "Multi-admin (any one decrypts)",
+    help: "Encrypted; every co-admin you add gets their own cap, and any one of them can read submissions independently. Real m-of-n threshold (require multiple sigs) is on the v0.3 roadmap.",
   },
   {
     value: PrivacyTier.TimeLocked,
     label: "Time-locked",
-    help: "Auto-decrypts after the configured timestamp.",
+    help: "Encrypted until a chosen unlock date. After that timestamp anyone (you, respondents, the public) can read — the chain enforces it. Useful for sealed predictions, pre-registered hypotheses.",
   },
   {
     value: PrivacyTier.Conditional,
-    label: "Conditional",
-    help: "Decrypts when an on-chain policy is satisfied.",
+    label: "Conditional (advanced)",
+    help: "Encrypted with a custom on-chain rule. The Move predicate is a stub today — pick AdminOnly or Time-locked unless you're prototyping a custom condition.",
   },
 ];
 
@@ -532,37 +532,26 @@ export const FormBuilder = () => {
               <p className="text-sm text-muted-foreground">
                 {TIER_OPTIONS.find((o) => o.value === tier)?.help}
               </p>
-              {tier === PrivacyTier.Threshold && (
-                <div className="flex gap-2 items-center">
-                  <Field label="N (required)">
-                    <input
-                      type="number"
-                      min={1}
-                      max={thresholdM}
-                      className="border rounded px-2 py-1 w-20"
-                      value={thresholdN}
-                      onChange={(e) => setThresholdN(Number(e.target.value))}
-                    />
-                  </Field>
-                  <Field label="M (total)">
-                    <input
-                      type="number"
-                      min={thresholdN}
-                      className="border rounded px-2 py-1 w-20"
-                      value={thresholdM}
-                      onChange={(e) => setThresholdM(Number(e.target.value))}
-                    />
-                  </Field>
-                </div>
-              )}
               {tier === PrivacyTier.TimeLocked && (
-                <Field label="Unlock at (unix ms)">
+                <Field label="Unlock at">
                   <input
-                    className="border rounded px-2 py-1 w-full"
-                    placeholder="1746000000000"
-                    value={unlockMs}
-                    onChange={(e) => setUnlockMs(e.target.value)}
+                    type="datetime-local"
+                    className="border rounded px-2 py-1 w-fit"
+                    value={unlockMsToLocalInput(unlockMs)}
+                    min={localInputNow()}
+                    onChange={(e) =>
+                      setUnlockMs(localInputToUnlockMs(e.target.value))
+                    }
                   />
+                  {unlockMs && (
+                    <p className="text-xs text-muted-foreground">
+                      Anyone can decrypt after{" "}
+                      <strong>
+                        {new Date(Number(unlockMs)).toLocaleString()}
+                      </strong>{" "}
+                      ({humanRelative(Number(unlockMs))}).
+                    </p>
+                  )}
                 </Field>
               )}
               {tier === PrivacyTier.Conditional && (
@@ -735,8 +724,8 @@ function TierBadge({
     case PrivacyTier.Threshold:
       body = (
         <>
-          🔒 Encrypted with Seal · {thresholdN}-of-{thresholdM} admin shares
-          required to decrypt.
+          🔒 Encrypted with Seal · multiple admins, any one can decrypt
+          (OR-of-N).
         </>
       );
       break;
@@ -927,6 +916,47 @@ const OptionsEditor = ({
     </details>
   );
 };
+
+// ---- Date helpers for the TimeLocked unlock picker -----------------------
+
+/** Convert a stored unlock_ms string to the YYYY-MM-DDTHH:mm shape that
+ *  <input type="datetime-local"> expects in the user's local zone. */
+function unlockMsToLocalInput(unlockMs: string): string {
+  if (!unlockMs) return "";
+  const ms = Number(unlockMs);
+  if (!Number.isFinite(ms) || ms <= 0) return "";
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+/** Reverse: parse a datetime-local input back to unix ms (as string). */
+function localInputToUnlockMs(local: string): string {
+  if (!local) return "";
+  const ms = new Date(local).getTime();
+  return Number.isFinite(ms) ? String(ms) : "";
+}
+
+/** "now+5min" floor for the picker's min= attribute so users can't pick the past. */
+function localInputNow(): string {
+  return unlockMsToLocalInput(String(Date.now() + 5 * 60_000));
+}
+
+/** "in 2d 4h" / "in 17m" — shown next to the picker so the user can
+ *  sanity-check the absolute date they just chose. */
+function humanRelative(ms: number): string {
+  const dt = ms - Date.now();
+  if (dt <= 0) return "already past";
+  const min = Math.floor(dt / 60_000);
+  const hr = Math.floor(min / 60);
+  const days = Math.floor(hr / 24);
+  if (days > 0) return `in ~${days}d ${hr % 24}h`;
+  if (hr > 0) return `in ~${hr}h ${min % 60}m`;
+  return `in ~${min}m`;
+}
 
 /** Parse a free-form textarea of co-admin addresses into a deduped list. */
 function parseCoAdmins(raw: string): string[] {
