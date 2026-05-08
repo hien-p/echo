@@ -221,6 +221,68 @@ const FORMS: Record<string, FormSpec> = {
     },
   },
 
+  feedback: {
+    schema: {
+      version: 1,
+      fields: [
+        {
+          id: "rating",
+          type: "rating",
+          label: "Overall, how do you feel about Echo?",
+          scale: 5,
+          required: true,
+        },
+        {
+          id: "what_used",
+          type: "multi_select",
+          label: "Which features did you actually use?",
+          options: [
+            { value: "create", label: "Created a form" },
+            { value: "submit", label: "Submitted a response" },
+            { value: "decrypt", label: "Decrypted submissions (admin)" },
+            { value: "anonymous", label: "Submitted anonymously" },
+            { value: "image", label: "Uploaded a screenshot/image" },
+            { value: "insights", label: "Asked an Insights/RAG question" },
+            { value: "demo", label: "Used Demo admin mode" },
+            { value: "browse", label: "Just clicked around" },
+          ],
+        },
+        {
+          id: "what_worked",
+          type: "rich_text",
+          label: "What worked? (Markdown supported · drop screenshots)",
+          required: true,
+        },
+        {
+          id: "what_rough",
+          type: "rich_text",
+          label: "What felt rough or confusing?",
+        },
+        {
+          id: "would_use",
+          type: "single_select",
+          label: "Would you use Echo for a real form today?",
+          required: true,
+          options: [
+            { value: "yes", label: "Yes" },
+            { value: "maybe", label: "Maybe" },
+            { value: "no", label: "Not yet" },
+          ],
+        },
+        {
+          id: "contact",
+          type: "url",
+          label: "Twitter / GitHub link (optional, so we can follow up)",
+        },
+      ],
+    },
+    metadata: {
+      title: "Help shape Echo · v0.2 feedback",
+      description:
+        "If you tried Echo for the Walrus Sessions hackathon, we'd love your feedback. Public form — answers go on Walrus and feed our /insights board. Anonymous toggle available if you'd rather skip the credit.",
+    },
+  },
+
   // ---- Encrypted-tier demo variants. Submissions are Seal-encrypted before
   // upload to Walrus. Decryption requires the FormOwnerCap (or, in demo mode,
   // the Echo dapp's /api/demo/admin/decrypt endpoint signs with the demo key).

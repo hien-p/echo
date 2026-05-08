@@ -1,10 +1,121 @@
 # Echo — Decentralized Feedback & Form Platform
 
+**Walrus-native forms with on-chain composability.** Build a form, share a link, collect rich feedback (markdown + screenshots + videos), keep submissions encrypted with Seal, ask questions across the answers with Memwal-powered RAG. Built for the **Walrus Sessions hackathon**.
+
 > Nobody builds this on Google Forms.
 
-Walrus-native form platform: structured feedback collection, encrypted storage (Seal), and on-chain composability (Sui). zkLogin via Enoki, SuiNS-branded shareable links, Memwal-powered conversational analytics.
+## 🌐 Live
 
-Codebase bootstrapped from the SolEng `dapp-template` (Next.js + Move + integration tests). Original template docs preserved below.
+|                                                                                       |                                                                                                           |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **App**                                                                               | https://echo-20u.pages.dev                                                                                |
+| **Leave us feedback**                                                                 | https://echo-20u.pages.dev/forms/0x02750d97242c6ecf935a164deb90526024dca198f8e3846d49aef47475b59bbe       |
+| **Demo AdminOnly form** (toggle "Demo admin" in header to read encrypted submissions) | https://echo-20u.pages.dev/forms/0x64ec2ffb8c165526d6268f25ad221e45a27456368d3a5804ae64ce03cb260760/admin |
+| **Insights / RAG**                                                                    | https://echo-20u.pages.dev/insights                                                                       |
+| **Devlog**                                                                            | https://echo-20u.pages.dev/logs                                                                           |
+| **Move package** (Sui testnet)                                                        | `0x76b0a4835148c647f0633df571d3a31969d346d50111ebe9351bfac05793bc37`                                      |
+
+## 🏗️ What's actually built
+
+**Five privacy tiers, all working end-to-end on testnet:**
+
+1. **Public** — plaintext on Walrus, indexed for RAG
+2. **AdminOnly** — Seal IBE; only the cap holder decrypts (verified live: 2.6s round-trip)
+3. **Multi-admin (OR-of-N)** — `create_form` mints N caps to N addresses; any one can decrypt
+4. **TimeLocked** — Seal time-lock; permissionless decrypt after the unlock timestamp; live countdown badge in UI
+5. **Conditional** — encrypted with a custom on-chain rule (Move predicate is a stub)
+
+**Submission features:**
+
+- Rich-text markdown editor with **drag-drop image upload to Walrus**
+- Screenshot / video / arbitrary file upload, inline preview
+- Anonymous submit via deterministic nullifier (`SHA-256(walletSignature(formId))`); chain enforces 1-submit-per-wallet without learning the address
+- Token / NFT / SuiNS gating
+- Gas-sponsored via Enoki — respondents need no SUI
+
+**Admin / analytics:**
+
+- Bulk **"Reveal all"** decrypt (one wallet popup, parallel decrypt)
+- Per-row Decrypt with permission-aware state ("🔒 No permission" when not authorized)
+- Submission filter / sort / search / CSV export
+- Memwal-backed RAG (`/insights`) with always-broad recall + content-hash dedupe
+- `+5 reputation` button per row → mints on-chain `CreditTicket`
+
+**Demo admin mode** — header toggle that lets visitors browse encrypted demo forms without connecting a wallet (server holds a designated demo key for showcase forms only; real users' forms stay wallet-gated).
+
+**Devlog** — every commit lands a card on the in-app `/logs` page.
+
+## 🧱 Architecture
+
+```
+Browser
+  │
+  ├── /forms/new ─── Walrus publisher proxy ──► schema.json + metadata.json blobs
+  │                                              │
+  │                                              ▼
+  ├── create_form (sponsored)                  Sui Form object (shared, 8-arg)
+  │
+  ├── /forms/<id> respondent flow
+  │     │
+  │     ├── (optional) Seal encrypt locally with form's tier identity
+  │     ├── upload payload bytes via /api/walrus/upload
+  │     └── submission::submit (sponsored)  ──►  SubmissionRef on chain
+  │
+  └── /forms/<id>/admin
+        │
+        ├── browser-driven decrypt   (wallet signs SessionKey)
+        ├── server-driven decrypt    (demo mode, server signs SessionKey)
+        ├── Memwal index             /api/insights/index_form (server)
+        └── RAG query                /api/insights/query  (OpenRouter + Memwal)
+```
+
+## 🚀 Try it locally
+
+```bash
+pnpm install
+cp dapp/.env.example dapp/.env  # fill in MEMWAL_*, OPENROUTER_API_KEY for RAG
+cp publish/.env.example publish/.env  # fill in ADMIN_SECRET_KEY (a funded testnet wallet)
+
+cd dapp && pnpm dev
+# → http://localhost:3333
+```
+
+To mint sample forms against the published package on testnet:
+
+```bash
+cd publish
+FORM=feedback   pnpm exec env-cmd -f .env tsx src/scripts/createSampleForm.ts
+FORM=admin      pnpm exec env-cmd -f .env tsx src/scripts/createSampleForm.ts
+FORM=timelocked pnpm exec env-cmd -f .env tsx src/scripts/createSampleForm.ts
+
+# Seed scripted submissions (real on-chain txs, generated content):
+FORM_ID=0x... COUNT=3 pnpm exec env-cmd -f .env tsx src/scripts/seedSubmissions.ts
+```
+
+## 📦 Repo layout
+
+| Path                          | What                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| `dapp/`                       | Next.js 16 frontend (React 19, Tailwind 4, dApp Kit)                           |
+| `move/echo/`                  | 4 Move modules: `form`, `submission`, `bounty`, `reputation`. 18 tests passing |
+| `publish/`                    | Move package publish + sample-data scripts                                     |
+| `integration-tests/`          | TestContainers e2e (Sui localnet + Postgres)                                   |
+| `dapp/public/logs/index.html` | Self-hosted devlog at `/logs`                                                  |
+
+## 🧪 Tests
+
+```bash
+sui move test --path move/echo            # 18 Move tests
+cd dapp && pnpm test                      # 21 dapp tests
+cd integration-tests && pnpm test         # full e2e (needs Docker)
+```
+
+## 📝 Submission
+
+- **App**: https://echo-20u.pages.dev
+- **Source**: this repo
+- **Devlog**: https://echo-20u.pages.dev/logs
+- **Real feedback collected on Echo itself** (please leave one!): https://echo-20u.pages.dev/forms/0x02750d97242c6ecf935a164deb90526024dca198f8e3846d49aef47475b59bbe
 
 ---
 
