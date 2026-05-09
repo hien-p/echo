@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import {
   buildSealApproveTxBytes,
   getSealClient,
+  listApprovals,
   PrivacyTier,
   readJsonViaAggregator,
   SessionKey,
@@ -314,6 +315,78 @@ export const CrossFormDashboard = () => {
     },
     enabled: formCards.length > 0,
     staleTime: 15_000,
+  });
+
+  // 3) Members per form (every wallet that holds a FormOwnerCap). Pure
+  //    on-chain read: we look up each form's FormCreated event, fetch the
+  //    creating tx with objectChanges, and collect every AddressOwner that
+  //    received a FormOwnerCap inside that tx. No localStorage/server.
+  const membersQuery = useQuery({
+    queryKey: ["echo", "dashboard-members", packageId, formIdsKey],
+    queryFn: async (): Promise<Record<string, string[]>> => {
+      if (formCards.length === 0) return {};
+      const fullnodeUrl = clientConfig.SUI_FULLNODE_URL;
+      const eventType = `${packageId}::form::FormCreated`;
+      const capType = `${packageId}::form::FormOwnerCap`;
+      const out: Record<string, string[]> = {};
+      await Promise.all(
+        formCards.map(async (form) => {
+          const ev = await queryFirstEventByFormId(
+            fullnodeUrl,
+            eventType,
+            form.id,
+          );
+          if (!ev) return;
+          const tx = await getTransactionBlock(fullnodeUrl, ev.txDigest);
+          const recipients = new Set<string>();
+          for (const c of tx.objectChanges ?? []) {
+            if (
+              c.type === "created" &&
+              c.objectType === capType &&
+              c.owner &&
+              typeof c.owner === "object" &&
+              "AddressOwner" in c.owner
+            ) {
+              recipients.add(c.owner.AddressOwner as string);
+            }
+          }
+          out[form.id] = Array.from(recipients);
+        }),
+      );
+      return out;
+    },
+    enabled: formCards.length > 0 && packageId.startsWith("0x"),
+    staleTime: 5 * 60_000, // members rarely change (caps are owner-bound)
+  });
+
+  // 4) Approvals per Threshold form. Calls the existing on-chain index
+  //    (ApprovalPosted events) once per Threshold form with k≥2.
+  const approvalsByFormQuery = useQuery({
+    queryKey: ["echo", "dashboard-approvals", packageId, formIdsKey],
+    queryFn: async (): Promise<Record<string, number>> => {
+      const out: Record<string, number> = {};
+      const targets = formCards.filter(
+        (f) =>
+          f.onChain.privacy_tier === PrivacyTier.Threshold &&
+          (f.onChain.threshold_n ?? 1) >= 2,
+      );
+      if (targets.length === 0) return out;
+      const fullnodeUrl = clientConfig.SUI_FULLNODE_URL;
+      await Promise.all(
+        targets.map(async (form) => {
+          const approvals = await listApprovals({
+            fullnodeUrl,
+            packageId,
+            formId: form.id,
+          });
+          out[form.id] = approvals.length;
+        }),
+      );
+      return out;
+    },
+    enabled: formCards.length > 0 && packageId.startsWith("0x"),
+    staleTime: 8_000,
+    refetchInterval: 8_000,
   });
 
   // ---- Filter/sort state ------------------------------------------------
@@ -610,15 +683,25 @@ export const CrossFormDashboard = () => {
         </div>
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {formCards.map((f) => {
-            const subCount =
-              submissionsQuery.data?.filter((s) => s.formId === f.id).length ??
-              0;
+            const subsForForm =
+              submissionsQuery.data?.filter((s) => s.formId === f.id) ?? [];
+            const subCount = subsForForm.length;
+            const recentSubs = subsForForm.slice(0, 3);
             const tier = f.onChain.privacy_tier;
             const isThreshold = tier === PrivacyTier.Threshold;
             const isTimeLocked = tier === PrivacyTier.TimeLocked;
             const k = f.onChain.threshold_n ?? 0;
             const n = f.onChain.threshold_m ?? 0;
             const isActive = formFilter === f.id;
+            // On-chain reads: members from the FormCreated tx's
+            // objectChanges, approvals from ApprovalPosted events.
+            const members = membersQuery.data?.[f.id] ?? [];
+            const coAdmins = members.filter(
+              (a) => a.toLowerCase() !== f.onChain.owner.toLowerCase(),
+            );
+            const approvalsCount = approvalsByFormQuery.data?.[f.id] ?? 0;
+            const isMofN = isThreshold && k >= 2;
+            const isMofNUnlocked = isMofN && approvalsCount >= k;
             return (
               <li
                 key={f.id}
@@ -679,6 +762,84 @@ export const CrossFormDashboard = () => {
                       </>
                     )}
                 </div>
+                {/* Members (cap holders) — owner + co-admins. Pure
+                    on-chain: derived from the FormCreated tx's
+                    objectChanges. CRM analogue: "principals". */}
+                {(coAdmins.length > 0 || membersQuery.isLoading) && (
+                  <div className="flex items-center gap-1.5 text-xs flex-wrap mt-0.5">
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Members
+                    </span>
+                    <MemberChip address={f.onChain.owner} role="owner" />
+                    {coAdmins.map((addr) => (
+                      <MemberChip key={addr} address={addr} role="co-admin" />
+                    ))}
+                    {membersQuery.isLoading && coAdmins.length === 0 && (
+                      <span className="text-muted-foreground">…</span>
+                    )}
+                  </div>
+                )}
+
+                {/* m-of-n approvals badge for Threshold k≥2. Polled every
+                    8s from on-chain ApprovalPosted events. */}
+                {isMofN && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span
+                      className={cn(
+                        "rounded-full border px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
+                        isMofNUnlocked
+                          ? "bg-emerald-100 text-emerald-900 border-emerald-300"
+                          : "bg-amber-100 text-amber-900 border-amber-300",
+                      )}
+                    >
+                      {approvalsCount}/{k} approvals
+                      {isMofNUnlocked ? " · unlocked" : " · waiting"}
+                    </span>
+                  </div>
+                )}
+
+                {/* Activity timeline — last 3 submissions for this form
+                    (mirrors CRM "Versions = transactions"). Each row
+                    deep-links into per-row admin via the form admin page. */}
+                {recentSubs.length > 0 && (
+                  <div className="flex flex-col gap-0.5 text-xs mt-0.5 border-t border-dashed pt-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Recent activity
+                    </span>
+                    {recentSubs.map((s) => (
+                      <Link
+                        key={s.submissionId}
+                        href={`/forms/${f.id}/admin`}
+                        className="flex items-center gap-2 hover:bg-accent rounded px-1 py-0.5 -mx-1"
+                      >
+                        <span className="text-muted-foreground">
+                          {s.submittedAt.replace("T", " ").slice(0, 16)}
+                        </span>
+                        <span>·</span>
+                        <span className="truncate">
+                          {s.anonymous ? (
+                            <em className="text-muted-foreground">anonymous</em>
+                          ) : (
+                            <SuiNSName address={s.submitter} />
+                          )}
+                        </span>
+                        <code className="ml-auto text-muted-foreground">
+                          {s.submissionId.slice(0, 8)}…
+                        </code>
+                      </Link>
+                    ))}
+                    {subCount > recentSubs.length && (
+                      <button
+                        type="button"
+                        onClick={() => setFormFilter(f.id)}
+                        className="text-muted-foreground underline w-fit"
+                      >
+                        + {subCount - recentSubs.length} more
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2 text-xs flex-wrap mt-0.5">
                   <code
                     className="text-muted-foreground"
@@ -973,6 +1134,133 @@ function LockedShell({
         ))}
     </div>
   );
+}
+
+/**
+ * Member chip with SuiNS resolution. Compact, color-coded by role.
+ */
+function MemberChip({
+  address,
+  role,
+}: {
+  address: string;
+  role: "owner" | "co-admin";
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-mono",
+        role === "owner"
+          ? "bg-foreground/5 border-foreground/20"
+          : "bg-card border-border",
+      )}
+      title={`${address} · ${role}`}
+    >
+      <span className="text-[9px] uppercase tracking-wide opacity-60">
+        {role === "owner" ? "★" : "●"}
+      </span>
+      <SuiNSName address={address} />
+    </span>
+  );
+}
+
+interface FirstEventResult {
+  txDigest: string;
+}
+
+async function queryFirstEventByFormId(
+  fullnodeUrl: string,
+  moveEventType: string,
+  formId: string,
+): Promise<FirstEventResult | null> {
+  // Targeted server-side filter; falls back to type-only scan if RPC
+  // rejects the All+MoveEventField combination.
+  try {
+    const resp = await fetch(fullnodeUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "suix_queryEvents",
+        params: [
+          {
+            All: [
+              { MoveEventType: moveEventType },
+              { MoveEventField: { path: "/form_id", value: formId } },
+            ],
+          },
+          null,
+          1,
+          true,
+        ],
+      }),
+    });
+    const data = (await resp.json()) as {
+      result?: {
+        data?: Array<{ id?: { txDigest?: string }; parsedJson?: unknown }>;
+      };
+      error?: unknown;
+    };
+    if (data.error) throw new Error(JSON.stringify(data.error));
+    const first = data.result?.data?.[0];
+    const digest = first?.id?.txDigest;
+    return digest ? { txDigest: digest } : null;
+  } catch {
+    const resp = await fetch(fullnodeUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "suix_queryEvents",
+        params: [{ MoveEventType: moveEventType }, null, 200, true],
+      }),
+    });
+    const data = (await resp.json()) as {
+      result?: {
+        data?: Array<{
+          id?: { txDigest?: string };
+          parsedJson?: { form_id?: string };
+        }>;
+      };
+    };
+    const first = (data.result?.data ?? []).find(
+      (e) => e.parsedJson?.form_id === formId,
+    );
+    const digest = first?.id?.txDigest;
+    return digest ? { txDigest: digest } : null;
+  }
+}
+
+interface TxBlock {
+  objectChanges?: Array<{
+    type: string;
+    objectType?: string;
+    owner?:
+      | { AddressOwner?: string }
+      | { ObjectOwner?: string }
+      | { Shared?: unknown }
+      | string;
+  }>;
+}
+
+async function getTransactionBlock(
+  fullnodeUrl: string,
+  digest: string,
+): Promise<TxBlock> {
+  const resp = await fetch(fullnodeUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "sui_getTransactionBlock",
+      params: [digest, { showObjectChanges: true }],
+    }),
+  });
+  const data = (await resp.json()) as { result?: TxBlock };
+  return data.result ?? {};
 }
 
 function parseSealServers(raw: string): { objectId: string; weight: number }[] {
