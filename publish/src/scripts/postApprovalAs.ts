@@ -122,14 +122,23 @@ async function main() {
   console.log(`cap:    ${cap.objectId}`);
 
   // Top up signer with gas if balance is < 0.01 SUI (10_000_000 mist).
-  const balance = await client.getBalance({
+  // SuiGrpcClient.getBalance returns { balance: { totalBalance } } in some
+  // SDK versions and { totalBalance } in others — accept either shape, and
+  // default to 0 if both are missing rather than `BigInt(undefined)`.
+  const balance = (await client.getBalance({
     owner: signerAddr,
     coinType: "0x2::sui::SUI",
-  });
-  const balMist = BigInt(balance.totalBalance);
-  if (balMist < 10_000_000n) {
+  })) as unknown as
+    | { totalBalance?: string | bigint }
+    | { balance?: { totalBalance?: string | bigint } };
+  const totalRaw =
+    ("totalBalance" in balance && balance.totalBalance) ||
+    ("balance" in balance && balance.balance?.totalBalance) ||
+    "0";
+  const balMist = BigInt(totalRaw);
+  if (balMist < 200_000_000n) {
     console.log(
-      `signer balance ${balMist} mist < 10_000_000 — topping up from ADMIN_SECRET_KEY...`,
+      `signer balance ${balMist} mist < 200_000_000 — topping up from ADMIN_SECRET_KEY...`,
     );
     const adminKey = process.env.ADMIN_SECRET_KEY;
     if (!adminKey) {
@@ -140,7 +149,7 @@ async function main() {
     const adminAddr = adminKp.getPublicKey().toSuiAddress();
     const topupTx = new Transaction();
     const [coin] = topupTx.splitCoins(topupTx.gas, [
-      topupTx.pure.u64(50_000_000n),
+      topupTx.pure.u64(300_000_000n),
     ]);
     topupTx.transferObjects([coin], topupTx.pure.address(signerAddr));
     topupTx.setSender(adminAddr);
@@ -159,8 +168,9 @@ async function main() {
       process.exit(1);
     }
     console.log(`✓ topped up — digest ${r.Transaction!.digest}`);
-    // Brief delay so the new coin shows up in subsequent gas selection.
-    await new Promise((res) => setTimeout(res, 1500));
+    // Wait for the fullnode to index the new coin before gas selection.
+    // 1.5s wasn't enough on testnet; bump to 5s.
+    await new Promise((res) => setTimeout(res, 5000));
   }
 
   // Build identity = 32-byte form id + 1-byte tier code (Threshold = 2).
