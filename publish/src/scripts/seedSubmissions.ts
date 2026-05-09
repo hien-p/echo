@@ -14,6 +14,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID, fromBase64 } from "@mysten/sui/utils";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import { decodeSuiPrivateKey } from "@mysten/sui/cryptography";
 import { SealClient } from "@mysten/seal";
 
 // Default package id matches createSampleForm.ts so the two scripts stay in
@@ -270,6 +271,22 @@ function buildTierIdentity(args: {
   return out;
 }
 
+function loadOneKey(raw: string): Ed25519Keypair {
+  // Sui CLI's bech32 export: suiprivkey1…
+  if (raw.startsWith("suiprivkey1")) {
+    const { secretKey } = decodeSuiPrivateKey(raw);
+    return Ed25519Keypair.fromSecretKey(secretKey);
+  }
+  // Bare 32-byte hex (e.g. our MEMWAL_PRIVATE_KEY).
+  if (/^[0-9a-fA-F]{64}$/.test(raw)) {
+    return Ed25519Keypair.fromSecretKey(hexToBytes(raw));
+  }
+  // Base64 — handles both 32-byte raw and 33-byte scheme-prefixed.
+  const buf = fromBase64(raw);
+  const stripped = buf.length === 33 ? buf.slice(1) : buf;
+  return Ed25519Keypair.fromSecretKey(stripped);
+}
+
 function bytesToHex(bytes: Uint8Array): string {
   let hex = "";
   for (const b of bytes) hex += b.toString(16).padStart(2, "0");
@@ -305,19 +322,101 @@ async function main() {
     console.error("FORM_ID env var required (the form's Sui object id).");
     process.exit(1);
   }
-  const secretKey = process.env.ADMIN_SECRET_KEY;
-  if (!secretKey) {
+  const adminSecret = process.env.ADMIN_SECRET_KEY;
+  if (!adminSecret) {
     console.error("ADMIN_SECRET_KEY not set in publish/.env");
     process.exit(1);
   }
+  const adminKp = Ed25519Keypair.fromSecretKey(
+    fromBase64(adminSecret).slice(1),
+  );
+  const adminAddr = adminKp.getPublicKey().toSuiAddress();
 
-  const keypair = Ed25519Keypair.fromSecretKey(fromBase64(secretKey).slice(1));
-  const sender = keypair.getPublicKey().toSuiAddress();
-  console.log(`submitter: ${sender}`);
-  console.log(`form:      ${FORM_ID}`);
-  console.log(`count:     ${COUNT}`);
+  // Build the rotating signer pool. Sources, in priority:
+  //   1. SIGNERS env (comma-separated; supports suiprivkey1…/64-hex/base64+scheme)
+  //   2. N fresh ephemeral keypairs if EPHEMERALS=N
+  //   3. ADMIN_SECRET_KEY as the final fallback so the script always
+  //      has at least one signer
+  // Each non-admin signer gets auto-topped-up from admin when its
+  // balance is below the gas budget — keeps the demo deterministic
+  // even after the user pastes a brand-new wallet bech32 string.
+  const signers: Ed25519Keypair[] = [];
+  const sigEnv = (process.env.SIGNERS ?? "").trim();
+  if (sigEnv) {
+    for (const raw of sigEnv.split(/[,\s]+/).filter(Boolean)) {
+      try {
+        signers.push(loadOneKey(raw));
+      } catch (e) {
+        console.error(
+          `skipping malformed signer key "${raw.slice(0, 16)}…": ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        );
+      }
+    }
+  }
+  const ephemeralCount = Number(process.env.EPHEMERALS ?? "0");
+  for (let i = 0; i < ephemeralCount; i++) {
+    signers.push(new Ed25519Keypair());
+  }
+  if (signers.length === 0) signers.push(adminKp);
+
+  console.log(`form:        ${FORM_ID}`);
+  console.log(`count:       ${COUNT}`);
+  console.log(`signers:     ${signers.length} (rotating)`);
+  for (let i = 0; i < signers.length; i++) {
+    console.log(`  [${i}] ${signers[i].getPublicKey().toSuiAddress()}`);
+  }
 
   const client = new SuiGrpcClient({ network: "testnet", baseUrl: FULLNODE });
+
+  // Top up any signer with < 200M mist so submission gas selection succeeds.
+  // Skips the admin (assumed funded). Sleeps 4s after topup so the new coin
+  // is indexed before the first submit reads it.
+  const TOPUP_MIST = 300_000_000n;
+  const MIN_MIST = 200_000_000n;
+  const needsTopup: Ed25519Keypair[] = [];
+  for (const kp of signers) {
+    const addr = kp.getPublicKey().toSuiAddress();
+    if (addr === adminAddr) continue;
+    const bal = (await client.getBalance({
+      owner: addr,
+      coinType: "0x2::sui::SUI",
+    })) as unknown as { totalBalance?: string };
+    if (BigInt(bal.totalBalance ?? "0") < MIN_MIST) {
+      needsTopup.push(kp);
+    }
+  }
+  if (needsTopup.length > 0) {
+    console.log(`topping up ${needsTopup.length} signer(s) from admin…`);
+    const topupTx = new Transaction();
+    for (const kp of needsTopup) {
+      const [coin] = topupTx.splitCoins(topupTx.gas, [
+        topupTx.pure.u64(TOPUP_MIST),
+      ]);
+      topupTx.transferObjects(
+        [coin],
+        topupTx.pure.address(kp.getPublicKey().toSuiAddress()),
+      );
+    }
+    topupTx.setSender(adminAddr);
+    const built = await topupTx.build({ client });
+    const { signature } = await adminKp.signTransaction(built);
+    const r = await client.executeTransaction({
+      transaction: built,
+      signatures: [signature],
+      include: { effects: true },
+    });
+    if (r.FailedTransaction) {
+      console.error(
+        "topup failed:",
+        JSON.stringify(r.FailedTransaction.effects.status, null, 2),
+      );
+      process.exit(1);
+    }
+    console.log(`✓ topped up · digest ${r.Transaction!.digest}`);
+    await new Promise((res) => setTimeout(res, 4000));
+  }
 
   // 1. Read form on-chain.
   const formObj = await client.getObject({
@@ -388,6 +487,12 @@ async function main() {
     const blobId = await uploadBytes(bytes);
     console.log(`  walrus blob: ${blobId}`);
 
+    // Round-robin through the signer pool so the dashboard shows
+    // distinct submitter addresses on the demo form.
+    const signer = signers[i % signers.length];
+    const sender = signer.getPublicKey().toSuiAddress();
+    console.log(`  signer: ${sender.slice(0, 10)}…${sender.slice(-4)}`);
+
     const tx = new Transaction();
     tx.moveCall({
       target: `${PACKAGE_ID}::submission::submit`,
@@ -400,7 +505,7 @@ async function main() {
     tx.setSender(sender);
 
     const built = await tx.build({ client });
-    const { signature } = await keypair.signTransaction(built);
+    const { signature } = await signer.signTransaction(built);
     const resp = await client.executeTransaction({
       transaction: built,
       signatures: [signature],
