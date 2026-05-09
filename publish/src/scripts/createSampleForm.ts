@@ -360,10 +360,18 @@ const FORMS: Record<string, FormSpec> = {
     tier: 2,
     thresholdN: 2, // required approvals (k)
     thresholdM: 2, // total admins (n) — sender + the 1 extra below
-    // 2-of-2 demo: sender (publish admin) + memwal-key-derived address.
-    // Both are signable: the publish admin via the browser wallet (or demo
-    // mode), the memwal address via scripts/postApprovalAs.ts using
-    // MEMWAL_PRIVATE_KEY. Together they hit the k=2 threshold end-to-end.
+    // 2-of-2 demo. Two signable signers:
+    //   1. Publish admin (sender, set above) — sign via the browser wallet
+    //      or Demo admin mode.
+    //   2. The Sui address below = `Ed25519Keypair.fromSecretKey(bytes)`
+    //      where `bytes` happens to be MEMWAL_PRIVATE_KEY's 32-byte
+    //      payload. THIS HAS NO MEMWAL PROTOCOL MEANING — Memwal's
+    //      `MEMWAL_PRIVATE_KEY` is a relayer-auth delegate key, not a
+    //      Sui-spendable wallet. We're using it ONLY because the bytes
+    //      happen to be a valid Ed25519 secret and we already had them
+    //      configured. scripts/postApprovalAs.ts can sign as this address
+    //      via the same env var. For a production multisig, swap this
+    //      for an address whose owner has explicit control of its key.
     extraAdmins: [
       "0xdaf868f789e1cfd348948b4f5f27a7f3986ff2ba73b5a1d26fcaceb81230e7ce",
     ],

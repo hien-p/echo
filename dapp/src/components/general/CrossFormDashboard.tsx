@@ -638,425 +638,331 @@ export const CrossFormDashboard = () => {
     );
   }
 
+  // Currently scoped form (sidebar selection or filter dropdown). When set,
+  // we render a detail panel above the submissions list.
+  const selectedForm =
+    formFilter === "all"
+      ? null
+      : (formCards.find((f) => f.id === formFilter) ?? null);
+
+  const filtersActive =
+    statusFilter !== "all" ||
+    formFilter !== "all" ||
+    submitterFilter !== "all" ||
+    !!searchTerm;
+  const clearAllFilters = () => {
+    setStatusFilter("all");
+    setFormFilter("all");
+    setSubmitterFilter("all");
+    setSearchTerm("");
+  };
+
   return (
-    <div className="flex flex-col gap-md">
-      {!demoMode && (
-        <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
-          <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900">
-            <ShieldCheck size={12} /> Wallet admin mode · Seal-verified
-          </span>
+    <div className="flex flex-col gap-4">
+      {/* Compact header — title + admin chip + search + export + lock,
+          all on one row. Demo address pill replaces the verbose banner. */}
+      <div className="flex items-center justify-between gap-2 flex-wrap border-b pb-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-xl font-semibold tracking-tight">Triage</h1>
+          {!demoMode && (
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900">
+              <ShieldCheck size={10} /> Seal-verified
+            </span>
+          )}
+          {demoMode && (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-amber-800 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200"
+              title={`Demo address ${demoAddress}`}
+            >
+              <Sparkles size={10} /> Demo · {demoAddress.slice(0, 6)}…
+              {demoAddress.slice(-4)}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-xs flex-wrap">
+          <input
+            type="text"
+            placeholder="Search submissions, addresses, blob ids…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border rounded px-2 py-1 w-[200px] sm:w-[260px]"
+          />
           <button
             type="button"
-            onClick={lockOut}
-            className="text-muted-foreground hover:text-foreground underline"
+            onClick={() => exportCsv(visible)}
+            disabled={visible.length === 0}
+            className={cn(
+              "border rounded px-2 py-1 inline-flex items-center gap-1",
+              visible.length > 0
+                ? "hover:bg-accent"
+                : "opacity-60 cursor-not-allowed",
+            )}
+            title="Export visible submissions as CSV"
           >
-            Lock
+            <Download size={11} /> CSV ({visible.length})
           </button>
+          {!demoMode && (
+            <button
+              type="button"
+              onClick={lockOut}
+              className="text-muted-foreground hover:text-foreground underline"
+              title="Re-lock dashboard for this tab"
+            >
+              Lock
+            </button>
+          )}
         </div>
-      )}
-      {demoMode && (
-        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 inline-flex items-start gap-2">
-          <Sparkles size={12} className="mt-0.5 shrink-0" />
-          <span>
-            Showing forms owned by the demo address (
-            <code>
-              {demoAddress.slice(0, 10)}…{demoAddress.slice(-4)}
-            </code>
-            ). Status tags are stored in your browser regardless of demo mode.
-          </span>
-        </p>
-      )}
+      </div>
 
-      {/* Forms section — every form you own surfaced as a CRM-style row.
-          Click any to scope the submissions list to that form. */}
-      <section className="flex flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-2 flex-wrap">
-          <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
-            Your forms ({formCards.length})
-          </h2>
-          <Link
-            href="/forms/new"
-            className="text-xs underline text-muted-foreground hover:text-foreground"
-          >
-            + new form
-          </Link>
-        </div>
-        <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {formCards.map((f) => {
-            const subsForForm =
-              submissionsQuery.data?.filter((s) => s.formId === f.id) ?? [];
-            const subCount = subsForForm.length;
-            const recentSubs = subsForForm.slice(0, 3);
-            const tier = f.onChain.privacy_tier;
-            const isThreshold = tier === PrivacyTier.Threshold;
-            const isTimeLocked = tier === PrivacyTier.TimeLocked;
-            const k = f.onChain.threshold_n ?? 0;
-            const n = f.onChain.threshold_m ?? 0;
-            const isActive = formFilter === f.id;
-            // On-chain reads: members from the FormCreated tx's
-            // objectChanges, approvals from ApprovalPosted events.
-            const members = membersQuery.data?.[f.id] ?? [];
-            const coAdmins = members.filter(
-              (a) => a.toLowerCase() !== f.onChain.owner.toLowerCase(),
-            );
-            const approvalsCount = approvalsByFormQuery.data?.[f.id] ?? 0;
-            const isMofN = isThreshold && k >= 2;
-            const isMofNUnlocked = isMofN && approvalsCount >= k;
-            return (
-              <li
-                key={f.id}
-                className={cn(
-                  "border rounded p-3 flex flex-col gap-1.5 bg-card text-sm transition",
-                  isActive && "ring-2 ring-foreground",
-                )}
-              >
-                <div className="flex items-start justify-between gap-2 flex-wrap">
-                  <Link
-                    href={`/forms/${f.id}/admin`}
-                    className="font-medium hover:underline flex-1 min-w-0 truncate"
-                    title={f.title}
-                  >
-                    {f.title}
-                  </Link>
-                  <span
-                    className={cn(
-                      "rounded-full border px-1.5 py-0.5 text-[10px] uppercase tracking-wide shrink-0",
-                      tier === PrivacyTier.Public &&
-                        "bg-zinc-100 text-zinc-700 border-zinc-300",
-                      tier === PrivacyTier.AdminOnly &&
-                        "bg-blue-100 text-blue-900 border-blue-300",
-                      isThreshold &&
-                        "bg-violet-100 text-violet-900 border-violet-300",
-                      isTimeLocked &&
-                        "bg-amber-100 text-amber-900 border-amber-300",
-                      tier === PrivacyTier.Conditional &&
-                        "bg-emerald-100 text-emerald-900 border-emerald-300",
-                    )}
-                  >
-                    {TIER_LABELS[tier] ?? "?"}
-                    {isThreshold && k > 0 && n > 0 && ` ${k}/${n}`}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                  <span>
-                    {STATUS_LABELS[f.onChain.status] ?? "?"} · {subCount}{" "}
-                    submission{subCount === 1 ? "" : "s"}
-                  </span>
-                  <span>·</span>
-                  <span>
-                    by <SuiNSName address={f.onChain.owner} />
-                  </span>
-                  {isTimeLocked &&
-                    f.onChain.unlock_ms &&
-                    Number(f.onChain.unlock_ms) > 0 && (
-                      <>
-                        <span>·</span>
-                        <span title={`unlock_ms = ${f.onChain.unlock_ms}`}>
-                          unlocks{" "}
-                          {new Date(Number(f.onChain.unlock_ms))
-                            .toISOString()
-                            .replace("T", " ")
-                            .slice(0, 16)}
-                          Z
-                        </span>
-                      </>
-                    )}
-                </div>
-                {/* Members (cap holders) — owner + co-admins. Pure
-                    on-chain: derived from the FormCreated tx's
-                    objectChanges. CRM analogue: "principals". */}
-                {(coAdmins.length > 0 || membersQuery.isLoading) && (
-                  <div className="flex items-center gap-1.5 text-xs flex-wrap mt-0.5">
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      Members
-                    </span>
-                    <MemberChip address={f.onChain.owner} role="owner" />
-                    {coAdmins.map((addr) => (
-                      <MemberChip key={addr} address={addr} role="co-admin" />
-                    ))}
-                    {membersQuery.isLoading && coAdmins.length === 0 && (
-                      <span className="text-muted-foreground">…</span>
-                    )}
-                  </div>
-                )}
-
-                {/* m-of-n approvals badge for Threshold k≥2. Polled every
-                    8s from on-chain ApprovalPosted events. */}
-                {isMofN && (
-                  <div className="flex items-center gap-2 text-xs">
-                    <span
-                      className={cn(
-                        "rounded-full border px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
-                        isMofNUnlocked
-                          ? "bg-emerald-100 text-emerald-900 border-emerald-300"
-                          : "bg-amber-100 text-amber-900 border-amber-300",
-                      )}
-                    >
-                      {approvalsCount}/{k} approvals
-                      {isMofNUnlocked ? " · unlocked" : " · waiting"}
-                    </span>
-                  </div>
-                )}
-
-                {/* Activity timeline — last 3 submissions for this form
-                    (mirrors CRM "Versions = transactions"). Each row
-                    deep-links into per-row admin via the form admin page. */}
-                {recentSubs.length > 0 && (
-                  <div className="flex flex-col gap-0.5 text-xs mt-0.5 border-t border-dashed pt-1.5">
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      Recent activity
-                    </span>
-                    {recentSubs.map((s) => (
-                      <Link
-                        key={s.submissionId}
-                        href={`/forms/${f.id}/admin`}
-                        className="flex items-center gap-2 hover:bg-accent rounded px-1 py-0.5 -mx-1"
-                      >
-                        <span className="text-muted-foreground">
-                          {s.submittedAt.replace("T", " ").slice(0, 16)}
-                        </span>
-                        <span>·</span>
-                        <span className="truncate">
-                          {s.anonymous ? (
-                            <em className="text-muted-foreground">anonymous</em>
-                          ) : (
-                            <SuiNSName address={s.submitter} />
-                          )}
-                        </span>
-                        <code className="ml-auto text-muted-foreground">
-                          {s.submissionId.slice(0, 8)}…
-                        </code>
-                      </Link>
-                    ))}
-                    {subCount > recentSubs.length && (
-                      <button
-                        type="button"
-                        onClick={() => setFormFilter(f.id)}
-                        className="text-muted-foreground underline w-fit"
-                      >
-                        + {subCount - recentSubs.length} more
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 text-xs flex-wrap mt-0.5">
-                  <code
-                    className="text-muted-foreground"
-                    title={f.id}
-                  >{`${f.id.slice(0, 10)}…${f.id.slice(-4)}`}</code>
-                  <span className="ml-auto flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setFormFilter(isActive ? "all" : f.id)}
-                      className="underline text-muted-foreground hover:text-foreground"
-                    >
-                      {isActive ? "clear filter" : "filter ↓"}
-                    </button>
-                    <Link
-                      href={`/forms/${f.id}`}
-                      className="underline text-muted-foreground hover:text-foreground"
-                    >
-                      public link
-                    </Link>
-                    <Link href={`/forms/${f.id}/admin`} className="underline">
-                      admin →
-                    </Link>
-                  </span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      {/* Roll-up tiles. */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        <Tile label="Forms" value={String(formCards.length)} />
-        <Tile label="Submissions" value={String(statusCounts.total)} />
+      {/* Inline metric strip — no boxes; click status to scope the list. */}
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5 text-sm">
+        <Metric value={formCards.length} label="forms" />
+        <Metric value={statusCounts.total} label="submissions" />
+        <span className="text-border" aria-hidden>
+          |
+        </span>
         {STATUSES.map((s) => (
-          <Tile
+          <Metric
             key={s.value}
-            label={s.label}
-            value={String(statusCounts[s.value])}
+            value={statusCounts[s.value]}
+            label={s.label.toLowerCase()}
             active={statusFilter === s.value}
             onClick={() =>
               setStatusFilter((c) => (c === s.value ? "all" : s.value))
             }
           />
         ))}
-      </div>
-
-      {/* Filter row. */}
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <input
-          type="text"
-          placeholder="Search submissions, addresses, blob ids…"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="border rounded px-2 py-1 flex-1 min-w-[200px]"
-        />
-        <select
-          value={formFilter}
-          onChange={(e) => setFormFilter(e.target.value)}
-          className="border rounded px-2 py-1 max-w-[260px]"
-          title="Filter by form"
-        >
-          <option value="all">All forms ({formCards.length})</option>
-          {formCards.map((f) => {
-            const tierLabel = TIER_LABELS[f.onChain.privacy_tier] ?? "?";
-            const k = f.onChain.threshold_n ?? 0;
-            const n = f.onChain.threshold_m ?? 0;
-            const tierTag =
-              f.onChain.privacy_tier === PrivacyTier.Threshold && k && n
-                ? `${tierLabel} ${k}/${n}`
-                : tierLabel;
-            // Append a short id suffix — two forms can share the same title
-            // (e.g. multiple multisig demos minted from the same template).
-            // Without the suffix the dropdown looks like a duplicate row.
-            return (
-              <option key={f.id} value={f.id}>
-                {f.title} · {tierTag} · {f.id.slice(0, 6)}…{f.id.slice(-4)}
-              </option>
-            );
-          })}
-        </select>
-        <select
-          value={submitterFilter}
-          onChange={(e) =>
-            setSubmitterFilter(e.target.value as typeof submitterFilter)
-          }
-          className="border rounded px-2 py-1"
-        >
-          <option value="all">Any submitter</option>
-          <option value="named">Named only</option>
-          <option value="anonymous">Anonymous only</option>
-        </select>
-        <button
-          type="button"
-          onClick={() => exportCsv(visible)}
-          disabled={visible.length === 0}
-          className={cn(
-            "border rounded px-2 py-1 inline-flex items-center gap-1",
-            visible.length > 0
-              ? "hover:bg-accent"
-              : "opacity-60 cursor-not-allowed",
-          )}
-        >
-          <Download size={11} /> Export {visible.length} as CSV
-        </button>
-      </div>
-
-      {/* Active-filter summary. */}
-      {(statusFilter !== "all" ||
-        formFilter !== "all" ||
-        submitterFilter !== "all" ||
-        searchTerm) && (
-        <p className="text-xs text-muted-foreground">
-          Showing {visible.length} of {statusCounts.total}.{" "}
+        {filtersActive && (
           <button
             type="button"
-            onClick={() => {
-              setStatusFilter("all");
-              setFormFilter("all");
-              setSubmitterFilter("all");
-              setSearchTerm("");
-            }}
-            className="underline"
+            onClick={clearAllFilters}
+            className="text-xs text-muted-foreground underline ml-auto"
           >
-            Clear filters
+            clear filters ({visible.length}/{statusCounts.total})
           </button>
-        </p>
-      )}
+        )}
+      </div>
 
-      {/* The list. */}
-      {submissionsQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">
-          Loading submissions across {formCards.length} form
-          {formCards.length === 1 ? "" : "s"}…
-        </p>
-      ) : visible.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {statusCounts.total === 0
-            ? "No submissions yet on any of your forms."
-            : "Nothing matches the current filters."}
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {visible.map((r) => {
-            const status = statusMap[r.submissionId] ?? "new";
+      {/* Sidebar (forms) + main (submissions). Stacks on mobile. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4">
+        {/* Forms sidebar — grouped by privacy tier. Click any to scope
+            the right pane to that form; click again or "All forms" to
+            clear. The active row has a filled background. */}
+        <aside className="flex flex-col gap-3 lg:border-r lg:pr-4 lg:max-h-[80vh] lg:overflow-auto">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+              Forms
+            </h2>
+            <Link
+              href="/forms/new"
+              className="text-xs underline text-muted-foreground hover:text-foreground"
+            >
+              + new
+            </Link>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFormFilter("all")}
+            className={cn(
+              "text-left text-sm rounded px-2 py-1.5 -mx-1 flex items-center justify-between gap-2 transition",
+              formFilter === "all"
+                ? "bg-accent font-medium"
+                : "hover:bg-accent/60",
+            )}
+          >
+            <span>All forms</span>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {statusCounts.total}
+            </span>
+          </button>
+          {/* Group by tier so the sidebar tells a story. */}
+          {([0, 1, 2, 3, 4] as const).map((tier) => {
+            const group = formCards.filter(
+              (f) => f.onChain.privacy_tier === tier,
+            );
+            if (group.length === 0) return null;
             return (
-              <li
-                key={r.submissionId}
-                className="border rounded p-3 flex flex-col gap-1 bg-card text-sm"
-              >
-                <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-                  <Link
-                    href={`/forms/${r.formId}/admin`}
-                    className="underline text-foreground"
-                    title={r.formId}
-                  >
-                    {r.formTitle}
-                  </Link>
-                  <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
-                    {TIER_LABELS[r.formTier] ?? "?"}
-                  </span>
-                  <span>·</span>
-                  <code>{r.submissionId.slice(0, 10)}…</code>
-                  <span>·</span>
-                  <span>{r.submittedAt.replace("T", " ").slice(0, 16)}</span>
-                  <span>·</span>
-                  <span>
-                    {r.anonymous ? (
-                      "anonymous"
-                    ) : (
-                      <SuiNSName address={r.submitter} />
-                    )}
-                  </span>
-                  {r.encrypted && (
-                    <span className="ml-auto text-amber-700">🔒 encrypted</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 flex-wrap mt-1">
-                  {STATUSES.map((s) => (
+              <div key={tier} className="flex flex-col gap-0.5">
+                <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold mt-1 px-1">
+                  {TIER_LABELS[tier]} ({group.length})
+                </h3>
+                {group.map((f) => {
+                  const subCount =
+                    submissionsQuery.data?.filter((s) => s.formId === f.id)
+                      .length ?? 0;
+                  const isActive = formFilter === f.id;
+                  const k = f.onChain.threshold_n ?? 0;
+                  const n = f.onChain.threshold_m ?? 0;
+                  return (
                     <button
-                      key={s.value}
+                      key={f.id}
                       type="button"
-                      onClick={() => setRowStatus(r.submissionId, s.value)}
+                      onClick={() => setFormFilter(isActive ? "all" : f.id)}
                       className={cn(
-                        "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide",
-                        status === s.value
-                          ? s.chip
-                          : "border-border text-muted-foreground hover:bg-accent",
+                        "text-left text-sm rounded px-2 py-1.5 -mx-1 flex items-center justify-between gap-2 transition",
+                        isActive
+                          ? "bg-accent font-medium"
+                          : "hover:bg-accent/60",
                       )}
+                      title={f.id}
                     >
-                      {s.label}
+                      <span className="truncate flex-1 min-w-0">
+                        {f.title}
+                        {tier === PrivacyTier.Threshold && k > 0 && n > 0 && (
+                          <span className="text-[10px] text-muted-foreground ml-1">
+                            {k}/{n}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                        {subCount}
+                      </span>
                     </button>
-                  ))}
-                  <Link
-                    href={`/forms/${r.formId}/admin`}
-                    className="ml-auto text-xs underline"
-                  >
-                    open in admin →
-                  </Link>
-                </div>
-              </li>
+                  );
+                })}
+              </div>
             );
           })}
-        </ul>
-      )}
+        </aside>
+
+        {/* Main pane: form detail (when scoped) + filter chips +
+            submissions table. */}
+        <main className="flex flex-col gap-3 min-w-0">
+          {selectedForm && (
+            <FormDetailPanel
+              form={selectedForm}
+              members={membersQuery.data?.[selectedForm.id] ?? []}
+              membersLoading={membersQuery.isLoading}
+              approvalsCount={approvalsByFormQuery.data?.[selectedForm.id] ?? 0}
+              recentSubs={
+                submissionsQuery.data
+                  ?.filter((s) => s.formId === selectedForm.id)
+                  .slice(0, 3) ?? []
+              }
+            />
+          )}
+
+          {/* Submitter pill row — small, only meaningful filters here.
+              Status filtering happens via the metric strip above. */}
+          <div className="flex items-center gap-1.5 flex-wrap text-xs">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mr-1">
+              Submitter:
+            </span>
+            {(["all", "named", "anonymous"] as const).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => setSubmitterFilter(opt)}
+                className={cn(
+                  "rounded-full border px-2 py-0.5 capitalize",
+                  submitterFilter === opt
+                    ? "bg-foreground text-background border-foreground"
+                    : "text-muted-foreground hover:bg-accent",
+                )}
+              >
+                {opt === "all" ? "any" : opt}
+              </button>
+            ))}
+          </div>
+
+          {/* Submissions table — one row per submission. Status pill
+              cycles through STATUSES on click; click row to open in
+              per-form admin. */}
+          {submissionsQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground py-6 text-center border border-dashed rounded">
+              Loading submissions across {formCards.length} form
+              {formCards.length === 1 ? "" : "s"}…
+            </p>
+          ) : visible.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center border border-dashed rounded">
+              {statusCounts.total === 0
+                ? "No submissions yet on any of your forms."
+                : "Nothing matches the current filters."}
+            </p>
+          ) : (
+            <ul className="flex flex-col divide-y border rounded">
+              {visible.map((r) => {
+                const status = statusMap[r.submissionId] ?? "new";
+                const statusDef =
+                  STATUSES.find((s) => s.value === status) ?? STATUSES[0];
+                return (
+                  <li
+                    key={r.submissionId}
+                    className="px-3 py-2 flex items-center gap-3 hover:bg-accent/30 text-sm"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const idx = STATUSES.findIndex(
+                          (s) => s.value === status,
+                        );
+                        const next = STATUSES[(idx + 1) % STATUSES.length];
+                        setRowStatus(r.submissionId, next.value);
+                      }}
+                      title={`Status: ${statusDef.label} · click to cycle`}
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide shrink-0 w-[78px] text-center",
+                        statusDef.chip,
+                      )}
+                    >
+                      {statusDef.label}
+                    </button>
+                    {!selectedForm && (
+                      <Link
+                        href={`/forms/${r.formId}/admin`}
+                        className="text-xs underline text-muted-foreground truncate max-w-[180px] shrink-0 hidden sm:inline"
+                        title={r.formTitle}
+                      >
+                        {r.formTitle}
+                      </Link>
+                    )}
+                    <span className="truncate flex-1 min-w-0">
+                      {r.anonymous ? (
+                        <em className="text-muted-foreground">anonymous</em>
+                      ) : (
+                        <SuiNSName address={r.submitter} />
+                      )}
+                    </span>
+                    {r.encrypted && (
+                      <Lock
+                        size={11}
+                        className="text-amber-700 shrink-0"
+                        aria-label="encrypted"
+                      />
+                    )}
+                    <span className="text-xs text-muted-foreground tabular-nums shrink-0 hidden sm:inline">
+                      {r.submittedAt.replace("T", " ").slice(0, 16)}
+                    </span>
+                    <Link
+                      href={`/forms/${r.formId}/admin`}
+                      className="text-xs underline shrink-0"
+                      aria-label="open in admin"
+                    >
+                      →
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </main>
+      </div>
     </div>
   );
 };
 
-function Tile({
-  label,
+/**
+ * Inline metric — large tabular number + small label, no card chrome.
+ * Optional active/click state lets the strip double as a status filter.
+ */
+function Metric({
   value,
+  label,
   active,
   onClick,
 }: {
+  value: number;
   label: string;
-  value: string;
   active?: boolean;
   onClick?: () => void;
 }) {
@@ -1066,16 +972,180 @@ function Tile({
       type={onClick ? "button" : undefined}
       onClick={onClick}
       className={cn(
-        "border rounded p-2 flex flex-col gap-0.5 text-left",
-        active && "bg-foreground text-background",
-        onClick && !active && "hover:bg-accent cursor-pointer",
+        "inline-flex items-baseline gap-1.5",
+        onClick && "cursor-pointer hover:text-foreground",
+        active ? "text-foreground" : "text-muted-foreground",
       )}
     >
-      <span className="text-[10px] uppercase tracking-wide opacity-70">
-        {label}
+      <span
+        className={cn(
+          "text-base font-semibold tabular-nums",
+          active && "underline underline-offset-4 decoration-2",
+        )}
+      >
+        {value}
       </span>
-      <span className="text-lg font-semibold tabular-nums">{value}</span>
+      <span className="text-xs uppercase tracking-wide">{label}</span>
     </Comp>
+  );
+}
+
+/**
+ * Detail panel rendered when the user scopes the dashboard to a single
+ * form. Shows everything that's not visible in the sidebar row: members
+ * (Sui ACL), m-of-n approvals, recent activity, plus the on-chain id and
+ * deep links. Pure on-chain reads — same data the per-form admin uses,
+ * just summarized.
+ */
+function FormDetailPanel({
+  form,
+  members,
+  membersLoading,
+  approvalsCount,
+  recentSubs,
+}: {
+  form: FormCard;
+  members: string[];
+  membersLoading: boolean;
+  approvalsCount: number;
+  recentSubs: SubmissionRow[];
+}) {
+  const tier = form.onChain.privacy_tier;
+  const isThreshold = tier === PrivacyTier.Threshold;
+  const isTimeLocked = tier === PrivacyTier.TimeLocked;
+  const k = form.onChain.threshold_n ?? 0;
+  const n = form.onChain.threshold_m ?? 0;
+  const isMofN = isThreshold && k >= 2;
+  const isMofNUnlocked = isMofN && approvalsCount >= k;
+  const coAdmins = members.filter(
+    (a) => a.toLowerCase() !== form.onChain.owner.toLowerCase(),
+  );
+  return (
+    <div className="border rounded-lg p-4 bg-card flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <div className="flex flex-col gap-1 min-w-0">
+          <h2 className="text-base font-semibold truncate" title={form.title}>
+            {form.title}
+          </h2>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+            <span>{STATUS_LABELS[form.onChain.status] ?? "?"}</span>
+            <span>·</span>
+            <span>{form.onChain.submission_count} submissions on chain</span>
+            <span>·</span>
+            <code title={form.id}>
+              {form.id.slice(0, 10)}…{form.id.slice(-4)}
+            </code>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide",
+              tier === PrivacyTier.Public &&
+                "bg-zinc-100 text-zinc-700 border-zinc-300",
+              tier === PrivacyTier.AdminOnly &&
+                "bg-blue-100 text-blue-900 border-blue-300",
+              isThreshold && "bg-violet-100 text-violet-900 border-violet-300",
+              isTimeLocked && "bg-amber-100 text-amber-900 border-amber-300",
+              tier === PrivacyTier.Conditional &&
+                "bg-emerald-100 text-emerald-900 border-emerald-300",
+            )}
+          >
+            {TIER_LABELS[tier] ?? "?"}
+            {isThreshold && k > 0 && n > 0 && ` ${k}/${n}`}
+          </span>
+          {isMofN && (
+            <span
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide",
+                isMofNUnlocked
+                  ? "bg-emerald-100 text-emerald-900 border-emerald-300"
+                  : "bg-amber-100 text-amber-900 border-amber-300",
+              )}
+              title="On-chain ApprovalPosted events for this form"
+            >
+              {approvalsCount}/{k} approvals
+              {isMofNUnlocked ? " · unlocked" : " · waiting"}
+            </span>
+          )}
+          {isTimeLocked &&
+            form.onChain.unlock_ms &&
+            Number(form.onChain.unlock_ms) > 0 && (
+              <span
+                className="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide bg-amber-50 text-amber-900 border-amber-200"
+                title={`unlock_ms = ${form.onChain.unlock_ms}`}
+              >
+                unlocks{" "}
+                {new Date(Number(form.onChain.unlock_ms))
+                  .toISOString()
+                  .replace("T", " ")
+                  .slice(0, 16)}
+                Z
+              </span>
+            )}
+        </div>
+      </div>
+
+      {/* Members ACL — owner + co-admins. Always shows owner; adds
+          co-admin chips as the on-chain query resolves. */}
+      <div className="flex items-center gap-1.5 text-xs flex-wrap">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mr-1">
+          Members
+        </span>
+        <MemberChip address={form.onChain.owner} role="owner" />
+        {coAdmins.map((addr) => (
+          <MemberChip key={addr} address={addr} role="co-admin" />
+        ))}
+        {membersLoading && coAdmins.length === 0 && (
+          <span className="text-muted-foreground">…</span>
+        )}
+      </div>
+
+      {/* Recent activity — last 3 SubmissionMade events (on chain). */}
+      {recentSubs.length > 0 && (
+        <div className="flex flex-col gap-0.5 text-xs border-t border-dashed pt-2">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">
+            Recent activity
+          </span>
+          {recentSubs.map((s) => (
+            <div
+              key={s.submissionId}
+              className="flex items-center gap-2 px-1 py-0.5"
+            >
+              <span className="text-muted-foreground tabular-nums">
+                {s.submittedAt.replace("T", " ").slice(0, 16)}
+              </span>
+              <span>·</span>
+              <span className="truncate flex-1 min-w-0">
+                {s.anonymous ? (
+                  <em className="text-muted-foreground">anonymous</em>
+                ) : (
+                  <SuiNSName address={s.submitter} />
+                )}
+              </span>
+              <code className="text-muted-foreground">
+                {s.submissionId.slice(0, 8)}…
+              </code>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 text-xs">
+        <Link
+          href={`/forms/${form.id}`}
+          className="underline text-muted-foreground hover:text-foreground"
+        >
+          public link →
+        </Link>
+        <Link
+          href={`/forms/${form.id}/admin`}
+          className="underline font-medium"
+        >
+          open in admin →
+        </Link>
+      </div>
+    </div>
   );
 }
 

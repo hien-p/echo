@@ -1,8 +1,11 @@
 /**
- * Post an ApprovalWitness as a specific signer (e.g. the memwal account that
- * holds one of the multisig demo's caps but isn't a wallet you can connect
- * to in the browser). Lets you finalize a 2-of-3 demo end-to-end without
- * needing three browser-controllable wallets.
+ * Post an ApprovalWitness as a non-browser signer — useful when a multisig
+ * form has a co-admin cap held by an address whose key only lives on disk
+ * (e.g. an ephemeral keypair, or — in the demo — the bytes that happen to
+ * sit at MEMWAL_PRIVATE_KEY in publish/.env). Note: those bytes are
+ * Memwal's relayer-auth delegate key; treating them as an Ed25519 Sui key
+ * gives a valid Sui address but has no Memwal protocol meaning. We're just
+ * borrowing the bytes for the multisig demo because they're convenient.
  *
  * Run from publish/:
  *   FORM_ID=0x... \
