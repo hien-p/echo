@@ -33,6 +33,7 @@ import { BountyPanel } from "./BountyPanel";
 import { useDemoAdminMode } from "./DemoAdminToggle";
 import { TimeLockBadge } from "./TimeLockBadge";
 import { MarkdownView } from "./MarkdownView";
+import { SuiNSName } from "./SuiNSName";
 
 interface OnChainForm {
   schema_blob_id: string;
@@ -721,7 +722,7 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
         <p className="text-xs text-muted-foreground inline-flex items-center gap-2 flex-wrap">
           <span>
             {STATUS_LABELS[onChain.status] ?? "?"} · {onChain.submission_count}{" "}
-            submissions ·{" "}
+            submissions · by <SuiNSName address={onChain.owner} /> ·{" "}
             <Link href={`/forms/${formId}`} className="underline">
               public link
             </Link>
@@ -730,6 +731,7 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
             <TimeLockBadge unlockMs={unlockMs} />
           )}
         </p>
+        <BrandedShareLink formId={formId} />
       </header>
 
       {demoMode && (
@@ -1200,7 +1202,7 @@ function SubmissionRowView({
         <span>{row.submittedAt}</span>
         <span>·</span>
         <span>
-          {row.anonymous ? "anonymous" : `${row.submitter.slice(0, 10)}…`}
+          {row.anonymous ? "anonymous" : <SuiNSName address={row.submitter} />}
         </span>
         <span className="ml-auto flex items-center gap-2">
           {canIssueCredit && !credited && (
@@ -1491,6 +1493,105 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 60);
+}
+
+/**
+ * Tiny <details> expander on the FormAdmin header that helps the owner
+ * generate a SuiNS-branded share URL. The share URL itself is generated
+ * client-side; the SuiNS user_data update has to happen on the SuiNS
+ * dashboard (we link to it).
+ */
+function BrandedShareLink({ formId }: { formId: string }) {
+  const [name, setName] = useState("");
+  const [copied, setCopied] = useState<string | null>(null);
+  const slug = name
+    .replace(/\.sui$/i, "")
+    .trim()
+    .toLowerCase();
+  const fullName = slug ? `${slug}.sui` : "";
+  const url =
+    typeof window !== "undefined" && slug
+      ? `${window.location.origin}/s/${fullName}`
+      : "";
+
+  const copy = (text: string) => {
+    if (!navigator.clipboard) return;
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(text);
+      setTimeout(() => setCopied(null), 1500);
+    });
+  };
+
+  return (
+    <details className="text-xs">
+      <summary className="cursor-pointer text-muted-foreground underline w-fit">
+        🔗 Branded share link (SuiNS)
+      </summary>
+      <div className="mt-2 border rounded p-3 bg-card flex flex-col gap-2">
+        <p className="text-muted-foreground">
+          Set a SuiNS NameRecord user_data key <code>app:echo:form_id</code> =
+          this form id, then share <code>/s/&lt;name&gt;.sui</code> instead of
+          the long object id. Visiting the branded URL 302-redirects to this
+          form.
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="text"
+            placeholder="alice  (or alice.sui)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="border rounded px-2 py-1 font-mono"
+          />
+          {url && (
+            <>
+              <code className="text-muted-foreground">{url}</code>
+              <button
+                type="button"
+                onClick={() => copy(url)}
+                className="border rounded px-2 py-0.5 hover:bg-accent"
+              >
+                {copied === url ? "✓ copied" : "copy URL"}
+              </button>
+            </>
+          )}
+        </div>
+        <div className="flex flex-col gap-1 text-muted-foreground">
+          <p className="font-medium text-foreground">One-time setup steps:</p>
+          <ol className="list-decimal pl-5 space-y-0.5">
+            <li>
+              Open{" "}
+              <a
+                href="https://testnet.suins.io"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                testnet.suins.io
+              </a>{" "}
+              and register / select <code>{fullName || "<name>.sui"}</code>.
+            </li>
+            <li>
+              In the name&apos;s <strong>Custom user data</strong> section, add
+              key <code>app:echo:form_id</code> with value:
+              <button
+                type="button"
+                onClick={() => copy(formId)}
+                className="ml-1 border rounded px-1 py-0.5 hover:bg-accent text-[10px]"
+                title="Copy form id"
+              >
+                {copied === formId ? "✓ copied" : "copy form id"}
+              </button>
+              <br />
+              <code className="text-[10px] break-all">{formId}</code>
+            </li>
+            <li>
+              Save. Share the <code>/s/...</code> URL above.
+            </li>
+          </ol>
+        </div>
+      </div>
+    </details>
+  );
 }
 
 function FilterChip({

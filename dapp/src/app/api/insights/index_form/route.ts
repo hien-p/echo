@@ -413,7 +413,13 @@ export async function POST(request: Request) {
       const payload = JSON.parse(new TextDecoder().decode(plaintext)) as {
         answers: Record<string, { kind: string; value: unknown }>;
       };
-      const text = flattenAnswersToText(payload.answers, e.submission_id);
+      const submitterName = await lookupSuinsName(e.submitter);
+      const text = flattenAnswersToText(
+        payload.answers,
+        e.submission_id,
+        e.submitter,
+        submitterName,
+      );
       if (!text) {
         skipped++;
         continue;
@@ -488,8 +494,22 @@ function u64ToBytes(value: bigint): Uint8Array {
 function flattenAnswersToText(
   answers: Record<string, { kind: string; value: unknown }>,
   submissionId: string,
+  submitter?: string,
+  submitterName?: string | null,
 ): string {
-  const parts: string[] = [`[submission ${submissionId.slice(0, 10)}]`];
+  // Header includes submission id + submitter handle so the LLM cites
+  // submissions by human names when SuiNS is registered: e.g.
+  //   [submission 0xabc… from alice.sui]
+  // anonymous submissions stay opaque.
+  const isAnon = !submitter || submitter === "0x0";
+  const handle = isAnon
+    ? "anonymous"
+    : submitterName
+      ? `${submitterName}.sui`
+      : `${submitter.slice(0, 10)}…`;
+  const parts: string[] = [
+    `[submission ${submissionId.slice(0, 10)} from ${handle}]`,
+  ];
   for (const [fieldId, ans] of Object.entries(answers)) {
     const v = ans.value;
     let text = "";
@@ -499,6 +519,37 @@ function flattenAnswersToText(
     if (text.trim()) parts.push(`${fieldId}: ${text}`);
   }
   return parts.length > 1 ? parts.join("\n") : "";
+}
+
+/**
+ * SuiNS reverse lookup with a per-process cache so we don't re-hit the API
+ * for every submission with the same submitter. Returns null on miss/error.
+ */
+const SUINS_CACHE = new Map<string, string | null>();
+async function lookupSuinsName(address: string): Promise<string | null> {
+  if (!address?.startsWith("0x") || address === "0x0") return null;
+  if (SUINS_CACHE.has(address)) return SUINS_CACHE.get(address) ?? null;
+  try {
+    const resp = await fetch(
+      `https://api-testnet.suins.io/api/address/${encodeURIComponent(address)}/default`,
+      { cache: "no-store" },
+    );
+    if (!resp.ok) {
+      SUINS_CACHE.set(address, null);
+      return null;
+    }
+    const json = (await resp.json()) as {
+      data?: { name?: string };
+      name?: string;
+    };
+    const n = json.data?.name ?? json.name ?? null;
+    const out = typeof n === "string" && n ? n : null;
+    SUINS_CACHE.set(address, out);
+    return out;
+  } catch {
+    SUINS_CACHE.set(address, null);
+    return null;
+  }
 }
 
 const TESTNET_AGGREGATORS = [

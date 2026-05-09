@@ -299,7 +299,6 @@ function SubmitForm({
         blobId = out.blobId;
       } else {
         if (!isPublic) {
-          // eslint-disable-next-line no-console
           console.warn(
             "Echo: privacy tier !== Public but NEXT_PUBLIC_SEAL_KEY_SERVERS not set; uploading plaintext.",
           );
@@ -497,10 +496,4 @@ function isFieldVisible(
     }
     return true;
   });
-}
-
-function cryptoRandomBytes(n: number): Uint8Array {
-  const out = new Uint8Array(n);
-  if (typeof crypto !== "undefined") crypto.getRandomValues(out);
-  return out;
 }

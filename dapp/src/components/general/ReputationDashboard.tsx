@@ -7,6 +7,7 @@ import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import { buildClaimCreditTx, buildMintReputationTx } from "@/lib/echo";
 import { useDemoAdminMode } from "./DemoAdminToggle";
+import { SuiNSName } from "./SuiNSName";
 
 interface OwnedRep {
   objectId: string;
@@ -244,7 +245,9 @@ export const ReputationDashboard = () => {
                 className="flex items-center gap-2 border rounded p-2 bg-card"
               >
                 <span className="text-muted-foreground w-6">#{i + 1}</span>
-                <code className="flex-1">{row.holder.slice(0, 16)}…</code>
+                <span className="flex-1">
+                  <SuiNSName address={row.holder} />
+                </span>
                 <span className="font-medium">{row.score}</span>
               </li>
             ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import {
@@ -31,6 +31,7 @@ import {
 import { buildCreateFormTx } from "@/lib/echo/tx";
 import { executeSponsored } from "@/lib/echo/sponsor";
 import { uploadJsonViaPublisher } from "@/lib/echo/walrus";
+import { resolveNameToAddress } from "@/lib/echo/suins";
 import { FormPreview } from "./FormPreview";
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
@@ -234,15 +235,55 @@ export const FormBuilder = () => {
   const [title, setTitle] = useState(blank.title);
   const [description, setDescription] = useState(blank.description);
   const [tier, setTier] = useState<PrivacyTier>(blank.tier);
-  const [thresholdN, setThresholdN] = useState(2);
-  const [thresholdM, setThresholdM] = useState(3);
+  // Threshold tier metadata: kept at fixed n=1, m=1 for now since the
+  // current OR-of-N implementation doesn't enforce real m-of-n at the
+  // Seal layer. Move's create_form still needs valid thresholds when tier
+  // === Threshold (assert n>0 && n<=m), so 1/1 is the safe default.
+  const thresholdN = 1;
+  const thresholdM = 1;
   const [unlockMs, setUnlockMs] = useState("");
   const [policyId, setPolicyId] = useState("");
   // Co-admins (extra cap recipients) — relevant for any encrypted tier where
   // the form should be jointly managed. Empty by default; the creator's own
   // address always gets a cap. Stored as comma/newline-separated string and
-  // parsed at submit time.
+  // parsed at submit time. Tokens can be hex addresses OR SuiNS names; we
+  // resolve names asynchronously via the testnet API and cache results.
   const [coAdminsText, setCoAdminsText] = useState("");
+  const [resolvedAdmins, setResolvedAdmins] = useState<
+    Array<{ raw: string; kind: "address" | "suins"; address: string | null }>
+  >([]);
+  useEffect(() => {
+    let cancelled = false;
+    const tokens = parseCoAdminTokens(coAdminsText);
+    // Optimistic: addresses resolve to themselves immediately; SuiNS pending.
+    setResolvedAdmins(
+      tokens.map((t) => ({
+        raw: t.raw,
+        kind: t.kind,
+        address: t.kind === "address" ? t.raw : null,
+      })),
+    );
+    const suinsTokens = tokens.filter((t) => t.kind === "suins");
+    if (suinsTokens.length === 0) return;
+    void (async () => {
+      const updates = await Promise.all(
+        suinsTokens.map(async (t) => {
+          const addr = await resolveNameToAddress(t.raw);
+          return { raw: t.raw, address: addr };
+        }),
+      );
+      if (cancelled) return;
+      setResolvedAdmins((prev) =>
+        prev.map((p) => {
+          const u = updates.find((x) => x.raw === p.raw);
+          return u ? { ...p, address: u.address } : p;
+        }),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [coAdminsText]);
   const [fields, setFields] = useState<FormField[]>(
     blank.fields.map((f) => ({ ...f, id: newFieldId() }) as FormField),
   );
@@ -322,7 +363,12 @@ export const FormBuilder = () => {
         kind: "saving",
         step: "Creating form on chain (gas sponsored)…",
       });
-      const extraAdmins = parseCoAdmins(coAdminsText);
+      // Use the live-resolved list (hex + resolved SuiNS); silently drop any
+      // .sui name that didn't resolve so the create_form call doesn't ship
+      // an invalid address. The UI hint warned the user.
+      const extraAdmins = resolvedAdmins
+        .filter((r) => !!r.address)
+        .map((r) => r.address!);
       const tx = buildCreateFormTx({
         packageId,
         senderAddress: currentAccount.address,
@@ -569,16 +615,43 @@ export const FormBuilder = () => {
                   <textarea
                     className="border rounded px-2 py-1 w-full font-mono text-xs"
                     rows={3}
-                    placeholder="0x... addresses, one per line or comma-separated. Each gets a FormOwnerCap and can decrypt as you can."
+                    placeholder="0x... addresses or alice.sui names, one per line or comma-separated. Each gets a FormOwnerCap and can decrypt as you can."
                     value={coAdminsText}
                     onChange={(e) => setCoAdminsText(e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">
+                  {resolvedAdmins.length > 0 && (
+                    <ul className="text-xs flex flex-col gap-0.5 mt-1">
+                      {resolvedAdmins.map((r) => (
+                        <li
+                          key={r.raw}
+                          className="flex items-center gap-2 font-mono"
+                        >
+                          <span
+                            className={cn(
+                              "inline-block w-1.5 h-1.5 rounded-full shrink-0",
+                              r.address
+                                ? "bg-emerald-500"
+                                : "bg-amber-400 animate-pulse",
+                            )}
+                          />
+                          <span>{r.raw}</span>
+                          {r.kind === "suins" && r.address && (
+                            <span className="text-muted-foreground">
+                              → {r.address.slice(0, 10)}…
+                            </span>
+                          )}
+                          {r.kind === "suins" && !r.address && (
+                            <span className="text-amber-700">resolving…</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
                     {(() => {
-                      const list = parseCoAdmins(coAdminsText);
-                      if (list.length === 0)
-                        return "Just you — single admin (default).";
-                      return `${list.length + 1} admins total · OR-of-${list.length + 1} (any one can decrypt)`;
+                      const ok = resolvedAdmins.filter((r) => r.address).length;
+                      if (ok === 0) return "Just you — single admin (default).";
+                      return `${ok + 1} admins total · any one can decrypt and manage the form.`;
                     })()}
                   </p>
                 </Field>
@@ -704,13 +777,11 @@ const BuilderSection = ({
 
 function TierBadge({
   tier,
-  thresholdN,
-  thresholdM,
   unlockMs,
 }: {
   tier: PrivacyTier;
-  thresholdN: number;
-  thresholdM: number;
+  thresholdN: number; // unused; kept in the prop bag for caller compat
+  thresholdM: number; // unused; kept in the prop bag for caller compat
   unlockMs: string;
 }) {
   if (tier === PrivacyTier.Public) return null;
@@ -958,17 +1029,30 @@ function humanRelative(ms: number): string {
   return `in ~${min}m`;
 }
 
-/** Parse a free-form textarea of co-admin addresses into a deduped list. */
-function parseCoAdmins(raw: string): string[] {
+/**
+ * Parse a free-form textarea of co-admin addresses + .sui names into a list
+ * of tokens. Hex addresses are kept as-is; .sui names are flagged for the
+ * caller to resolve asynchronously via SuiNS.
+ */
+function parseCoAdminTokens(
+  raw: string,
+): Array<{ raw: string; kind: "address" | "suins" }> {
   const seen = new Set<string>();
-  const out: string[] = [];
+  const out: Array<{ raw: string; kind: "address" | "suins" }> = [];
   for (const tok of raw.split(/[\s,]+/)) {
     const t = tok.trim().toLowerCase();
     if (!t) continue;
-    if (!t.startsWith("0x") || t.length < 6) continue;
     if (seen.has(t)) continue;
     seen.add(t);
-    out.push(t);
+    if (t.startsWith("0x") && t.length >= 6) {
+      out.push({ raw: t, kind: "address" });
+    } else if (/\.sui$/i.test(t) || /^[a-z0-9-]{3,}$/.test(t)) {
+      // bare slug like "alice" treated as alice.sui
+      out.push({
+        raw: t.endsWith(".sui") ? t : `${t}.sui`,
+        kind: "suins",
+      });
+    }
   }
   return out;
 }

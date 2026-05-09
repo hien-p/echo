@@ -164,6 +164,39 @@
             <time datetime="2026-05-09">2026-05-09</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
+          <h3>SuiNS round: humans, not hex, everywhere</h3>
+          <p>
+            Five touchpoints get SuiNS-aware. New
+            <code>lib/echo/suins.ts</code> ships forward + reverse resolvers
+            against the testnet API plus a shared
+            <code>&lt;SuiNSName&gt;</code> React component (TanStack-cached,
+            falls back to short hex while loading).
+            <strong>FormAdmin row headers</strong> now show
+            <code>@alice.sui</code> instead of <code>0x7402…</code>.
+            <strong>FormList cards</strong> +
+            <strong>reputation leaderboard</strong>
+            same — owners and holders read as humans.
+            <strong>FormBuilder co-admins textarea</strong> accepts mixed
+            <code>0x…</code> and <code>alice.sui</code> tokens; bare slugs like
+            <code>alice</code> auto-suffix; live resolution status dot (amber
+            pulsing → green) per token.
+            <strong>RAG indexing</strong>
+            (<code>/api/insights/index_form</code>) now reverse-looks-up the
+            submitter address at index time and embeds the name in each Memwal
+            memory header — RAG answers cite "submission from alice.sui" instead
+            of opaque hex. <strong>Branded share links</strong>: FormAdmin gets
+            a <code>🔗 Branded share link</code> expander with input for the
+            SuiNS name, copy-URL button, and step-by-step instructions for
+            setting <code>app:echo:form_id</code> user_data on the NameRecord.
+            Visit <code>/s/&lt;name&gt;.sui</code> → 302-redirect to the form.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-09">
+          <header>
+            <time datetime="2026-05-09">2026-05-09</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
           <h3>Markdown rich text + drop-to-Walrus image paste</h3>
           <p>
             <code>rich_text</code> field type now uses a real markdown editor

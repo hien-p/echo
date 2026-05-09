@@ -321,6 +321,7 @@ function UploadField({
             </span>
           </div>
           {field.type === "screenshot" && (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={aggregatorUrlFor(blob.blobId)}
               alt={field.label}

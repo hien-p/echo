@@ -8,6 +8,7 @@ import { clientConfig } from "@/config/clientConfig";
 import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 import { useDemoAdminMode } from "./DemoAdminToggle";
 import { TimeLockBadge } from "./TimeLockBadge";
+import { SuiNSName } from "./SuiNSName";
 
 interface OwnedCap {
   objectId: string;
@@ -161,6 +162,10 @@ export const FormList = () => {
               <span>{STATUS_LABELS[f.onChain.status] ?? "?"}</span>
               <span>·</span>
               <span>{f.onChain.submission_count} submissions</span>
+              <span>·</span>
+              <span>
+                by <SuiNSName address={f.onChain.owner} />
+              </span>
               {f.onChain.privacy_tier === 3 && f.onChain.unlock_ms && (
                 <TimeLockBadge unlockMs={Number(f.onChain.unlock_ms)} />
               )}

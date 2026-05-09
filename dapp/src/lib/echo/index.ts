@@ -25,6 +25,11 @@ export {
 export { WalletBackedSigner, makeWalletSigner } from "./walletSigner";
 export { checkGating, type GatingResult } from "./gating";
 export { deriveCommitment, canonicalMessage } from "./nullifier";
+export {
+  resolveNameToAddress,
+  resolveAddressToName,
+  shortAddress,
+} from "./suins";
 export { executeSponsored } from "./sponsor";
 export {
   buildCreateFormTx,
