@@ -1,0 +1,35 @@
+# Walrus Sites resource map for the Echo SPA.
+#
+# Echo's runtime form IDs (e.g. /forms/0xabc.../) don't exist at static-
+# build time, so the build script generates a single stub at /forms/_/
+# (and /forms/_/admin/) with full client-side bundles. This file tells
+# Walrus Sites to serve that stub HTML for any unknown /forms/<id>/ URL,
+# letting React hydrate and read window.location.pathname to render the
+# actual form.
+#
+# Reference: https://docs.wal.app/walrus-sites/builder.html
+#
+# Apply on publish:
+#   site-builder publish ./out --epochs 30 --ws-resources ws-resources.yaml
+
+# Catch unknown form-viewer URLs and serve the SPA stub. Order matters
+# — more specific patterns must come first so /forms/<id>/admin/ doesn't
+# fall through to the viewer fallback.
+routes:
+  /forms/*/admin: /forms/_/admin/index.html
+  /forms/*/admin/: /forms/_/admin/index.html
+  /forms/*: /forms/_/index.html
+  /forms/*/: /forms/_/index.html
+
+# Fallback for any other unmatched route — serve the home page so deep
+# links and refreshes don't 404.
+not_found_page: /404.html
+
+# Walrus storage epochs. 30 epochs ≈ 1 month on testnet at the current
+# epoch length. Override per-publish via --epochs on the CLI.
+epochs: 30
+
+# Optional metadata surfaced in the wal.app object viewer.
+metadata:
+  link: "https://github.com/hien-p/echo"
+  description: "Decentralized feedback & form platform on Sui + Walrus + Seal"

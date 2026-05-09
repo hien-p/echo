@@ -5,6 +5,10 @@ export const runtime = "edge";
 
 type Params = { id: string };
 
+// See ../page.tsx — generateStaticParams + dynamicParams are injected
+// by scripts/build-walrus.sh at static-export time. CF Pages keeps
+// edge runtime and runtime-resolves the id.
+
 export async function generateMetadata({
   params,
 }: {

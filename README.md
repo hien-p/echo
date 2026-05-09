@@ -135,23 +135,37 @@ The script (`dapp/scripts/build-walrus.sh`) temporarily moves
 `runtime = "edge"` from page files (edge runtime is incompatible with
 static export). Both are restored on EXIT, success or failure.
 
-**Status — partially shipped**:
+**Status — fully working** (build green; manual `site-builder publish`
+still pending a real demo deploy):
 
 - ✅ `NEXT_PUBLIC_API_BASE_URL` plumbing (every client-side `fetch("/api/...")`
-  routes through the helper in `dapp/src/config/clientConfig.ts`)
+  routes through `apiUrl()` in `dapp/src/config/clientConfig.ts`)
 - ✅ CORS middleware on `/api/*` so cross-origin calls from `*.wal.app` work
-- ✅ `pnpm build:walrus` script + dedicated `.next-walrus/` cache so it
-  doesn't clobber `pnpm dev`
-- ⚠️ Static export currently fails on dynamic routes (`/forms/[id]`,
-  `/forms/[id]/admin`, `/s/[name]`) — Next.js 15 needs either
-  `generateStaticParams()` stubs or a Walrus Sites SPA-fallback config
-  (`not_found_page: index.html` in `ws-resources.yaml`). Tracked as
-  v0.4 follow-up.
+- ✅ `pnpm build:walrus` script (dedicated `.next-walrus/` cache so it
+  doesn't clobber `pnpm dev`'s `.next/`)
+- ✅ Static export of every static route + a `/forms/_/` (and
+  `/forms/_/admin/`) SPA-fallback stub. The build script:
+  - parks `src/app/api/`, `src/middleware.ts`, and `src/app/s/` (server-
+    only — the redirect-driven SuiNS shareable links don't apply on a
+    static host)
+  - strips `runtime = "edge"` from page files (incompatible with
+    `output: "export"`)
+  - injects `generateStaticParams()` + `dynamicParams = false` into the
+    dynamic form-id routes (Next 15 requires both, but also refuses
+    them alongside `runtime = "edge"`, so they can only live in the
+    build, not the source)
+  - restores everything via `trap` on EXIT, success or failure
+- ✅ `useResolvedFormId` hook reads `window.location.pathname` at
+  hydration time so the stub `/forms/_/` page resolves to the real
+  form id after the host serves it as a fallback for `/forms/0xabc/`
+- ✅ `dapp/ws-resources.yaml` configures Walrus Sites' SPA-fallback
+  routes so unknown form URLs land on the stub
 
-Once the dynamic-routes blocker lands, publish via:
+To publish:
 
 ```bash
-site-builder publish ./out --epochs 30
+site-builder publish ./dapp/out --epochs 30 \
+  --ws-resources dapp/ws-resources.yaml
 # → returns a Sui object id; map it to a SuiNS name for echo.wal.app
 ```
 

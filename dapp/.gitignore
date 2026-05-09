@@ -15,7 +15,14 @@
 
 # next.js
 /.next/
+/.next-walrus/
 /out/
+
+# walrus build script artifacts (parked dirs + page backups)
+/.api-parked/
+/.s-parked/
+/.middleware-parked.ts
+**/*.walrus-bak
 
 # production
 /build
