@@ -442,6 +442,13 @@ function SubmitForm({
         )}
       </div>
 
+      {(status.kind === "submitting" || status.kind === "submitted") && (
+        <SubmitStepper
+          isPublic={privacyTier === PrivacyTier.Public}
+          step={status.kind === "submitting" ? status.step : "done"}
+          done={status.kind === "submitted"}
+        />
+      )}
       {status.kind === "error" && (
         <p className="text-sm text-destructive">{status.message}</p>
       )}
@@ -451,6 +458,103 @@ function SubmitForm({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * Visible Seal → Walrus → Sui sequence rendered during submit. Mirrors
+ * sui-stack-crm's "Commit & Encrypt" pattern — making the stack tangible
+ * instead of hiding everything behind a single spinner. Public-tier
+ * submissions skip the encrypt stage (greyed out).
+ */
+function SubmitStepper({
+  isPublic,
+  step,
+  done,
+}: {
+  isPublic: boolean;
+  step: string;
+  done: boolean;
+}) {
+  // Classify the current step string into a stage so the stepper updates
+  // without re-piping discrete enum values from the submit fn.
+  const stage: "encrypt" | "upload" | "record" | "done" = done
+    ? "done"
+    : /encrypt/i.test(step)
+      ? "encrypt"
+      : /walrus|publisher/i.test(step)
+        ? "upload"
+        : /sui|chain|sponsor/i.test(step)
+          ? "record"
+          : "encrypt";
+
+  const stages: Array<{
+    id: "encrypt" | "upload" | "record";
+    label: string;
+    sub: string;
+    skip?: boolean;
+  }> = [
+    {
+      id: "encrypt",
+      label: "Seal",
+      sub: "encrypt locally",
+      skip: isPublic,
+    },
+    { id: "upload", label: "Walrus", sub: "store ciphertext" },
+    { id: "record", label: "Sui", sub: "anchor on chain" },
+  ];
+
+  const order: Array<"encrypt" | "upload" | "record"> = [
+    "encrypt",
+    "upload",
+    "record",
+  ];
+  const currentIdx = stage === "done" ? 3 : order.indexOf(stage);
+
+  return (
+    <ol className="flex items-stretch gap-0 text-xs border rounded overflow-hidden">
+      {stages.map((s, i) => {
+        const skipped = !!s.skip;
+        const isCurrent = !skipped && i === currentIdx;
+        const isComplete = !skipped && i < currentIdx;
+        return (
+          <li
+            key={s.id}
+            className={cn(
+              "flex-1 px-3 py-2 flex items-center gap-2 border-r last:border-r-0 transition",
+              skipped && "opacity-40",
+              isCurrent && "bg-amber-50 dark:bg-amber-950/30",
+              isComplete && "bg-emerald-50 dark:bg-emerald-950/30",
+            )}
+          >
+            <span
+              className={cn(
+                "inline-flex items-center justify-center w-5 h-5 rounded-full border text-[10px] font-medium tabular-nums",
+                skipped && "border-border text-muted-foreground",
+                isCurrent &&
+                  "border-amber-400 bg-amber-100 text-amber-900 animate-pulse",
+                isComplete &&
+                  "border-emerald-400 bg-emerald-100 text-emerald-900",
+                !skipped &&
+                  !isCurrent &&
+                  !isComplete &&
+                  "border-border text-muted-foreground",
+              )}
+            >
+              {skipped ? "—" : isComplete ? "✓" : i + 1}
+            </span>
+            <span className="flex flex-col leading-tight">
+              <span className="font-semibold uppercase tracking-wide text-[10px]">
+                {s.label}
+              </span>
+              <span className="text-muted-foreground text-[10px]">
+                {skipped ? "skipped" : s.sub}
+              </span>
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

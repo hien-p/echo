@@ -218,6 +218,27 @@ export const InsightsConsole = () => {
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
         />
+        {/* Sample-question chips. Click to populate the textarea so first-
+            time users have a starting point that actually returns matches
+            against the current namespace. */}
+        <div className="flex flex-wrap gap-1.5 text-xs">
+          <span className="text-muted-foreground self-center mr-1">try:</span>
+          {[
+            "What did people say worked well?",
+            "Where did Echo feel rough or confusing?",
+            "Would respondents use Echo for a real form?",
+            "Summarize the most common feedback themes.",
+          ].map((q) => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => setQuestion(q)}
+              className="border rounded-full px-2 py-0.5 hover:bg-accent text-muted-foreground hover:text-foreground"
+            >
+              {q}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           onClick={() =>
