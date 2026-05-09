@@ -38,6 +38,7 @@ import { useDemoAdminMode } from "./DemoAdminToggle";
 import { TimeLockBadge } from "./TimeLockBadge";
 import { MarkdownView } from "./MarkdownView";
 import { SuiNSName } from "./SuiNSName";
+import { WalrusBlobLink } from "./WalrusBlobLink";
 
 interface OnChainForm {
   schema_blob_id: string;
@@ -913,6 +914,15 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
             <TimeLockBadge unlockMs={unlockMs} />
           )}
         </p>
+        {/* Walrus presence — make the "stored on Walrus" claim concrete
+            by linking schema + metadata to their public-aggregator URLs. */}
+        <p className="text-[10px] text-muted-foreground inline-flex items-center gap-3 flex-wrap mt-0.5">
+          <span className="uppercase tracking-wider opacity-70">
+            On Walrus:
+          </span>
+          <WalrusBlobLink label="Schema" blobId={onChain.schema_blob_id} />
+          <WalrusBlobLink label="Metadata" blobId={onChain.metadata_blob_id} />
+        </p>
         <BrandedShareLink formId={formId} />
       </header>
 
@@ -1474,6 +1484,12 @@ function SubmissionRowView({
         <span>
           {row.anonymous ? "anonymous" : <SuiNSName address={row.submitter} />}
         </span>
+        {row.payloadBlobId && (
+          <>
+            <span>·</span>
+            <WalrusBlobLink blobId={row.payloadBlobId} />
+          </>
+        )}
         <span className="sm:ml-auto flex items-center gap-2 flex-wrap">
           {canIssueCredit && !credited && (
             <button
@@ -1514,8 +1530,9 @@ function SubmissionRowView({
 
       {row.encrypted && !decrypted ? (
         <div className="flex flex-col gap-1">
-          <p className="text-xs text-muted-foreground">
-            Payload Walrus blob: <code>{row.payloadBlobId}</code>
+          <p className="text-xs text-muted-foreground inline-flex items-center gap-1.5 flex-wrap">
+            Encrypted payload on Walrus:{" "}
+            <WalrusBlobLink blobId={row.payloadBlobId} />
           </p>
           <button
             type="button"
