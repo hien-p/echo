@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { Database, Sparkles } from "lucide-react";
@@ -36,6 +36,10 @@ export const InsightsConsole = () => {
 
   const [selectedFormId, setSelectedFormId] = useState("");
   const [question, setQuestion] = useState("");
+  // Track which form ids we've already auto-indexed in this tab session
+  // so re-selecting a form doesn't re-trigger the API call. Manual
+  // "re-index" link bypasses this when the user wants fresh data.
+  const autoIndexed = useRef<Set<string>>(new Set());
 
   const formsQuery = useQuery({
     queryKey: ["echo", "insights", "forms", ownerAddress, demoMode],
@@ -94,6 +98,7 @@ export const InsightsConsole = () => {
       const data = (await resp.json()) as {
         indexed?: number;
         skipped?: number;
+        deduped?: number;
         namespace?: string;
         errors?: string[];
         error?: string;
@@ -102,6 +107,24 @@ export const InsightsConsole = () => {
       return data;
     },
   });
+
+  // Auto-index when the user picks a form. Run-once-per-session per id —
+  // re-selecting the same form skips the API call. The "re-index" link
+  // surfaced under the selector lets the user force a refresh when new
+  // submissions land. Without this, the manual "Index" button was just
+  // an extra step between Select and Ask that judges had to discover.
+  useEffect(() => {
+    if (!selectedFormId) return;
+    if (autoIndexed.current.has(selectedFormId)) return;
+    autoIndexed.current.add(selectedFormId);
+    indexMutation.mutate(selectedFormId);
+    // indexMutation is referentially stable from useMutation; only
+    // selectedFormId actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFormId]);
+
+  // Track deduped count too so the status line can mention it.
+  // (Already in indexMutation.data via the API response shape.)
 
   const queryMutation = useMutation({
     mutationFn: async ({
@@ -181,28 +204,41 @@ export const InsightsConsole = () => {
           })}
         </select>
         {selected && (
-          <div className="flex gap-2 items-center">
-            <button
-              type="button"
-              onClick={() => indexMutation.mutate(selected.id)}
-              disabled={indexMutation.isPending}
-              className={cn(
-                "border rounded px-3 py-1 text-sm flex items-center gap-1",
-                indexMutation.isPending ? "opacity-60" : "hover:bg-accent",
-              )}
-            >
-              <Database size={14} />{" "}
-              {indexMutation.isPending ? "Indexing…" : "Index this form"}
-            </button>
-            {indexMutation.data && (
-              <span className="text-xs text-muted-foreground">
-                ✓ Indexed {indexMutation.data.indexed} · skipped{" "}
-                {indexMutation.data.skipped} · namespace{" "}
-                <code>{indexMutation.data.namespace}</code>
+          <div className="flex gap-2 items-center text-xs flex-wrap">
+            {indexMutation.isPending ? (
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                <Database size={12} className="animate-pulse" /> Indexing
+                submissions into Memwal…
+              </span>
+            ) : indexMutation.data ? (
+              <>
+                <span className="inline-flex items-center gap-1 text-emerald-700">
+                  <Database size={12} /> Ready · {indexMutation.data.indexed}{" "}
+                  submission
+                  {indexMutation.data.indexed === 1 ? "" : "s"} indexed
+                  {indexMutation.data.deduped
+                    ? ` · ${indexMutation.data.deduped} deduped`
+                    : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => indexMutation.mutate(selected.id)}
+                  className="text-muted-foreground underline hover:text-foreground"
+                  title="Re-index to pick up new submissions since last index"
+                >
+                  re-index
+                </button>
+                <span className="text-muted-foreground">
+                  · namespace <code>{indexMutation.data.namespace}</code>
+                </span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">
+                Preparing the form for queries…
               </span>
             )}
             {indexMutation.error instanceof Error && (
-              <span className="text-xs text-destructive">
+              <span className="text-destructive">
                 {indexMutation.error.message}
               </span>
             )}
