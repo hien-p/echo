@@ -120,3 +120,24 @@ function shorten(s: string): string {
   if (s.length <= 32) return s;
   return `${s.slice(0, 16)}…${s.slice(-8)}`;
 }
+
+/**
+ * Same shape as checkGating but pulls the predicate from
+ * schema.decryptCondition (used by the Conditional privacy tier) instead
+ * of schema.gating (used by submit-time gating). Caller decides what to
+ * do on { ok: false } — typically: disable Decrypt button + show reason.
+ */
+export async function checkDecryptCondition(
+  schema: FormSchema | null | undefined,
+  walletAddress: string | undefined,
+  suiClient: MinimalSuiClient,
+): Promise<GatingResult> {
+  const cond = schema?.decryptCondition;
+  if (!cond) return { ok: true };
+  // Run the same predicate logic as checkGating by temporarily wrapping.
+  return checkGating(
+    { version: 1, fields: [], gating: cond } as FormSchema,
+    walletAddress,
+    suiClient,
+  );
+}

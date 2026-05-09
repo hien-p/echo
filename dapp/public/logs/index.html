@@ -162,6 +162,42 @@
         <article class="log-card" data-date="2026-05-09">
           <header>
             <time datetime="2026-05-09">2026-05-09</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>
+            SuiNS via Sui RPC + mobile responsive + Conditional decrypt gate
+          </h3>
+          <p>
+            <strong>SuiNS resolution moved to Sui RPC.</strong> The
+            <code>api-testnet.suins.io</code> HTTP shim returns 404 for the
+            forward-lookup path Echo relied on. Both forward and reverse now go
+            through <code>suix_resolveNameServiceAddress</code> /
+            <code>suix_resolveNameServiceNames</code> — durable, no third- party
+            dependency. Verified: <code>harrideptrailailang.sui</code> resolves
+            to <code>0x7402…4b25</code> and back.
+            <strong>Mobile responsive pass.</strong> Header collapses nav into a
+            horizontal-scroll secondary row under <code>md</code>. FormAdmin row
+            buttons wrap, search input shrinks. Markdown editor toolbar wraps.
+            FormList card meta wraps cleanly.
+            <strong>Conditional tier real predicate.</strong> New
+            <code>decryptCondition</code> field on <code>FormSchema</code>
+            (token / NFT / SuiNS shape, mirrors gating). FormBuilder picks it up
+            under tier=Conditional. FormAdmin runs the predicate against the cap
+            holder's wallet at decrypt time; failing rows show "🔒 Conditional
+            tier · &lt;reason&gt;". Soft enforcement — Move predicate stays
+            cap-only, server with cap can bypass — flagged in the help text.
+            <strong>Real m-of-n threshold deferred.</strong> Investigation shows
+            Seal's threshold parameter is "k of N key servers" not "k of N admin
+            signatures"; real admin m-of-n needs either an on-chain
+            ApprovalWitness pattern or Sui multisig at the cap address. Both are
+            ~1 day of design + Move work — punted to v0.3 with clear rationale.
+            Current OR-of-N (any one cap holder decrypts) stays.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-09">
+          <header>
+            <time datetime="2026-05-09">2026-05-09</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
           <h3>SuiNS round: humans, not hex, everywhere</h3>

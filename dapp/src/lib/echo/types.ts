@@ -106,19 +106,32 @@ export type FormField =
   | DateField
   | SignatureField;
 
+/** Reusable predicate shape — same fields drive both submit gating and
+ * Conditional-tier decrypt gating. */
+export interface GatingPredicate {
+  type: "token" | "nft" | "suins";
+  /** Move type for token/NFT, e.g. `0x2::sui::SUI`. SuiNS uses `domain`. */
+  coinType?: string;
+  nftType?: string;
+  domain?: string;
+  minAmount?: string;
+}
+
 /** Persisted to Walrus as JSON; the on-chain Form holds its blob ID. */
 export interface FormSchema {
   version: 1;
   fields: FormField[];
-  /** Optional gating predicate evaluated client-side before submit. */
-  gating?: {
-    type: "token" | "nft" | "suins";
-    /** Move type for token/NFT, e.g. `0x2::sui::SUI`. SuiNS uses `domain` instead. */
-    coinType?: string;
-    nftType?: string;
-    domain?: string;
-    minAmount?: string;
-  };
+  /** Optional gating predicate evaluated client-side before SUBMIT. */
+  gating?: GatingPredicate;
+  /**
+   * Optional predicate evaluated client-side at DECRYPT time, used by the
+   * Conditional privacy tier. Lets the form creator scope visibility to
+   * holders of a token / NFT / SuiNS domain. Soft enforcement only — Move's
+   * seal_approve_conditional still just checks the FormOwnerCap, so an
+   * owner with the cap can technically bypass the predicate. Real on-chain
+   * conditional enforcement is a v0.3 follow-up.
+   */
+  decryptCondition?: GatingPredicate;
 }
 
 /** Persisted to Walrus alongside the schema; lighter and editable independently. */

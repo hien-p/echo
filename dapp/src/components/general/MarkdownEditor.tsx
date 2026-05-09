@@ -124,7 +124,7 @@ export function MarkdownEditor({
 
   return (
     <div className="border rounded flex flex-col">
-      <div className="flex items-center justify-between gap-2 px-2 py-1 border-b text-xs">
+      <div className="flex items-center justify-between gap-2 px-2 py-1 border-b text-xs flex-wrap">
         <div className="flex items-center gap-1">
           <ToolbarButton
             label="Bold"

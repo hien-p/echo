@@ -20,6 +20,7 @@ import {
   buildCloseFormTx,
   buildIssueCreditTx,
   buildSealApproveTxBytes,
+  checkDecryptCondition,
   getSealClient,
   readBytesViaAggregator,
   readJsonViaAggregator,
@@ -237,6 +238,32 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       packageId.startsWith("0x"),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
+  });
+
+  // Conditional-tier decrypt predicate. Lifted to component top so the
+  // hook order stays stable across renders (rules-of-hooks). The query
+  // pulls schema from formQuery — gated by `enabled` so it only fires
+  // once we have the schema and the form is actually Conditional with
+  // a decryptCondition set.
+  const decryptCondQuery = useQuery({
+    queryKey: [
+      "echo",
+      "decrypt-cond",
+      formId,
+      account?.address,
+      formQuery.data?.onChain.privacy_tier,
+    ],
+    queryFn: () =>
+      checkDecryptCondition(
+        formQuery.data?.schema ?? null,
+        account?.address,
+        suiClient as unknown as Parameters<typeof checkDecryptCondition>[2],
+      ),
+    enabled:
+      formQuery.data?.onChain.privacy_tier === 4 &&
+      !!formQuery.data?.schema?.decryptCondition &&
+      !!account?.address,
+    staleTime: 30_000,
   });
 
   const closeMutation = useMutation({
@@ -702,14 +729,30 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
   //     - cap holder (own wallet) ✓
   //     - demo mode (server signs as demo cap holder) ✓
   //     - anyone else ✗
-  const canDecrypt =
+  const isConditionalTier = tier === 4;
+  const baseCanDecrypt =
     isPublicTier ||
     (isTimeLockedTier && isUnlocked) ||
     (!isTimeLockedTier && (isOwner || demoMode));
+
+  // Conditional tier overlays the gating predicate on top of the base
+  // capability check. demoMode bypass intentionally sticks (server-decrypt
+  // pretends to be the cap holder; UX of "demo mode but blocked by
+  // condition" would be confusing for the showcase).
+  const condBlocked =
+    isConditionalTier &&
+    !demoMode &&
+    schema?.decryptCondition &&
+    decryptCondQuery.data &&
+    !decryptCondQuery.data.ok;
+
+  const canDecrypt = baseCanDecrypt && !condBlocked;
   const decryptDisabledReason = !canDecrypt
-    ? isTimeLockedTier
+    ? isTimeLockedTier && !isUnlocked
       ? `Time-locked until ${new Date(unlockMs).toLocaleString()} — no one can decrypt yet.`
-      : "You don't hold the FormOwnerCap. Toggle Demo admin (if available) or connect the owner wallet."
+      : condBlocked
+        ? `Conditional tier · ${decryptCondQuery.data?.reason ?? "predicate failed"}`
+        : "You don't hold the FormOwnerCap. Toggle Demo admin (if available) or connect the owner wallet."
     : null;
 
   return (
@@ -907,10 +950,10 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
           <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
             <input
               type="text"
-              placeholder="Search address, blob, or decrypted text…"
+              placeholder="Search…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="border rounded px-2 py-1 flex-1 min-w-[220px]"
+              className="border rounded px-2 py-1 flex-1 min-w-[140px] sm:min-w-[220px]"
             />
             <select
               value={sortDir}
@@ -1204,7 +1247,7 @@ function SubmissionRowView({
         <span>
           {row.anonymous ? "anonymous" : <SuiNSName address={row.submitter} />}
         </span>
-        <span className="ml-auto flex items-center gap-2">
+        <span className="sm:ml-auto flex items-center gap-2 flex-wrap">
           {canIssueCredit && !credited && (
             <button
               type="button"
@@ -1218,7 +1261,7 @@ function SubmissionRowView({
                   : "hover:bg-accent",
               )}
             >
-              {issuingCredit ? "Issuing…" : "+5 reputation"}
+              {issuingCredit ? "Issuing…" : "+5 rep"}
             </button>
           )}
           {credited && (

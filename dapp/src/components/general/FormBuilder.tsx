@@ -243,6 +243,12 @@ export const FormBuilder = () => {
   const thresholdM = 1;
   const [unlockMs, setUnlockMs] = useState("");
   const [policyId, setPolicyId] = useState("");
+  // Conditional-tier decrypt-time predicate. Empty type = no extra gate.
+  const [condType, setCondType] = useState<"" | "token" | "nft" | "suins">("");
+  const [condCoinType, setCondCoinType] = useState("");
+  const [condMinAmount, setCondMinAmount] = useState("1");
+  const [condNftType, setCondNftType] = useState("");
+  const [condDomain, setCondDomain] = useState("");
   // Co-admins (extra cap recipients) — relevant for any encrypted tier where
   // the form should be jointly managed. Empty by default; the creator's own
   // address always gets a cap. Stored as comma/newline-separated string and
@@ -300,7 +306,28 @@ export const FormBuilder = () => {
   const packageId = clientConfig.ECHO_PACKAGE_ID;
   const packageDeployed = packageId.length > 0 && packageId.startsWith("0x");
 
-  const schema = useMemo<FormSchema>(() => ({ version: 1, fields }), [fields]);
+  const schema = useMemo<FormSchema>(() => {
+    const out: FormSchema = { version: 1, fields };
+    if (tier === PrivacyTier.Conditional && condType) {
+      out.decryptCondition = {
+        type: condType,
+        ...(condType === "token"
+          ? { coinType: condCoinType.trim(), minAmount: condMinAmount.trim() }
+          : {}),
+        ...(condType === "nft" ? { nftType: condNftType.trim() } : {}),
+        ...(condType === "suins" ? { domain: condDomain.trim() } : {}),
+      };
+    }
+    return out;
+  }, [
+    fields,
+    tier,
+    condType,
+    condCoinType,
+    condMinAmount,
+    condNftType,
+    condDomain,
+  ]);
   const metadata = useMemo<FormMetadata>(
     () => ({ title, description: description || undefined }),
     [title, description],
@@ -601,14 +628,70 @@ export const FormBuilder = () => {
                 </Field>
               )}
               {tier === PrivacyTier.Conditional && (
-                <Field label="Policy ID">
-                  <input
-                    className="border rounded px-2 py-1 w-full"
-                    placeholder="airdrop_holder_v1"
-                    value={policyId}
-                    onChange={(e) => setPolicyId(e.target.value)}
-                  />
-                </Field>
+                <>
+                  <Field label="Policy ID (free-form tag)">
+                    <input
+                      className="border rounded px-2 py-1 w-full"
+                      placeholder="airdrop_holder_v1"
+                      value={policyId}
+                      onChange={(e) => setPolicyId(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Decrypt requires (optional, soft gate)">
+                    <select
+                      className="border rounded px-2 py-1 w-fit"
+                      value={condType}
+                      onChange={(e) =>
+                        setCondType(
+                          e.target.value as "" | "token" | "nft" | "suins",
+                        )
+                      }
+                    >
+                      <option value="">— no extra condition —</option>
+                      <option value="token">Hold ≥ N of a token</option>
+                      <option value="nft">Hold an NFT type</option>
+                      <option value="suins">Own a specific SuiNS name</option>
+                    </select>
+                    {condType === "token" && (
+                      <div className="flex flex-col gap-1 mt-1">
+                        <input
+                          className="border rounded px-2 py-1 w-full text-xs font-mono"
+                          placeholder="coin type, e.g. 0x2::sui::SUI"
+                          value={condCoinType}
+                          onChange={(e) => setCondCoinType(e.target.value)}
+                        />
+                        <input
+                          className="border rounded px-2 py-1 w-32 text-xs"
+                          placeholder="min amount"
+                          value={condMinAmount}
+                          onChange={(e) => setCondMinAmount(e.target.value)}
+                        />
+                      </div>
+                    )}
+                    {condType === "nft" && (
+                      <input
+                        className="border rounded px-2 py-1 w-full text-xs font-mono mt-1"
+                        placeholder="NFT type, e.g. 0xPKG::shrimp::Shrimp"
+                        value={condNftType}
+                        onChange={(e) => setCondNftType(e.target.value)}
+                      />
+                    )}
+                    {condType === "suins" && (
+                      <input
+                        className="border rounded px-2 py-1 w-full text-xs mt-1"
+                        placeholder="alice.sui"
+                        value={condDomain}
+                        onChange={(e) => setCondDomain(e.target.value)}
+                      />
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Soft client-side gate at decrypt time. The Move predicate
+                      still only checks the FormOwnerCap, so an owner with the
+                      cap can technically bypass the condition. Real on-chain
+                      enforcement is v0.3.
+                    </p>
+                  </Field>
+                </>
               )}
               {tier !== PrivacyTier.Public && (
                 <Field label="Co-admins (optional)">

@@ -24,6 +24,7 @@ export {
 } from "./seal";
 export { WalletBackedSigner, makeWalletSigner } from "./walletSigner";
 export { checkGating, type GatingResult } from "./gating";
+export { checkDecryptCondition } from "./gating";
 export { deriveCommitment, canonicalMessage } from "./nullifier";
 export {
   resolveNameToAddress,

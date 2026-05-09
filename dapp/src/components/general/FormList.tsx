@@ -145,7 +145,7 @@ export const FormList = () => {
             key={f.id}
             className="border rounded p-3 flex flex-col gap-1 bg-card"
           >
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <Link
                 href={`/forms/${f.id}/admin`}
                 className="font-medium hover:underline"

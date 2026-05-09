@@ -522,28 +522,36 @@ function flattenAnswersToText(
 }
 
 /**
- * SuiNS reverse lookup with a per-process cache so we don't re-hit the API
- * for every submission with the same submitter. Returns null on miss/error.
+ * SuiNS reverse lookup via Sui RPC's suix_resolveNameServiceNames, with a
+ * per-process cache so we don't re-hit RPC for every submission from the
+ * same submitter. Returns null on miss/error/no-name. Strips the `.sui`
+ * suffix so the caller can format display consistently.
  */
 const SUINS_CACHE = new Map<string, string | null>();
 async function lookupSuinsName(address: string): Promise<string | null> {
   if (!address?.startsWith("0x") || address === "0x0") return null;
   if (SUINS_CACHE.has(address)) return SUINS_CACHE.get(address) ?? null;
   try {
-    const resp = await fetch(
-      `https://api-testnet.suins.io/api/address/${encodeURIComponent(address)}/default`,
-      { cache: "no-store" },
-    );
+    const resp = await fetch(SUI_FULLNODE, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "suix_resolveNameServiceNames",
+        params: [address],
+      }),
+      cache: "no-store",
+    });
     if (!resp.ok) {
       SUINS_CACHE.set(address, null);
       return null;
     }
     const json = (await resp.json()) as {
-      data?: { name?: string };
-      name?: string;
+      result?: { data?: string[] };
     };
-    const n = json.data?.name ?? json.name ?? null;
-    const out = typeof n === "string" && n ? n : null;
+    const first = json.result?.data?.[0];
+    const out = first ? first.replace(/\.sui$/i, "") : null;
     SUINS_CACHE.set(address, out);
     return out;
   } catch {
