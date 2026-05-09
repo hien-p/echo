@@ -90,6 +90,12 @@ const TIER_LABELS: Record<number, string> = {
   4: "Conditional",
 };
 
+const STATUS_LABELS: Record<number, string> = {
+  1: "open",
+  2: "closed",
+  3: "archived",
+};
+
 const STATUSES = [
   {
     value: "new",
@@ -588,6 +594,121 @@ export const CrossFormDashboard = () => {
         </p>
       )}
 
+      {/* Forms section — every form you own surfaced as a CRM-style row.
+          Click any to scope the submissions list to that form. */}
+      <section className="flex flex-col gap-2">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
+            Your forms ({formCards.length})
+          </h2>
+          <Link
+            href="/forms/new"
+            className="text-xs underline text-muted-foreground hover:text-foreground"
+          >
+            + new form
+          </Link>
+        </div>
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {formCards.map((f) => {
+            const subCount =
+              submissionsQuery.data?.filter((s) => s.formId === f.id).length ??
+              0;
+            const tier = f.onChain.privacy_tier;
+            const isThreshold = tier === PrivacyTier.Threshold;
+            const isTimeLocked = tier === PrivacyTier.TimeLocked;
+            const k = f.onChain.threshold_n ?? 0;
+            const n = f.onChain.threshold_m ?? 0;
+            const isActive = formFilter === f.id;
+            return (
+              <li
+                key={f.id}
+                className={cn(
+                  "border rounded p-3 flex flex-col gap-1.5 bg-card text-sm transition",
+                  isActive && "ring-2 ring-foreground",
+                )}
+              >
+                <div className="flex items-start justify-between gap-2 flex-wrap">
+                  <Link
+                    href={`/forms/${f.id}/admin`}
+                    className="font-medium hover:underline flex-1 min-w-0 truncate"
+                    title={f.title}
+                  >
+                    {f.title}
+                  </Link>
+                  <span
+                    className={cn(
+                      "rounded-full border px-1.5 py-0.5 text-[10px] uppercase tracking-wide shrink-0",
+                      tier === PrivacyTier.Public &&
+                        "bg-zinc-100 text-zinc-700 border-zinc-300",
+                      tier === PrivacyTier.AdminOnly &&
+                        "bg-blue-100 text-blue-900 border-blue-300",
+                      isThreshold &&
+                        "bg-violet-100 text-violet-900 border-violet-300",
+                      isTimeLocked &&
+                        "bg-amber-100 text-amber-900 border-amber-300",
+                      tier === PrivacyTier.Conditional &&
+                        "bg-emerald-100 text-emerald-900 border-emerald-300",
+                    )}
+                  >
+                    {TIER_LABELS[tier] ?? "?"}
+                    {isThreshold && k > 0 && n > 0 && ` ${k}/${n}`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                  <span>
+                    {STATUS_LABELS[f.onChain.status] ?? "?"} · {subCount}{" "}
+                    submission{subCount === 1 ? "" : "s"}
+                  </span>
+                  <span>·</span>
+                  <span>
+                    by <SuiNSName address={f.onChain.owner} />
+                  </span>
+                  {isTimeLocked &&
+                    f.onChain.unlock_ms &&
+                    Number(f.onChain.unlock_ms) > 0 && (
+                      <>
+                        <span>·</span>
+                        <span title={`unlock_ms = ${f.onChain.unlock_ms}`}>
+                          unlocks{" "}
+                          {new Date(Number(f.onChain.unlock_ms))
+                            .toISOString()
+                            .replace("T", " ")
+                            .slice(0, 16)}
+                          Z
+                        </span>
+                      </>
+                    )}
+                </div>
+                <div className="flex items-center gap-2 text-xs flex-wrap mt-0.5">
+                  <code
+                    className="text-muted-foreground"
+                    title={f.id}
+                  >{`${f.id.slice(0, 10)}…${f.id.slice(-4)}`}</code>
+                  <span className="ml-auto flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormFilter(isActive ? "all" : f.id)}
+                      className="underline text-muted-foreground hover:text-foreground"
+                    >
+                      {isActive ? "clear filter" : "filter ↓"}
+                    </button>
+                    <Link
+                      href={`/forms/${f.id}`}
+                      className="underline text-muted-foreground hover:text-foreground"
+                    >
+                      public link
+                    </Link>
+                    <Link href={`/forms/${f.id}/admin`} className="underline">
+                      admin →
+                    </Link>
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
       {/* Roll-up tiles. */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         <Tile label="Forms" value={String(formCards.length)} />
@@ -621,11 +742,23 @@ export const CrossFormDashboard = () => {
           title="Filter by form"
         >
           <option value="all">All forms ({formCards.length})</option>
-          {formCards.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.title} ({TIER_LABELS[f.onChain.privacy_tier] ?? "?"})
-            </option>
-          ))}
+          {formCards.map((f) => {
+            const tierLabel = TIER_LABELS[f.onChain.privacy_tier] ?? "?";
+            const k = f.onChain.threshold_n ?? 0;
+            const n = f.onChain.threshold_m ?? 0;
+            const tierTag =
+              f.onChain.privacy_tier === PrivacyTier.Threshold && k && n
+                ? `${tierLabel} ${k}/${n}`
+                : tierLabel;
+            // Append a short id suffix — two forms can share the same title
+            // (e.g. multiple multisig demos minted from the same template).
+            // Without the suffix the dropdown looks like a duplicate row.
+            return (
+              <option key={f.id} value={f.id}>
+                {f.title} · {tierTag} · {f.id.slice(0, 6)}…{f.id.slice(-4)}
+              </option>
+            );
+          })}
         </select>
         <select
           value={submitterFilter}
