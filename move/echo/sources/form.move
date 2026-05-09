@@ -29,6 +29,10 @@ const ESealIdMismatch: u64 = 4;
 const ENotYetUnlocked: u64 = 5;
 const EWrongTier: u64 = 6;
 const ECommitmentAlreadyUsed: u64 = 7;
+const EInsufficientApprovals: u64 = 8;
+const EWrongFormId: u64 = 9;
+const EWrongIdentity: u64 = 10;
+const EDuplicateSigner: u64 = 11;
 
 public struct Form has key {
   id: UID,
@@ -239,10 +243,9 @@ public fun seal_approve_admin_only(
   assert!(cap.form_id == object::id(form), EWrongOwnerCap);
 }
 
-/// Threshold tier: each admin holding a cap calls this with their share. The
-/// off-chain Seal aggregator combines N shares; the on-chain check just
-/// validates that the caller does hold a cap matching this form (not that
-/// N have signed — that's enforced at the Seal layer by counting responses).
+/// Threshold tier — OR-of-N path. Any single cap holder approves decryption.
+/// Used when threshold_n == 1 (single required approval). For real m-of-n
+/// (k >= 2), use post_approval + seal_approve_threshold_m_of_n instead.
 public fun seal_approve_threshold(
   id: vector<u8>,
   form: &Form,
@@ -251,6 +254,121 @@ public fun seal_approve_threshold(
   assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
   assert!(form.privacy_tier == PRIVACY_THRESHOLD, EWrongTier);
   assert!(cap.form_id == object::id(form), EWrongOwnerCap);
+}
+
+// ============================================================================
+// Real m-of-n threshold via ApprovalWitness pattern.
+//
+// Each admin posts an ApprovalWitness object (shared) approving a specific
+// Seal identity. seal_approve_threshold_m_of_n then takes a vector of those
+// witnesses and asserts that at least `threshold_n` unique signers (each
+// holding a cap) approved this exact identity. Once posted, witnesses live
+// on chain forever — semantics is "k of n voted to release this data" not
+// "k of n required for every read". UI must communicate this.
+// ============================================================================
+
+public struct ApprovalWitness has key, store {
+  id: UID,
+  form_id: ID,
+  /// Exact Seal identity bytes being approved — formId || tierByte || extra.
+  identity: vector<u8>,
+  signer: address,
+  created_ms: u64,
+}
+
+public struct ApprovalPosted has copy, drop {
+  form_id: ID,
+  /// keccak256(identity); 32 bytes. Lets indexers filter without storing
+  /// the full identity payload in the event.
+  identity_hash: vector<u8>,
+  signer: address,
+  witness_id: ID,
+  created_ms: u64,
+}
+
+/// Mint a shared ApprovalWitness recording that this cap holder approves
+/// decryption of `identity` for this form. Caller must hold a matching cap;
+/// form must be in the Threshold tier; identity must reference this form.
+/// Witness object id is emitted on the ApprovalPosted event so anyone can
+/// discover the set of approvals for a given form/identity pair.
+public fun post_approval(
+  cap: &FormOwnerCap,
+  form: &Form,
+  identity: vector<u8>,
+  clock: &sui::clock::Clock,
+  ctx: &mut TxContext,
+) {
+  assert!(cap.form_id == object::id(form), EWrongOwnerCap);
+  assert!(form.privacy_tier == PRIVACY_THRESHOLD, EWrongTier);
+  assert!(seal_id_matches_form(&identity, form), ESealIdMismatch);
+
+  let signer = ctx.sender();
+  let form_id_inner = object::id(form);
+  let now = clock.timestamp_ms();
+  let identity_hash = sui::hash::keccak256(&identity);
+
+  let uid = object::new(ctx);
+  let witness_id = uid.to_inner();
+  let w = ApprovalWitness {
+    id: uid,
+    form_id: form_id_inner,
+    identity,
+    signer,
+    created_ms: now,
+  };
+
+  event::emit(ApprovalPosted {
+    form_id: form_id_inner,
+    identity_hash,
+    signer,
+    witness_id,
+    created_ms: now,
+  });
+
+  transfer::share_object(w);
+}
+
+/// Real m-of-n: takes k+ ApprovalWitness objects. Asserts (a) at least
+/// `threshold_n` witnesses present, (b) every witness binds to this form,
+/// (c) every witness binds to the exact `id`, (d) signers are all distinct.
+/// Witnesses are consumed; in Seal's dry-run this is a no-op (state never
+/// persists), so witnesses remain on chain and the same set re-decrypts
+/// forever. That's the "voted to release once" semantics — see file header.
+public fun seal_approve_threshold_m_of_n(
+  id: vector<u8>,
+  form: &Form,
+  mut approvals: vector<ApprovalWitness>,
+) {
+  assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
+  assert!(form.privacy_tier == PRIVACY_THRESHOLD, EWrongTier);
+
+  let required = (form.threshold_n as u64);
+  let n = vector::length(&approvals);
+  assert!(n >= required, EInsufficientApprovals);
+
+  let mut seen = sui::vec_set::empty<address>();
+  let form_id_inner = object::id(form);
+  let mut i = 0;
+  while (i < n) {
+    let w = vector::borrow(&approvals, i);
+    assert!(w.form_id == form_id_inner, EWrongFormId);
+    assert!(&w.identity == &id, EWrongIdentity);
+    assert!(!sui::vec_set::contains(&seen, &w.signer), EDuplicateSigner);
+    sui::vec_set::insert(&mut seen, w.signer);
+    i = i + 1;
+  };
+
+  while (!vector::is_empty(&approvals)) {
+    let ApprovalWitness {
+      id: uid,
+      form_id: _,
+      identity: _,
+      signer: _,
+      created_ms: _,
+    } = vector::pop_back(&mut approvals);
+    object::delete(uid);
+  };
+  vector::destroy_empty(approvals);
 }
 
 /// Time-locked tier: any caller can decrypt once the unlock timestamp passes.
@@ -298,6 +416,12 @@ public fun threshold(form: &Form): (u8, u8) {
 }
 
 public fun cap_form_id(cap: &FormOwnerCap): ID { cap.form_id }
+
+public fun witness_signer(w: &ApprovalWitness): address { w.signer }
+
+public fun witness_form_id(w: &ApprovalWitness): ID { w.form_id }
+
+public fun witness_created_ms(w: &ApprovalWitness): u64 { w.created_ms }
 
 public fun privacy_public(): u8 { PRIVACY_PUBLIC }
 

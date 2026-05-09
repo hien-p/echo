@@ -15,7 +15,7 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 
 const PACKAGE_ID =
   process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID ??
-  "0x76b0a4835148c647f0633df571d3a31969d346d50111ebe9351bfac05793bc37";
+  "0xf7e9261724da6c6ae4869bbf623ead796ea31f6a90ea8dcdb30d35568870763c";
 const PUBLISHER =
   process.env.NEXT_PUBLIC_WALRUS_PUBLISHER_URL ??
   "https://publisher.walrus-testnet.walrus.space";
@@ -36,6 +36,10 @@ interface FormSpec {
   /** Absolute ms timestamp. Compute via Date.now() + offsetMs in main(). */
   unlockMs?: bigint;
   conditionalPolicyId?: string;
+  /** Co-admin addresses minted a FormOwnerCap on top of the sender. For real
+   *  m-of-n (Threshold tier with thresholdN >= 2) these are the addresses
+   *  that need to call post_approval. */
+  extraAdmins?: string[];
 }
 
 const FORMS: Record<string, FormSpec> = {
@@ -325,6 +329,46 @@ const FORMS: Record<string, FormSpec> = {
     tier: 1,
   },
 
+  multisig: {
+    schema: {
+      version: 1,
+      fields: [
+        {
+          id: "policy",
+          type: "long_text",
+          label: "Policy violation report — what happened?",
+          required: true,
+        },
+        {
+          id: "involved",
+          type: "short_text",
+          label: "Who else was involved? (names or roles)",
+          required: true,
+        },
+        {
+          id: "evidence",
+          type: "url",
+          label: "Optional: evidence link (Walrus blob, drive, etc.)",
+        },
+      ],
+    },
+    metadata: {
+      title: "Compliance · 2-of-3 sealed bid (multisig demo)",
+      description:
+        "Real m-of-n via on-chain ApprovalWitness. 2 of 3 admins must each post an approval before the data becomes decryptable. Once both approvals land, anyone with the witness IDs can decrypt — semantics is 'voted to release once', not 'k approvals per read'. Move predicate: seal_approve_threshold_m_of_n.",
+    },
+    tier: 2,
+    thresholdN: 2, // required approvals (k)
+    thresholdM: 2, // total admins (n) — sender + the 1 extra below
+    // 2-of-2 demo: sender (publish admin) + memwal-key-derived address.
+    // Both are signable: the publish admin via the browser wallet (or demo
+    // mode), the memwal address via scripts/postApprovalAs.ts using
+    // MEMWAL_PRIVATE_KEY. Together they hit the k=2 threshold end-to-end.
+    extraAdmins: [
+      "0xdaf868f789e1cfd348948b4f5f27a7f3986ff2ba73b5a1d26fcaceb81230e7ce",
+    ],
+  },
+
   threshold: {
     schema: {
       version: 1,
@@ -463,7 +507,17 @@ async function main() {
       tx.pure.u8(thresholdM),
       tx.pure.u64(unlockMs),
       tx.pure.string(conditionalPolicyId),
-      tx.pure.vector("address", []),
+      tx.pure.vector(
+        "address",
+        // Allow EXTRA_ADMINS env override (comma-separated hex addresses)
+        // so the operator can swap in real testnet wallets for the multisig
+        // demo without editing this script.
+        process.env.EXTRA_ADMINS
+          ? process.env.EXTRA_ADMINS.split(",")
+              .map((s) => s.trim())
+              .filter((s) => s.startsWith("0x"))
+          : (SELECTED.extraAdmins ?? []),
+      ),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
   });

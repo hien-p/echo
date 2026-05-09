@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ConnectWalletMenu } from "./ConnectWalletMenu";
 import { DemoAdminToggle, useDemoAdminMode } from "./DemoAdminToggle";
+import { TrustBadge } from "./TrustBadge";
 
 export const Header = () => {
   const demoMode = useDemoAdminMode();
@@ -12,7 +13,11 @@ export const Header = () => {
         <Link href="/" className="text-xl font-semibold shrink-0">
           Echo
         </Link>
+        <TrustBadge />
         <nav className="hidden md:flex items-center gap-sm text-sm text-muted-foreground">
+          <Link href="/dashboard" className="hover:text-foreground">
+            Dashboard
+          </Link>
           <Link href="/forms" className="hover:text-foreground">
             My forms
           </Link>
@@ -37,6 +42,9 @@ export const Header = () => {
       {/* Mobile-only secondary nav row — wraps under the brand on <md
           viewports so the desktop nav can stay flat. */}
       <nav className="md:hidden w-full flex items-center gap-3 text-xs text-muted-foreground overflow-x-auto pb-1">
+        <Link href="/dashboard" className="hover:text-foreground shrink-0">
+          Dashboard
+        </Link>
         <Link href="/forms" className="hover:text-foreground shrink-0">
           My forms
         </Link>

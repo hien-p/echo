@@ -1,13 +1,45 @@
 import type { NextConfig } from "next";
 
+/**
+ * Two build targets:
+ *
+ *   pnpm build           → standard Next.js build (Cloudflare Pages,
+ *                          serves /api/* edge functions + static assets
+ *                          from the same origin).
+ *
+ *   WALRUS_BUILD=1 pnpm build:walrus → static export for Walrus Sites.
+ *                          The /api directory is moved aside by the
+ *                          wrapper script (Next.js refuses to static-export
+ *                          a project containing /api routes). The SPA on
+ *                          Walrus then talks to the Cloudflare /api/*
+ *                          endpoints via NEXT_PUBLIC_API_BASE_URL.
+ */
+const isWalrusBuild = process.env.WALRUS_BUILD === "1";
+
 const nextConfig: NextConfig = {
-  async rewrites() {
-    return [
-      // Serve the static devlog at /logs and /logs/ from public/logs/index.html.
-      { source: "/logs", destination: "/logs/index.html" },
-      { source: "/logs/", destination: "/logs/index.html" },
-    ];
-  },
+  // Walrus Sites needs a fully static, file-extension-aware bundle.
+  ...(isWalrusBuild
+    ? {
+        output: "export" as const,
+        // Use a dedicated build cache dir so this never clobbers `.next/`
+        // when `pnpm dev` is also running. Static-export artifacts still
+        // land in `dapp/out/` (Next's hard-coded export target).
+        distDir: ".next-walrus",
+        // Walrus Sites serves files; without trailingSlash internal links
+        // like "/forms" miss because the host expects "/forms/index.html".
+        trailingSlash: true,
+        // next/image's default optimizer needs a server. Disable for export.
+        images: { unoptimized: true },
+      }
+    : {
+        async rewrites() {
+          return [
+            // Serve the static devlog at /logs and /logs/ from public/logs/index.html.
+            { source: "/logs", destination: "/logs/index.html" },
+            { source: "/logs/", destination: "/logs/index.html" },
+          ];
+        },
+      }),
   webpack: (config, { nextRuntime }) => {
     // @mysten-incubation/memwal has a dynamic `import("crypto")` as a fallback
     // when Web Crypto isn't available. On edge that path is dead (subtle is

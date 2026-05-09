@@ -22,6 +22,12 @@ export {
   buildSealApproveTxBytes,
   SessionKey,
 } from "./seal";
+export {
+  buildPostApprovalTx,
+  listApprovals,
+  buildSealApproveThresholdMofNTxBytes,
+  type ApprovalRecord,
+} from "./seal-approvals";
 export { WalletBackedSigner, makeWalletSigner } from "./walletSigner";
 export { checkGating, type GatingResult } from "./gating";
 export { checkDecryptCondition } from "./gating";

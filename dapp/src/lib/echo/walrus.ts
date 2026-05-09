@@ -18,6 +18,7 @@ import {
 } from "@mysten/walrus";
 import type { Signer } from "@mysten/sui/cryptography";
 import type { ClientWithCoreApi } from "@mysten/sui/client";
+import { apiUrl } from "@/config/clientConfig";
 import type { UploadResult } from "./types";
 
 const DEFAULT_EPOCHS = 5;
@@ -83,7 +84,7 @@ export async function uploadBytesViaPublisher(
   opts?: { epochs?: number },
 ): Promise<{ blobId: string }> {
   const epochs = opts?.epochs ?? 5;
-  const resp = await fetch(`/api/walrus/upload?epochs=${epochs}`, {
+  const resp = await fetch(apiUrl(`/api/walrus/upload?epochs=${epochs}`), {
     method: "POST",
     headers: { "content-type": "application/octet-stream" },
     body: new Blob([bytes as unknown as ArrayBuffer]),

@@ -15,6 +15,7 @@
 
 import { Transaction } from "@mysten/sui/transactions";
 import type { ClientWithCoreApi, SuiClientTypes } from "@mysten/sui/client";
+import { apiUrl } from "@/config/clientConfig";
 
 interface DAppKitLike {
   signTransaction(args: { transaction: Transaction | string }): Promise<{
@@ -43,7 +44,7 @@ export async function executeSponsored(args: {
   });
   const transactionKindBytes = uint8ArrayToBase64(txKindBytes);
 
-  const createResp = await fetch("/api/sponsor", {
+  const createResp = await fetch(apiUrl("/api/sponsor"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -67,7 +68,7 @@ export async function executeSponsored(args: {
     transaction: Transaction.from(bytes),
   });
 
-  const execResp = await fetch("/api/sponsor/execute", {
+  const execResp = await fetch(apiUrl("/api/sponsor/execute"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ digest, signature: signed.signature }),

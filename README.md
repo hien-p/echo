@@ -9,11 +9,11 @@
 |                                                                                       |                                                                                                           |
 | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | **App**                                                                               | https://echo-20u.pages.dev                                                                                |
-| **Leave us feedback**                                                                 | https://echo-20u.pages.dev/forms/0x02750d97242c6ecf935a164deb90526024dca198f8e3846d49aef47475b59bbe       |
-| **Demo AdminOnly form** (toggle "Demo admin" in header to read encrypted submissions) | https://echo-20u.pages.dev/forms/0x64ec2ffb8c165526d6268f25ad221e45a27456368d3a5804ae64ce03cb260760/admin |
+| **Leave us feedback**                                                                 | https://echo-20u.pages.dev/forms/0x1f461854bdf96c46c54610a1c1a6bb3062033ce27ac3aa8755534b8aeaa132d8       |
+| **Demo AdminOnly form** (toggle "Demo admin" in header to read encrypted submissions) | https://echo-20u.pages.dev/forms/0x1f7c0af08411366f712f8b69998fce1c61463c44c4d403c2857ff2aaf8dd7b5d/admin |
 | **Insights / RAG**                                                                    | https://echo-20u.pages.dev/insights                                                                       |
 | **Devlog**                                                                            | https://echo-20u.pages.dev/logs                                                                           |
-| **Move package** (Sui testnet)                                                        | `0x76b0a4835148c647f0633df571d3a31969d346d50111ebe9351bfac05793bc37`                                      |
+| **Move package** (Sui testnet)                                                        | `0xf7e9261724da6c6ae4869bbf623ead796ea31f6a90ea8dcdb30d35568870763c`                                      |
 
 ## 🏗️ What's actually built
 
@@ -102,6 +102,59 @@ FORM_ID=0x... COUNT=3 pnpm exec env-cmd -f .env tsx src/scripts/seedSubmissions.
 | `integration-tests/`          | TestContainers e2e (Sui localnet + Postgres)                                   |
 | `dapp/public/logs/index.html` | Self-hosted devlog at `/logs`                                                  |
 
+## 🌍 Walrus Sites deploy (hybrid)
+
+Echo is built dual-target: a static SPA on **Walrus Sites** for the
+frontend, calling **Cloudflare Pages**'s API routes for server-only
+features (Memwal RAG, Enoki gas sponsorship, Walrus publisher proxy,
+demo decrypt). Both deploys share one Move package on Sui testnet.
+
+```
+Walrus Sites (echo.wal.app)        Cloudflare Pages (echo-20u.pages.dev)
+  ├── /              ────┐           ├── /api/insights/*    (RAG)
+  ├── /forms/...     ────┤           ├── /api/walrus/upload (publisher proxy)
+  ├── /forms/new     ────┤           ├── /api/sponsor       (Enoki)
+  ├── /dashboard     ────┘           └── /api/demo/admin    (demo decrypt)
+  ↓ all client-side                          ↑
+  ↓ direct to Sui RPC                        │  fetch with CORS
+  ↓ direct to Walrus aggregator              │
+  ↓ direct to Seal key servers ──────────────┘
+```
+
+**Build the static SPA** for Walrus Sites:
+
+```bash
+cd dapp
+NEXT_PUBLIC_API_BASE_URL=https://echo-20u.pages.dev pnpm build:walrus
+# → dapp/out/  (consumed by site-builder)
+```
+
+The script (`dapp/scripts/build-walrus.sh`) temporarily moves
+`src/app/api/` and `src/middleware.ts` aside (Next.js refuses
+`output: "export"` while API routes exist) and strips
+`runtime = "edge"` from page files (edge runtime is incompatible with
+static export). Both are restored on EXIT, success or failure.
+
+**Status — partially shipped**:
+
+- ✅ `NEXT_PUBLIC_API_BASE_URL` plumbing (every client-side `fetch("/api/...")`
+  routes through the helper in `dapp/src/config/clientConfig.ts`)
+- ✅ CORS middleware on `/api/*` so cross-origin calls from `*.wal.app` work
+- ✅ `pnpm build:walrus` script + dedicated `.next-walrus/` cache so it
+  doesn't clobber `pnpm dev`
+- ⚠️ Static export currently fails on dynamic routes (`/forms/[id]`,
+  `/forms/[id]/admin`, `/s/[name]`) — Next.js 15 needs either
+  `generateStaticParams()` stubs or a Walrus Sites SPA-fallback config
+  (`not_found_page: index.html` in `ws-resources.yaml`). Tracked as
+  v0.4 follow-up.
+
+Once the dynamic-routes blocker lands, publish via:
+
+```bash
+site-builder publish ./out --epochs 30
+# → returns a Sui object id; map it to a SuiNS name for echo.wal.app
+```
+
 ## 🧪 Tests
 
 ```bash
@@ -115,7 +168,7 @@ cd integration-tests && pnpm test         # full e2e (needs Docker)
 - **App**: https://echo-20u.pages.dev
 - **Source**: this repo
 - **Devlog**: https://echo-20u.pages.dev/logs
-- **Real feedback collected on Echo itself** (please leave one!): https://echo-20u.pages.dev/forms/0x02750d97242c6ecf935a164deb90526024dca198f8e3846d49aef47475b59bbe
+- **Real feedback collected on Echo itself** (please leave one!): https://echo-20u.pages.dev/forms/0x1f461854bdf96c46c54610a1c1a6bb3062033ce27ac3aa8755534b8aeaa132d8
 
 ---
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { Database, Sparkles } from "lucide-react";
-import { clientConfig } from "@/config/clientConfig";
+import { apiUrl, clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 import { useDemoAdminMode } from "./DemoAdminToggle";
@@ -86,7 +86,7 @@ export const InsightsConsole = () => {
 
   const indexMutation = useMutation({
     mutationFn: async (formId: string) => {
-      const resp = await fetch("/api/insights/index_form", {
+      const resp = await fetch(apiUrl("/api/insights/index_form"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ formId }),
@@ -111,7 +111,7 @@ export const InsightsConsole = () => {
       formId: string;
       question: string;
     }) => {
-      const resp = await fetch("/api/insights/query", {
+      const resp = await fetch(apiUrl("/api/insights/query"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ formId, question }),

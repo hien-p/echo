@@ -12,16 +12,19 @@ import {
   Unlock as UnlockIcon,
   Sparkles,
 } from "lucide-react";
-import { clientConfig } from "@/config/clientConfig";
+import { apiUrl, clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import {
   PrivacyTier,
   buildArchiveFormTx,
   buildCloseFormTx,
   buildIssueCreditTx,
+  buildPostApprovalTx,
+  buildSealApproveThresholdMofNTxBytes,
   buildSealApproveTxBytes,
   checkDecryptCondition,
   getSealClient,
+  listApprovals,
   readBytesViaAggregator,
   readJsonViaAggregator,
   SessionKey,
@@ -42,6 +45,8 @@ interface OnChainForm {
   metadata_blob_id: string;
   owner: string;
   privacy_tier: number;
+  threshold_n: number; // required approvals (k)
+  threshold_m: number; // total admins (n)
   status: number;
   submission_count: string;
   unlock_ms?: string;
@@ -266,6 +271,57 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
     staleTime: 30_000,
   });
 
+  // ---- Real m-of-n threshold (ApprovalWitness) -------------------------
+  // Polls every 8s while the form is unrevealed so the "k/n approvals"
+  // status updates as other admins post their witnesses.
+  const isRealThreshold =
+    formQuery.data?.onChain.privacy_tier === PrivacyTier.Threshold &&
+    (formQuery.data?.onChain.threshold_n ?? 1) >= 2;
+  const approvalsQuery = useQuery({
+    queryKey: ["echo", "approvals", formId],
+    queryFn: () =>
+      listApprovals({
+        fullnodeUrl: clientConfig.SUI_FULLNODE_URL,
+        packageId,
+        formId,
+      }),
+    enabled: isRealThreshold,
+    refetchInterval: 8_000,
+    staleTime: 4_000,
+  });
+
+  const postApprovalMutation = useMutation({
+    mutationFn: async () => {
+      if (!account) throw new Error("Connect a wallet first.");
+      if (!ownerCapQuery.data) {
+        throw new Error("You don't hold a FormOwnerCap for this form.");
+      }
+      const onChain = formQuery.data?.onChain;
+      if (!onChain) throw new Error("Form metadata not loaded.");
+      const identity = tierIdentity({
+        formId,
+        tier: onChain.privacy_tier as PrivacyTier,
+      });
+      const tx = buildPostApprovalTx({
+        packageId,
+        formOwnerCapId: ownerCapQuery.data,
+        formId,
+        identity,
+      });
+      const result = await dAppKit.signAndExecuteTransaction({
+        transaction: tx,
+      });
+      if (result.$kind === "FailedTransaction") {
+        throw new Error("post_approval transaction failed.");
+      }
+      return result.Transaction.digest;
+    },
+    onSuccess: () => {
+      // Re-poll approvals immediately so the UI flips from "0/k" to "1/k".
+      void approvalsQuery.refetch();
+    },
+  });
+
   const closeMutation = useMutation({
     mutationFn: async () => {
       if (!ownerCapQuery.data) throw new Error("Owner cap not found.");
@@ -391,7 +447,7 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       if (demoToggleOn && onChain.owner.toLowerCase() === demoAdminAddr) {
         const results = await Promise.allSettled(
           targets.map(async (s) => {
-            const resp = await fetch("/api/demo/admin/decrypt", {
+            const resp = await fetch(apiUrl("/api/demo/admin/decrypt"), {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({
@@ -432,7 +488,14 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
 
       // Owner path — one wallet popup, then parallel decrypt.
       if (!account) throw new Error("Connect a wallet first.");
-      if (!ownerCapQuery.data) {
+      const requiredKForGuard = onChain.threshold_n || 1;
+      const isMofN =
+        onChain.privacy_tier === PrivacyTier.Threshold &&
+        requiredKForGuard >= 2;
+      // For m-of-n with k≥2, anyone (not just cap holders) can finalize
+      // decrypt once k witnesses exist on chain. For other tiers a cap is
+      // still required by the corresponding seal_approve_* predicate.
+      if (!isMofN && !ownerCapQuery.data) {
         throw new Error("You don't hold the FormOwnerCap.");
       }
       const sealServers = parseSealServers(clientConfig.SEAL_KEY_SERVERS);
@@ -463,20 +526,49 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
         tier: onChain.privacy_tier as PrivacyTier,
         unlockMs: onChain.unlock_ms ? BigInt(onChain.unlock_ms) : undefined,
       });
-      const txBytes = await buildSealApproveTxBytes({
-        packageId,
-        formId,
-        formOwnerCapId: ownerCapQuery.data,
-        privacyTier: onChain.privacy_tier as PrivacyTier,
-        identity,
-        senderAddress: account.address,
-        suiClient: suiClient as unknown as Parameters<
-          typeof buildSealApproveTxBytes
-        >[0]["suiClient"],
-      });
+      const requiredK = onChain.threshold_n || 1;
+      const useMofN =
+        onChain.privacy_tier === PrivacyTier.Threshold && requiredK >= 2;
+      let txBytes: Uint8Array;
+      if (useMofN) {
+        const approvals = approvalsQuery.data ?? [];
+        if (approvals.length < requiredK) {
+          throw new Error(
+            `Need ${requiredK} approvals; ${approvals.length} on chain so far. Ask the other admin(s) to click "Approve decrypt".`,
+          );
+        }
+        txBytes = await buildSealApproveThresholdMofNTxBytes({
+          packageId,
+          formId,
+          identity,
+          witnessIds: approvals.slice(0, requiredK).map((a) => a.witnessId),
+          senderAddress: account.address,
+          suiClient: suiClient as unknown as Parameters<
+            typeof buildSealApproveThresholdMofNTxBytes
+          >[0]["suiClient"],
+        });
+      } else {
+        txBytes = await buildSealApproveTxBytes({
+          packageId,
+          formId,
+          formOwnerCapId: ownerCapQuery.data ?? undefined,
+          privacyTier: onChain.privacy_tier as PrivacyTier,
+          identity,
+          senderAddress: account.address,
+          suiClient: suiClient as unknown as Parameters<
+            typeof buildSealApproveTxBytes
+          >[0]["suiClient"],
+        });
+      }
       const idHex = bytesToHex(identity);
       const network = clientConfig.WALRUS_NETWORK;
-      const threshold = onChain.privacy_tier === PrivacyTier.Threshold ? 1 : 1;
+      // Seal threshold = number of key servers needed to release shares.
+      // For Threshold tier we encrypted with form.threshold_n; mirror that
+      // here so fetchKeys aligns. For other tiers a single share suffices.
+      const threshold =
+        onChain.privacy_tier === PrivacyTier.Threshold
+          ? onChain.threshold_n || 1
+          : 1;
       // fetchKeys once — cached for all subsequent decrypts on the same id.
       await seal.fetchKeys({
         ids: [idHex],
@@ -577,20 +669,49 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
         tier: onChain.privacy_tier as PrivacyTier,
         unlockMs: onChain.unlock_ms ? BigInt(onChain.unlock_ms) : undefined,
       });
-      const txBytes = await buildSealApproveTxBytes({
-        packageId,
-        formId,
-        formOwnerCapId: ownerCapQuery.data ?? undefined,
-        privacyTier: onChain.privacy_tier as PrivacyTier,
-        identity,
-        senderAddress: account.address,
-        suiClient: suiClient as unknown as Parameters<
-          typeof buildSealApproveTxBytes
-        >[0]["suiClient"],
-      });
+      const requiredKIdx = onChain.threshold_n || 1;
+      const useMofNIdx =
+        onChain.privacy_tier === PrivacyTier.Threshold && requiredKIdx >= 2;
+      let txBytes: Uint8Array;
+      if (useMofNIdx) {
+        const approvals = approvalsQuery.data ?? [];
+        if (approvals.length < requiredKIdx) {
+          throw new Error(
+            `Indexing requires ${requiredKIdx} approvals; ${approvals.length} on chain so far.`,
+          );
+        }
+        txBytes = await buildSealApproveThresholdMofNTxBytes({
+          packageId,
+          formId,
+          identity,
+          witnessIds: approvals.slice(0, requiredKIdx).map((a) => a.witnessId),
+          senderAddress: account.address,
+          suiClient: suiClient as unknown as Parameters<
+            typeof buildSealApproveThresholdMofNTxBytes
+          >[0]["suiClient"],
+        });
+      } else {
+        txBytes = await buildSealApproveTxBytes({
+          packageId,
+          formId,
+          formOwnerCapId: ownerCapQuery.data ?? undefined,
+          privacyTier: onChain.privacy_tier as PrivacyTier,
+          identity,
+          senderAddress: account.address,
+          suiClient: suiClient as unknown as Parameters<
+            typeof buildSealApproveTxBytes
+          >[0]["suiClient"],
+        });
+      }
       const idHex = bytesToHex(identity);
       const network = clientConfig.WALRUS_NETWORK;
-      const threshold = onChain.privacy_tier === PrivacyTier.Threshold ? 1 : 1;
+      // Seal threshold = number of key servers needed to release shares.
+      // For Threshold tier we encrypted with form.threshold_n; mirror that
+      // here so fetchKeys aligns. For other tiers a single share suffices.
+      const threshold =
+        onChain.privacy_tier === PrivacyTier.Threshold
+          ? onChain.threshold_n || 1
+          : 1;
 
       setIndexProgress({
         running: true,
@@ -625,7 +746,7 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
           ) as SubmissionPayload;
           const text = flattenAnswersToText(payload, s.submissionId);
           if (!text) continue;
-          const resp = await fetch("/api/insights/index_one", {
+          const resp = await fetch(apiUrl("/api/insights/index_one"), {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ formId, text }),
@@ -721,19 +842,35 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
   const isTimeLockedTier = tier === 3;
   const unlockMs = onChain.unlock_ms ? Number(onChain.unlock_ms) : 0;
   const isUnlocked = isTimeLockedTier && unlockMs > 0 && Date.now() >= unlockMs;
+  // Real m-of-n: once k witnesses exist, anyone can finalize decrypt
+  // (analogous to TimeLocked permissionless reveal, gated on votes-to-release
+  // instead of clock).
+  const requiredK = onChain.threshold_n || 1;
+  const isMofNTier = tier === PrivacyTier.Threshold && requiredK >= 2;
+  const approvalsCount = approvalsQuery.data?.length ?? 0;
+  const isMofNUnlocked = isMofNTier && approvalsCount >= requiredK;
+  const youAlreadyApproved =
+    isMofNTier &&
+    !!account &&
+    (approvalsQuery.data ?? []).some(
+      (a) => a.signer.toLowerCase() === account.address.toLowerCase(),
+    );
   // Decrypt eligibility:
   //   Public:                no decrypt needed
   //   TimeLocked + unlocked: anyone can decrypt (permissionless)
-  //   TimeLocked locked:     nobody can decrypt yet
-  //   AdminOnly/Threshold/Conditional:
-  //     - cap holder (own wallet) ✓
-  //     - demo mode (server signs as demo cap holder) ✓
-  //     - anyone else ✗
+  //   m-of-n (k>=2) once k approvals: anyone can decrypt (permissionless)
+  //   AdminOnly/Threshold(k=1)/Conditional:
+  //     - cap holder ✓ · demo mode ✓ · anyone else ✗
   const isConditionalTier = tier === 4;
   const baseCanDecrypt =
     isPublicTier ||
     (isTimeLockedTier && isUnlocked) ||
-    (!isTimeLockedTier && (isOwner || demoMode));
+    (isMofNTier && isMofNUnlocked) ||
+    (!isTimeLockedTier && !isMofNTier && (isOwner || demoMode)) ||
+    // m-of-n cap holder can also use the cap-only path while waiting for
+    // peers, but only if approvals are already satisfied — otherwise the
+    // m-of-n PTB path applies above. Falls through to unlocked check.
+    false;
 
   // Conditional tier overlays the gating predicate on top of the base
   // capability check. demoMode bypass intentionally sticks (server-decrypt
@@ -750,9 +887,11 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
   const decryptDisabledReason = !canDecrypt
     ? isTimeLockedTier && !isUnlocked
       ? `Time-locked until ${new Date(unlockMs).toLocaleString()} — no one can decrypt yet.`
-      : condBlocked
-        ? `Conditional tier · ${decryptCondQuery.data?.reason ?? "predicate failed"}`
-        : "You don't hold the FormOwnerCap. Toggle Demo admin (if available) or connect the owner wallet."
+      : isMofNTier && !isMofNUnlocked
+        ? `Multi-admin threshold · ${approvalsCount}/${requiredK} approvals on chain. Need ${requiredK - approvalsCount} more co-admin(s) to click "Approve decrypt".`
+        : condBlocked
+          ? `Conditional tier · ${decryptCondQuery.data?.reason ?? "predicate failed"}`
+          : "You don't hold the FormOwnerCap. Toggle Demo admin (if available) or connect the owner wallet."
     : null;
 
   return (
@@ -790,6 +929,64 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       {!isOwner && !demoMode && (
         <p className="text-sm text-amber-700">
           You don&apos;t hold the FormOwnerCap. Close/Archive disabled.
+        </p>
+      )}
+
+      {isMofNTier && (
+        <div
+          className={cn(
+            "border rounded p-3 flex flex-col sm:flex-row sm:items-center gap-2 text-sm",
+            isMofNUnlocked
+              ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+              : "bg-amber-50 border-amber-200 text-amber-900",
+          )}
+        >
+          <span className="flex-1">
+            <strong>
+              Multi-admin threshold · {approvalsCount}/{requiredK} approvals
+            </strong>
+            {isMofNUnlocked ? (
+              <> · data is decryptable by anyone holding the witness IDs.</>
+            ) : (
+              <>
+                {" "}
+                · waiting for {requiredK - approvalsCount} more co-admin
+                {requiredK - approvalsCount === 1 ? "" : "s"}.
+              </>
+            )}
+          </span>
+          {isOwner &&
+            !youAlreadyApproved &&
+            !isMofNUnlocked &&
+            account &&
+            !demoMode && (
+              <button
+                type="button"
+                onClick={() => postApprovalMutation.mutate()}
+                disabled={postApprovalMutation.isPending}
+                className={cn(
+                  "border rounded px-3 py-1 text-sm flex items-center gap-1 bg-foreground text-background",
+                  postApprovalMutation.isPending
+                    ? "opacity-60 cursor-not-allowed"
+                    : "hover:opacity-90",
+                )}
+              >
+                <Unlock size={12} />
+                {postApprovalMutation.isPending
+                  ? "Posting…"
+                  : "Approve decrypt"}
+              </button>
+            )}
+          {youAlreadyApproved && !isMofNUnlocked && (
+            <span className="text-xs text-emerald-700 inline-flex items-center gap-1">
+              ✓ you approved
+            </span>
+          )}
+        </div>
+      )}
+      {postApprovalMutation.error instanceof Error && (
+        <p className="text-xs text-destructive -mt-1">
+          {postApprovalMutation.error.message}
         </p>
       )}
 
@@ -1033,6 +1230,8 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
                 formId={formId}
                 packageId={packageId}
                 privacyTier={onChain.privacy_tier}
+                thresholdN={onChain.threshold_n ?? 0}
+                witnessIds={(approvalsQuery.data ?? []).map((a) => a.witnessId)}
                 unlockMs={onChain.unlock_ms ?? "0"}
                 formOwnerCapId={ownerCapQuery.data ?? null}
                 dAppKit={dAppKit}
@@ -1086,6 +1285,8 @@ function SubmissionRowView({
   formId,
   packageId,
   privacyTier,
+  thresholdN,
+  witnessIds,
   unlockMs,
   formOwnerCapId,
   dAppKit,
@@ -1105,6 +1306,11 @@ function SubmissionRowView({
   formId: string;
   packageId: string;
   privacyTier: number;
+  /** form.threshold_n (= required-approvals k) for Threshold tier; 0 otherwise. */
+  thresholdN: number;
+  /** Witness object IDs collected for this form's threshold identity.
+   *  Empty for non-Threshold or k=1 forms. */
+  witnessIds: string[];
   unlockMs: string;
   formOwnerCapId: string | null;
   dAppKit: ReturnType<typeof useDAppKit>;
@@ -1138,7 +1344,7 @@ function SubmissionRowView({
     setDecrypting(true);
     try {
       if (demoMode) {
-        const resp = await fetch("/api/demo/admin/decrypt", {
+        const resp = await fetch(apiUrl("/api/demo/admin/decrypt"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -1195,24 +1401,45 @@ function SubmissionRowView({
         tier: privacyTier as PrivacyTier,
         unlockMs: unlockMs ? BigInt(unlockMs) : undefined,
       });
-      const txBytes = await buildSealApproveTxBytes({
-        packageId,
-        formId,
-        formOwnerCapId: formOwnerCapId ?? undefined,
-        privacyTier: privacyTier as PrivacyTier,
-        identity,
-        senderAddress: accountAddress,
-        suiClient: suiClient as unknown as Parameters<
-          typeof buildSealApproveTxBytes
-        >[0]["suiClient"],
-      });
+      const useMofN = privacyTier === PrivacyTier.Threshold && thresholdN >= 2;
+      let txBytes: Uint8Array;
+      if (useMofN) {
+        if (witnessIds.length < thresholdN) {
+          throw new Error(
+            `Need ${thresholdN} approvals; ${witnessIds.length} on chain so far.`,
+          );
+        }
+        txBytes = await buildSealApproveThresholdMofNTxBytes({
+          packageId,
+          formId,
+          identity,
+          witnessIds: witnessIds.slice(0, thresholdN),
+          senderAddress: accountAddress,
+          suiClient: suiClient as unknown as Parameters<
+            typeof buildSealApproveThresholdMofNTxBytes
+          >[0]["suiClient"],
+        });
+      } else {
+        txBytes = await buildSealApproveTxBytes({
+          packageId,
+          formId,
+          formOwnerCapId: formOwnerCapId ?? undefined,
+          privacyTier: privacyTier as PrivacyTier,
+          identity,
+          senderAddress: accountAddress,
+          suiClient: suiClient as unknown as Parameters<
+            typeof buildSealApproveTxBytes
+          >[0]["suiClient"],
+        });
+      }
 
       // Fetch encrypted ciphertext bytes from Walrus aggregator (cached).
       const ciphertext = await readBytesViaAggregator(row.payloadBlobId, {
         network: clientConfig.WALRUS_NETWORK,
       });
 
-      const threshold = privacyTier === PrivacyTier.Threshold ? 1 : 1; // form's own threshold; for now 1
+      const threshold =
+        privacyTier === PrivacyTier.Threshold ? thresholdN || 1 : 1;
       await seal.fetchKeys({
         ids: [bytesToHex(identity)],
         txBytes,

@@ -65,8 +65,8 @@ const TIER_OPTIONS: { value: PrivacyTier; label: string; help: string }[] = [
   },
   {
     value: PrivacyTier.Threshold,
-    label: "Multi-admin (any one decrypts)",
-    help: "Encrypted; every co-admin you add gets their own cap, and any one of them can read submissions independently. Real m-of-n threshold (require multiple sigs) is on the v0.3 roadmap.",
+    label: "Multi-admin threshold (k of n)",
+    help: "Encrypted; pick how many admin approvals are required to release this form's data. k=1 means any one admin (OR-of-N). k≥2 means each admin must independently approve via on-chain ApprovalWitness — once k approvals land, the data becomes decryptable forever (semantics: 'voted to release once', not 'k approvals per read').",
   },
   {
     value: PrivacyTier.TimeLocked,
@@ -235,12 +235,11 @@ export const FormBuilder = () => {
   const [title, setTitle] = useState(blank.title);
   const [description, setDescription] = useState(blank.description);
   const [tier, setTier] = useState<PrivacyTier>(blank.tier);
-  // Threshold tier metadata: kept at fixed n=1, m=1 for now since the
-  // current OR-of-N implementation doesn't enforce real m-of-n at the
-  // Seal layer. Move's create_form still needs valid thresholds when tier
-  // === Threshold (assert n>0 && n<=m), so 1/1 is the safe default.
-  const thresholdN = 1;
-  const thresholdM = 1;
+  // Threshold tier (k of n). requiredApprovals = k; totalAdmins = n
+  // (sender + extras). Move enforces 1≤k≤n via threshold_n (required) and
+  // threshold_m (total). k=1 → OR-of-N (any one decrypts);
+  // k≥2 → real m-of-n via on-chain ApprovalWitness pattern.
+  const [requiredApprovals, setRequiredApprovals] = useState(1);
   const [unlockMs, setUnlockMs] = useState("");
   const [policyId, setPolicyId] = useState("");
   // Conditional-tier decrypt-time predicate. Empty type = no extra gate.
@@ -396,14 +395,17 @@ export const FormBuilder = () => {
       const extraAdmins = resolvedAdmins
         .filter((r) => !!r.address)
         .map((r) => r.address!);
+      // Move convention: threshold_n = required, threshold_m = total.
+      const totalAdmins = 1 + extraAdmins.length;
+      const requiredK = Math.max(1, Math.min(requiredApprovals, totalAdmins));
       const tx = buildCreateFormTx({
         packageId,
         senderAddress: currentAccount.address,
         schemaBlobId,
         metadataBlobId,
         privacyTier: tier,
-        thresholdN: tier === PrivacyTier.Threshold ? thresholdN : 0,
-        thresholdM: tier === PrivacyTier.Threshold ? thresholdM : 0,
+        thresholdN: tier === PrivacyTier.Threshold ? requiredK : 0,
+        thresholdM: tier === PrivacyTier.Threshold ? totalAdmins : 0,
         unlockMs:
           tier === PrivacyTier.TimeLocked && unlockMs
             ? BigInt(unlockMs)
@@ -605,6 +607,47 @@ export const FormBuilder = () => {
               <p className="text-sm text-muted-foreground">
                 {TIER_OPTIONS.find((o) => o.value === tier)?.help}
               </p>
+              {tier === PrivacyTier.Threshold &&
+                (() => {
+                  const totalAdmins =
+                    1 + resolvedAdmins.filter((r) => r.address).length;
+                  const k = Math.max(
+                    1,
+                    Math.min(requiredApprovals, totalAdmins),
+                  );
+                  return (
+                    <Field label="Required approvals (k)">
+                      <div className="flex items-center gap-2 text-sm">
+                        <input
+                          type="number"
+                          min={1}
+                          max={totalAdmins}
+                          className="border rounded px-2 py-1 w-20"
+                          value={requiredApprovals}
+                          onChange={(e) =>
+                            setRequiredApprovals(
+                              Math.max(1, Number(e.target.value) || 1),
+                            )
+                          }
+                        />
+                        <span className="text-muted-foreground text-xs">
+                          of {totalAdmins} admin
+                          {totalAdmins === 1 ? "" : "s"} must approve
+                          {totalAdmins === 1 && (
+                            <> · add co-admins below to enable k≥2</>
+                          )}
+                        </span>
+                      </div>
+                      {k >= 2 && (
+                        <p className="text-xs text-amber-700 mt-1">
+                          ⚠ Real m-of-n: each admin posts an on-chain
+                          ApprovalWitness; once {k} land, the data is
+                          decryptable forever (no per-read re-approval).
+                        </p>
+                      )}
+                    </Field>
+                  );
+                })()}
               {tier === PrivacyTier.TimeLocked && (
                 <Field label="Unlock at">
                   <input
@@ -794,8 +837,8 @@ export const FormBuilder = () => {
             <div className="flex flex-col gap-2">
               <TierBadge
                 tier={tier}
-                thresholdN={thresholdN}
-                thresholdM={thresholdM}
+                requiredK={requiredApprovals}
+                totalAdmins={1 + resolvedAdmins.filter((r) => r.address).length}
                 unlockMs={unlockMs}
               />
               <button
@@ -860,11 +903,13 @@ const BuilderSection = ({
 
 function TierBadge({
   tier,
+  requiredK,
+  totalAdmins,
   unlockMs,
 }: {
   tier: PrivacyTier;
-  thresholdN: number; // unused; kept in the prop bag for caller compat
-  thresholdM: number; // unused; kept in the prop bag for caller compat
+  requiredK: number;
+  totalAdmins: number;
   unlockMs: string;
 }) {
   if (tier === PrivacyTier.Public) return null;
@@ -876,12 +921,18 @@ function TierBadge({
       );
       break;
     case PrivacyTier.Threshold:
-      body = (
-        <>
-          🔒 Encrypted with Seal · multiple admins, any one can decrypt
-          (OR-of-N).
-        </>
-      );
+      body =
+        requiredK <= 1 ? (
+          <>
+            🔒 Encrypted with Seal · {totalAdmins} admin
+            {totalAdmins === 1 ? "" : "s"}, any one can decrypt (OR-of-N).
+          </>
+        ) : (
+          <>
+            🔒 Encrypted with Seal · {requiredK} of {totalAdmins} admins must
+            approve to release. Approvals are perpetual once posted.
+          </>
+        );
       break;
     case PrivacyTier.TimeLocked: {
       const ts = unlockMs ? new Date(Number(unlockMs)) : null;

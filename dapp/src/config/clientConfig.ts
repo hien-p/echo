@@ -25,6 +25,16 @@ export const clientConfigSchema = z.object({
    * decrypt. Demo-only — server holds decrypt capability for these caps.
    */
   DEMO_ADMIN_ADDRESS: z.string().default(""),
+  /**
+   * Optional absolute origin for /api/* requests. When the dapp is served
+   * from a static host (Walrus Sites) but the API routes live on a separate
+   * origin (Cloudflare Pages/Worker), set this to e.g.
+   *   https://echo-20u.pages.dev
+   * — every client-side `fetch("/api/...")` then prepends this prefix and
+   * goes cross-origin. Empty (default) keeps fetches relative for the
+   * single-origin Cloudflare Pages deploy.
+   */
+  API_BASE_URL: z.string().default(""),
 });
 
 export const clientConfig = clientConfigSchema.parse({
@@ -36,4 +46,16 @@ export const clientConfig = clientConfigSchema.parse({
   WALRUS_NETWORK: process.env.NEXT_PUBLIC_WALRUS_NETWORK,
   SEAL_KEY_SERVERS: process.env.NEXT_PUBLIC_SEAL_KEY_SERVERS ?? "",
   DEMO_ADMIN_ADDRESS: process.env.NEXT_PUBLIC_DEMO_ADMIN_ADDRESS ?? "",
+  API_BASE_URL: (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, ""),
 });
+
+/**
+ * Build a fully-qualified URL for an /api path, honoring API_BASE_URL when
+ * set. Use this everywhere instead of raw `fetch("/api/...")` so the
+ * Walrus Sites build (which has no /api routes) cleanly reaches the
+ * Cloudflare Pages origin that does.
+ */
+export function apiUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${clientConfig.API_BASE_URL}${normalized}`;
+}

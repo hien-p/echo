@@ -162,6 +162,59 @@
         <article class="log-card" data-date="2026-05-09">
           <header>
             <time datetime="2026-05-09">2026-05-09</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Real m-of-n threshold via on-chain ApprovalWitness</h3>
+          <p>
+            <strong>Threshold tier now does what it says.</strong> Previously "k
+            of n" was OR-of-N (any single cap holder decrypts) — k was a label,
+            not a check. New flow: each admin posts a shared
+            <code>ApprovalWitness</code> object via
+            <code>echo::form::post_approval</code>; once ≥ k unique-signer
+            witnesses exist for the form's Seal identity,
+            <code>seal_approve_threshold_m_of_n</code> takes the witness vector,
+            asserts (a) count ≥ k, (b) each binds to this form + identity, (c)
+            signers all distinct. Anyone can finalize decrypt at that point —
+            it's a votes-to-release primitive, not an ongoing access gate.
+          </p>
+          <p>
+            FormBuilder restored the
+            <strong>Required approvals (k)</strong> input (1 to total admins).
+            FormAdmin polls <code>ApprovalPosted</code> events every 8s and
+            shows <strong>"k/n approvals · waiting for X more"</strong>. When
+            you hold a cap and haven't signed yet, an
+            <strong>"Approve decrypt"</strong> button appears. Once the k-th
+            witness lands, the existing Decrypt / Reveal-all / Index paths
+            switch from <code>seal_approve_threshold</code> to
+            <code>seal_approve_threshold_m_of_n</code> with the collected
+            witness IDs. Backward compat: forms with k=1 still use the old
+            single-cap path.
+          </p>
+          <p>
+            <strong>Trade-off, communicated in the UI:</strong> witnesses live
+            on chain forever (Seal calls <code>seal_approve_*</code> via
+            dry-run, so the in-function <code>object::delete</code> never
+            persists). So "k of n approved once" → data is decryptable forever
+            by anyone who knows the witness IDs. Right shape for board votes /
+            sealed bid reveals / DAO disclosure releases. Wrong shape for
+            ongoing per-read authorization (would need re-encryption per
+            session).
+          </p>
+          <p>
+            Demo: <code>FORM=multisig</code> creates a 2-of-3 form with two
+            extra admin caps. New package id
+            <code>0x47a7…5612</code> (re-published to testnet — old forms on
+            <code>0x76b0…bc37</code> are orphaned). Move tests added covering
+            (a) post_approval mints witness with right signer, (b) k unique
+            witnesses pass seal_approve, (c) below-k aborts with
+            EInsufficientApprovals (8), (d) duplicate signer aborts with
+            EDuplicateSigner (11). 22/22 Move tests passing.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-09">
+          <header>
+            <time datetime="2026-05-09">2026-05-09</time>
             <span class="log-tag" data-tag="fix">fix</span>
           </header>
           <h3>
