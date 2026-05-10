@@ -6,14 +6,15 @@
 
 ## 🌐 Live
 
-|                                                                                       |                                                                                                           |
-| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **App**                                                                               | https://echo-20u.pages.dev                                                                                |
-| **Leave us feedback**                                                                 | https://echo-20u.pages.dev/forms/0x1f461854bdf96c46c54610a1c1a6bb3062033ce27ac3aa8755534b8aeaa132d8       |
-| **Demo AdminOnly form** (toggle "Demo admin" in header to read encrypted submissions) | https://echo-20u.pages.dev/forms/0x1f7c0af08411366f712f8b69998fce1c61463c44c4d403c2857ff2aaf8dd7b5d/admin |
-| **Insights / RAG**                                                                    | https://echo-20u.pages.dev/insights                                                                       |
-| **Devlog**                                                                            | https://echo-20u.pages.dev/logs                                                                           |
-| **Move package** (Sui testnet)                                                        | `0xf7e9261724da6c6ae4869bbf623ead796ea31f6a90ea8dcdb30d35568870763c`                                      |
+|                                                                                       |                                                                                                                   |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **App** (testnet · staging branch)                                                    | https://staging.echo-20u.pages.dev                                                                                |
+| **App** (mainnet · main branch)                                                       | _dormant — env vars TBD_                                                                                          |
+| **Leave us feedback**                                                                 | https://staging.echo-20u.pages.dev/forms/0x1f461854bdf96c46c54610a1c1a6bb3062033ce27ac3aa8755534b8aeaa132d8       |
+| **Demo AdminOnly form** (toggle "Demo admin" in header to read encrypted submissions) | https://staging.echo-20u.pages.dev/forms/0x1f7c0af08411366f712f8b69998fce1c61463c44c4d403c2857ff2aaf8dd7b5d/admin |
+| **Insights / RAG**                                                                    | https://staging.echo-20u.pages.dev/insights                                                                       |
+| **Devlog**                                                                            | https://staging.echo-20u.pages.dev/logs                                                                           |
+| **Move package** (Sui testnet)                                                        | `0xf7e9261724da6c6ae4869bbf623ead796ea31f6a90ea8dcdb30d35568870763c`                                              |
 
 ## 🏗️ What's actually built
 
@@ -125,7 +126,7 @@ Walrus Sites (echo.wal.app)        Cloudflare Pages (echo-20u.pages.dev)
 
 ```bash
 cd dapp
-NEXT_PUBLIC_API_BASE_URL=https://echo-20u.pages.dev pnpm build:walrus
+NEXT_PUBLIC_API_BASE_URL=https://staging.echo-20u.pages.dev pnpm build:walrus
 # → dapp/out/  (consumed by site-builder)
 ```
 
@@ -179,10 +180,10 @@ cd integration-tests && pnpm test         # full e2e (needs Docker)
 
 ## 📝 Submission
 
-- **App**: https://echo-20u.pages.dev
+- **App**: https://staging.echo-20u.pages.dev
 - **Source**: this repo
-- **Devlog**: https://echo-20u.pages.dev/logs
-- **Real feedback collected on Echo itself** (please leave one!): https://echo-20u.pages.dev/forms/0x1f461854bdf96c46c54610a1c1a6bb3062033ce27ac3aa8755534b8aeaa132d8
+- **Devlog**: https://staging.echo-20u.pages.dev/logs
+- **Real feedback collected on Echo itself** (please leave one!): https://staging.echo-20u.pages.dev/forms/0x1f461854bdf96c46c54610a1c1a6bb3062033ce27ac3aa8755534b8aeaa132d8
 
 ---
 

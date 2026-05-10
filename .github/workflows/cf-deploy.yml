@@ -1,26 +1,46 @@
 name: Deploy to Cloudflare Pages
 
-# Builds the dapp via @cloudflare/next-on-pages and deploys to the `echo`
-# Cloudflare Pages project on every push to main. Secrets required:
-#   CLOUDFLARE_API_TOKEN — token with "Pages: Edit" + "Account: Read" scopes
+# Two-track release per CLAUDE.md convention:
+#   staging branch → testnet deploy. Lands at the project's "branch alias"
+#                    URL on Cloudflare Pages (e.g. staging.echo-20u.pages.dev).
+#                    Source of truth for hackathon/demo testing.
+#   main    branch → mainnet deploy. DORMANT until mainnet env vars are
+#                    populated — the job fails fast with a clear message
+#                    when NEXT_PUBLIC_ECHO_PACKAGE_ID_MAINNET is unset, so
+#                    pushes to main don't accidentally publish a build
+#                    that points at testnet objects under a mainnet URL.
+#
+# Secrets required:
+#   CLOUDFLARE_API_TOKEN  — token with "Pages: Edit" + "Account: Read" scopes
 #   CLOUDFLARE_ACCOUNT_ID — the CF account ID (visible in dash → Workers/Pages)
+#
+# Vars (per-environment via the *_TESTNET / *_MAINNET suffix convention):
+#   NEXT_PUBLIC_ECHO_PACKAGE_ID_TESTNET   — staging (already set)
+#   NEXT_PUBLIC_ECHO_PACKAGE_ID_MAINNET   — production (to be set)
+#   etc.
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   workflow_dispatch:
 
 concurrency:
-  group: cf-pages-deploy
+  # Per-branch group so a staging deploy doesn't cancel an in-flight
+  # production deploy and vice versa.
+  group: cf-pages-deploy-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  staging:
+    if: github.ref_name == 'staging'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
       contents: read
       deployments: write
+    environment:
+      name: staging
+      url: https://staging.echo-20u.pages.dev
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +58,7 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build dapp for Cloudflare Pages
+      - name: Build dapp for Cloudflare Pages (testnet)
         working-directory: dapp
         run: pnpm build:cf
         env:
@@ -51,7 +71,72 @@ jobs:
           NEXT_PUBLIC_SEAL_KEY_SERVERS: ${{ vars.NEXT_PUBLIC_SEAL_KEY_SERVERS }}
           NEXT_PUBLIC_DEMO_ADMIN_ADDRESS: ${{ vars.NEXT_PUBLIC_DEMO_ADMIN_ADDRESS }}
 
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy to Cloudflare Pages (staging branch)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: dapp
+          command: pages deploy .vercel/output/static --project-name=echo --branch=staging --commit-dirty=true
+
+  production:
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      deployments: write
+    environment:
+      name: production
+      url: https://echo-20u.pages.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      # Hard guard so the job fails LOUDLY if mainnet env vars haven't
+      # been set yet. Without this, a push to main would silently deploy
+      # a build pointing at testnet objects under the mainnet URL.
+      - name: Verify mainnet env is configured
+        run: |
+          MISSING=()
+          [ -z "${MAINNET_PKG:-}" ] && MISSING+=("NEXT_PUBLIC_ECHO_PACKAGE_ID_MAINNET")
+          [ -z "${MAINNET_FULLNODE:-}" ] && MISSING+=("NEXT_PUBLIC_SUI_FULLNODE_URL_MAINNET")
+          if [ "${#MISSING[@]}" -gt 0 ]; then
+            echo "::error::Mainnet env not configured. Set GitHub vars: ${MISSING[*]}"
+            echo "Production deploy is intentionally dormant until mainnet env is provided."
+            exit 1
+          fi
+        env:
+          MAINNET_PKG: ${{ vars.NEXT_PUBLIC_ECHO_PACKAGE_ID_MAINNET }}
+          MAINNET_FULLNODE: ${{ vars.NEXT_PUBLIC_SUI_FULLNODE_URL_MAINNET }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build dapp for Cloudflare Pages (mainnet)
+        working-directory: dapp
+        run: pnpm build:cf
+        env:
+          NEXT_PUBLIC_SUI_NETWORK: mainnet
+          NEXT_PUBLIC_SUI_FULLNODE_URL: ${{ vars.NEXT_PUBLIC_SUI_FULLNODE_URL_MAINNET }}
+          NEXT_PUBLIC_WALRUS_NETWORK: mainnet
+          NEXT_PUBLIC_ENOKI_PUBLIC_KEY: ${{ vars.NEXT_PUBLIC_ENOKI_PUBLIC_KEY_MAINNET }}
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+          NEXT_PUBLIC_ECHO_PACKAGE_ID: ${{ vars.NEXT_PUBLIC_ECHO_PACKAGE_ID_MAINNET }}
+          NEXT_PUBLIC_SEAL_KEY_SERVERS: ${{ vars.NEXT_PUBLIC_SEAL_KEY_SERVERS_MAINNET }}
+          NEXT_PUBLIC_DEMO_ADMIN_ADDRESS: ${{ vars.NEXT_PUBLIC_DEMO_ADMIN_ADDRESS_MAINNET }}
+
+      - name: Deploy to Cloudflare Pages (main branch / production)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
