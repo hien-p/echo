@@ -348,12 +348,14 @@ function SubmitForm({
           // dedupe doesn't apply, but for a Public tier walletless
           // form that's the expected demo behavior.
           const { canonicalMessage } = await import("@/lib/echo/nullifier");
-          const msg = canonicalMessage(formId);
+          const msg = canonicalMessage(formId, ephemeralAddress!);
           const { signature } = await ephemeralKeypair.signPersonalMessage(
             new TextEncoder().encode(msg),
           );
-          // SHA-256 of the raw signature bytes (matches deriveCommitment's
-          // shape; we hash a raw blob since there's no wallet origin).
+          // SHA-256 of the base64 signature string — matches the shape
+          // deriveCommitment uses for wallet-mode (it hashes the decoded
+          // bytes; close enough for the demo since walletless commitments
+          // can't be deduped across sessions anyway).
           const sigBytes = new TextEncoder().encode(signature);
           const hash = await crypto.subtle.digest("SHA-256", sigBytes);
           commitment = new Uint8Array(hash);
