@@ -99,19 +99,24 @@ export const FormViewer = ({ formId }: { formId: string }) => {
 
   return (
     <div className="flex flex-col gap-md">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">{metadata.title}</h1>
+      <header className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {metadata.title}
+        </h1>
         {metadata.description && (
           <p className="text-sm text-muted-foreground">
             {metadata.description}
           </p>
         )}
-        <p className="text-xs text-muted-foreground">
-          {TIER_LABELS[onChain.privacy_tier] ?? "?"} ·{" "}
-          {STATUS_LABELS[onChain.status] ?? "?"}
-          {" · "}
-          {onChain.submission_count} submission(s)
-        </p>
+        {/* Tier-only badge — drop the open/submission_count line; those
+            are admin-side stats and add noise to a public submission view.
+            For non-Public tiers we still surface the encryption pill so
+            respondents know what trust model they're submitting under. */}
+        {onChain.privacy_tier !== 0 && (
+          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 w-fit">
+            🔒 {TIER_LABELS[onChain.privacy_tier] ?? "encrypted"} · Seal
+          </span>
+        )}
       </header>
 
       {!isOpen ? (
