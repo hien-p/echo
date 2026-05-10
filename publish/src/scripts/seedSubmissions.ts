@@ -446,7 +446,14 @@ async function main() {
     });
   }
 
-  const sealThreshold = thresholdM > 0 ? thresholdM : 1;
+  // Seal threshold = number of key servers needed to release shares.
+  // Bounded by the testnet committee (Mysten Open mode = 2 servers).
+  // Forms with threshold_m > 2 (e.g. 2-of-3 multisig) would otherwise
+  // pass an unsupported threshold and seal.encrypt() throws.
+  const sealThreshold = Math.min(
+    thresholdM > 0 ? thresholdM : 1,
+    TESTNET_KEY_SERVERS.length,
+  );
   const identity =
     tier !== PRIVACY_PUBLIC
       ? buildTierIdentity({

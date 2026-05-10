@@ -128,7 +128,7 @@ export async function POST(request: Request) {
   if (memories.length === 0) {
     return NextResponse.json({
       answer:
-        "No indexed submissions for this form yet. Click “Index this form” above first, then ask again.",
+        "Memwal returned no matches for this form's namespace. The index may still be propagating after the most recent re-index — wait a few seconds and try again. If submissions exist on chain but stay invisible, click 're-index' under the form selector to retry.",
       tokens: { totalTokens: 0 },
       namespace,
       memoriesUsed: 0,
