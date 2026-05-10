@@ -24,6 +24,10 @@ const PRIVACY_CONDITIONAL = 4;
 
 interface IndexRequest {
   formId: string;
+  /** When true, do everything except memwal.remember(). Returns the
+   *  flattened text per submission so callers can use it as a direct-
+   *  context fallback when the Memwal relayer is sick. */
+  dryRun?: boolean;
 }
 
 interface OnChainForm {
@@ -377,6 +381,10 @@ export async function POST(request: Request) {
   let skipped = 0;
   let deduped = 0;
   const errors: string[] = [];
+  // dryRun mode collects the flattened texts so the caller (typically
+  // /api/insights/query as a fallback when Memwal is unhealthy) can use
+  // them as direct LLM context without depending on Memwal's job pipeline.
+  const texts: Array<{ submissionId: string; text: string }> = [];
 
   for (const e of matching) {
     const shortId = e.submission_id.slice(0, 10).toLowerCase();
@@ -424,8 +432,13 @@ export async function POST(request: Request) {
         skipped++;
         continue;
       }
-      await memwal.remember(text, namespace);
-      indexed++;
+      if (body.dryRun) {
+        texts.push({ submissionId: e.submission_id, text });
+        indexed++;
+      } else {
+        await memwal.remember(text, namespace);
+        indexed++;
+      }
     } catch (err) {
       errors.push(
         `${e.submission_id.slice(0, 10)}: ${
@@ -444,6 +457,7 @@ export async function POST(request: Request) {
     indexerSource,
     tier,
     errors: errors.slice(0, 5),
+    ...(body.dryRun ? { texts } : {}),
   });
 }
 

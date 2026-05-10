@@ -85,21 +85,33 @@ export async function POST(request: Request) {
     serverUrl: memwalServerUrl,
   });
 
-  // Pull memories from both passes in parallel.
+  // Pull memories from both passes in parallel. We capture (and surface)
+  // each recall's failure mode in the response — without this, a Memwal
+  // server outage looks identical to "namespace empty" and the user has
+  // no way to tell.
   let memories: Array<{ blob_id: string; text: string; distance?: number }> =
     [];
+  const recallErrors: string[] = [];
   try {
     const [focused, broad] = await Promise.all([
-      memwal.recall(body.question, 12, namespace).catch(() => ({
-        results: [],
-      })),
+      memwal.recall(body.question, 12, namespace).catch((e: unknown) => {
+        recallErrors.push(
+          `focused: ${e instanceof Error ? e.message : String(e)}`,
+        );
+        return { results: [] };
+      }),
       memwal
         .recall(
           "submission response feedback answer comment",
           MAX_MEMORIES_PER_QUERY,
           namespace,
         )
-        .catch(() => ({ results: [] })),
+        .catch((e: unknown) => {
+          recallErrors.push(
+            `broad: ${e instanceof Error ? e.message : String(e)}`,
+          );
+          return { results: [] };
+        }),
     ]);
     const seen = new Set<string>();
     for (const m of [...focused.results, ...broad.results]) {
@@ -125,20 +137,57 @@ export async function POST(request: Request) {
     );
   }
 
+  // Fallback: when Memwal returns no matches we re-fetch + decrypt +
+  // flatten the form's submissions ourselves via the index_form route's
+  // dryRun mode and feed the texts directly to the LLM. This keeps RAG
+  // working when the dev Memwal relayer is queueing jobs but not
+  // completing them (current state of relayer.dev.memwal.ai).
+  let memoriesSource: "memwal" | "direct-decrypt" = "memwal";
   if (memories.length === 0) {
+    try {
+      const baseUrl = new URL(request.url);
+      const dryRunUrl = `${baseUrl.protocol}//${baseUrl.host}/api/insights/index_form`;
+      const fallbackResp = await fetch(dryRunUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ formId: body.formId, dryRun: true }),
+      });
+      if (fallbackResp.ok) {
+        const data = (await fallbackResp.json()) as {
+          texts?: Array<{ submissionId: string; text: string }>;
+        };
+        if (data.texts && data.texts.length > 0) {
+          memories = data.texts.slice(0, MAX_MEMORIES_PER_QUERY).map((t) => ({
+            blob_id: t.submissionId,
+            text: t.text,
+          }));
+          memoriesSource = "direct-decrypt";
+        }
+      }
+    } catch {
+      /* fallback failed too — fall through to "no matches" response */
+    }
+  }
+
+  if (memories.length === 0) {
+    const detail =
+      recallErrors.length > 0
+        ? ` Recall errors: ${recallErrors.join("; ")}`
+        : " No submissions found on chain for this form. Submit one to populate the namespace.";
     return NextResponse.json({
-      answer:
-        "Memwal returned no matches for this form's namespace. The index may still be propagating after the most recent re-index — wait a few seconds and try again. If submissions exist on chain but stay invisible, click 're-index' under the form selector to retry.",
+      answer: `Memwal returned no matches for namespace "${namespace}" and direct-decrypt fallback found nothing either.${detail}`,
       tokens: { totalTokens: 0 },
       namespace,
       memoriesUsed: 0,
+      memoriesSource,
+      recallErrors,
     });
   }
 
   const contextBlock = memories
     .map(
       (m, i) =>
-        `--- memory ${i + 1} (blob ${m.blob_id.slice(0, 10)}…) ---\n${m.text}`,
+        `--- memory ${i + 1} (${memoriesSource === "memwal" ? "blob" : "submission"} ${m.blob_id.slice(0, 10)}…) ---\n${m.text}`,
     )
     .join("\n\n");
 
@@ -169,6 +218,7 @@ export async function POST(request: Request) {
       tokens: result.usage,
       namespace,
       memoriesUsed: memories.length,
+      memoriesSource,
     });
   } catch (err) {
     return NextResponse.json(
