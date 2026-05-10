@@ -7,7 +7,11 @@ import { requestSuiFromFaucetV2 } from "@mysten/sui/faucet";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { SuiClientTypes } from "@mysten/sui/client";
 import { fromBase64 } from "@mysten/sui/utils";
-import { Account, getNewAccount } from "../src/utils/getNewAccount";
+import {
+  Account,
+  getNewAccount,
+  loadAccountKeypair,
+} from "../src/utils/getNewAccount";
 import { getPublishBytes } from "../../publish/src/utils/getPublishBytes";
 
 // extend Vitest context so tests can read something
@@ -91,6 +95,10 @@ export default async function setup(project: TestProject) {
     baseUrl: `http://localhost:${LOCALNET_PORT}`,
   });
   const admin = getNewAccount();
+  // Reconstruct keypair locally for setup-time signing. Tests can't
+  // rely on `admin.keypair` because Vitest serializes provide() values
+  // to JSON, stripping class methods.
+  const adminKeypair = loadAccountKeypair(admin);
   await requestSuiFromFaucetV2({
     host: `http://localhost:${FAUCET_PORT}`,
     recipient: admin.address,
@@ -108,7 +116,7 @@ export default async function setup(project: TestProject) {
       });
     },
   });
-  const { bytes, signature } = await admin.keypair.signTransaction(
+  const { bytes, signature } = await adminKeypair.signTransaction(
     fromBase64(unsignedBytes),
   );
   const resp = await suiClient.executeTransaction({

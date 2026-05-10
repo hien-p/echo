@@ -2,6 +2,7 @@ import { describe, it, expect, inject } from "vitest";
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
+import { loadAccountKeypair } from "../src/utils/getNewAccount";
 
 describe("echo e2e flow", () => {
   let packageId: string;
@@ -9,6 +10,10 @@ describe("echo e2e flow", () => {
   let formOwnerCapId: string;
 
   const admin = inject("adminAccount");
+  // inject() returns a JSON-serialized snapshot — Ed25519Keypair's
+  // methods don't survive. Rebuild the keypair from the bech32 secret
+  // string so we can sign transactions locally in tests.
+  const adminKeypair = loadAccountKeypair(admin);
   const localnetPort = inject("localnetPort");
   const suiClient = new SuiGrpcClient({
     network: "localnet",
@@ -48,7 +53,7 @@ describe("echo e2e flow", () => {
     tx.setSender(admin.address);
 
     const built = await tx.build({ client: suiClient });
-    const { signature } = await admin.keypair.signTransaction(built);
+    const { signature } = await adminKeypair.signTransaction(built);
     const resp = await suiClient.executeTransaction({
       transaction: built,
       signatures: [signature],
@@ -79,7 +84,7 @@ describe("echo e2e flow", () => {
     tx.setSender(admin.address);
 
     const built = await tx.build({ client: suiClient });
-    const { signature } = await admin.keypair.signTransaction(built);
+    const { signature } = await adminKeypair.signTransaction(built);
     const resp = await suiClient.executeTransaction({
       transaction: built,
       signatures: [signature],
@@ -101,7 +106,7 @@ describe("echo e2e flow", () => {
     tx.setSender(admin.address);
 
     const built = await tx.build({ client: suiClient });
-    const { signature } = await admin.keypair.signTransaction(built);
+    const { signature } = await adminKeypair.signTransaction(built);
     const resp = await suiClient.executeTransaction({
       transaction: built,
       signatures: [signature],
