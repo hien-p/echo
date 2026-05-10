@@ -6,6 +6,7 @@ import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import { FormFieldInput } from "./FormFieldInput";
+import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import {
   PrivacyTier,
   buildSubmitAnonymousTx,
@@ -14,6 +15,7 @@ import {
   deriveCommitment,
   encryptForTier,
   executeSponsored,
+  executeSponsoredWithKeypair,
   getSealClient,
   readJsonViaAggregator,
   tierIdentity,
@@ -248,9 +250,18 @@ function SubmitForm({
     return null;
   };
 
-  const submit = async () => {
+  // Walletless mode: when the respondent hasn't connected a wallet, we
+  // generate a one-shot Ed25519 keypair locally, use it to sign the
+  // sponsored tx, and discard it. The keypair never persists; its Sui
+  // address is what shows up on chain as the submitter (or, for
+  // anonymous submissions, the input to the nullifier hash). Only valid
+  // for Public tier (Seal-tier submissions still encrypt to the form's
+  // identity which doesn't depend on the submitter wallet, so there's
+  // no fundamental block — but we keep the walletless path Public-only
+  // for now to avoid surprising users about Seal trust assumptions).
+  const submit = async (mode: "wallet" | "walletless" = "wallet") => {
     setStatus({ kind: "idle" });
-    if (!accountAddress) {
+    if (mode === "wallet" && !accountAddress) {
       setStatus({ kind: "error", message: "Connect a wallet first." });
       return;
     }
@@ -316,19 +327,45 @@ function SubmitForm({
         blobId = out.blobId;
       }
 
+      // Spin up an ephemeral keypair for walletless mode. The submitter
+      // address shown on chain is whatever this keypair derives to.
+      const ephemeralKeypair =
+        mode === "walletless" ? new Ed25519Keypair() : null;
+      const ephemeralAddress = ephemeralKeypair
+        ? ephemeralKeypair.getPublicKey().toSuiAddress()
+        : null;
+
       let commitment: Uint8Array | null = null;
       if (anonymous) {
         setStatus({
           kind: "submitting",
           step: "Deriving anonymous nullifier…",
         });
-        commitment = await deriveCommitment({
-          formId,
-          walletAddress: accountAddress,
-          signer: dAppKit as unknown as Parameters<
-            typeof deriveCommitment
-          >[0]["signer"],
-        });
+        if (mode === "walletless" && ephemeralKeypair) {
+          // Walletless anonymous: nullifier source is the ephemeral
+          // key's signature over the canonical message. Each fresh
+          // submission gets a different commitment — chain-level
+          // dedupe doesn't apply, but for a Public tier walletless
+          // form that's the expected demo behavior.
+          const { canonicalMessage } = await import("@/lib/echo/nullifier");
+          const msg = canonicalMessage(formId);
+          const { signature } = await ephemeralKeypair.signPersonalMessage(
+            new TextEncoder().encode(msg),
+          );
+          // SHA-256 of the raw signature bytes (matches deriveCommitment's
+          // shape; we hash a raw blob since there's no wallet origin).
+          const sigBytes = new TextEncoder().encode(signature);
+          const hash = await crypto.subtle.digest("SHA-256", sigBytes);
+          commitment = new Uint8Array(hash);
+        } else {
+          commitment = await deriveCommitment({
+            formId,
+            walletAddress: accountAddress!,
+            signer: dAppKit as unknown as Parameters<
+              typeof deriveCommitment
+            >[0]["signer"],
+          });
+        }
       }
 
       setStatus({
@@ -348,12 +385,20 @@ function SubmitForm({
             payloadBlobId: blobId,
           });
 
-      const { digest } = await executeSponsored({
-        tx,
-        sender: accountAddress,
-        suiClient,
-        dAppKit,
-      });
+      const { digest } =
+        mode === "walletless" && ephemeralKeypair
+          ? await executeSponsoredWithKeypair({
+              tx,
+              keypair: ephemeralKeypair,
+              suiClient,
+            })
+          : await executeSponsored({
+              tx,
+              sender: accountAddress!,
+              suiClient,
+              dAppKit,
+            });
+      void ephemeralAddress; // intentionally not surfaced to the UI
       setStatus({ kind: "submitted", digest });
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
@@ -427,23 +472,47 @@ function SubmitForm({
             Next →
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={!accountAddress || status.kind === "submitting"}
-            className={cn(
-              "border rounded px-4 py-2 font-medium ml-auto",
-              accountAddress && status.kind !== "submitting"
-                ? "bg-foreground text-background hover:opacity-90"
-                : "opacity-60 cursor-not-allowed",
+          <div className="ml-auto flex flex-col items-end gap-1.5">
+            <div className="flex items-center gap-2">
+              {/* Walletless path: only offered for Public tier today.
+                  Encrypted tiers still need the wallet because anonymous
+                  + encrypted is a more complex trust story. */}
+              {!accountAddress &&
+                privacyTier === PrivacyTier.Public &&
+                status.kind !== "submitting" && (
+                  <button
+                    type="button"
+                    onClick={() => void submit("walletless")}
+                    className="border rounded px-3 py-2 text-sm hover:bg-accent"
+                    title="Echo generates a one-time keypair locally, signs the sponsored tx, and discards it. No wallet needed."
+                  >
+                    Submit without wallet
+                  </button>
+                )}
+              <button
+                type="button"
+                onClick={() => void submit("wallet")}
+                disabled={!accountAddress || status.kind === "submitting"}
+                className={cn(
+                  "border rounded px-4 py-2 font-medium",
+                  accountAddress && status.kind !== "submitting"
+                    ? "bg-foreground text-background hover:opacity-90"
+                    : "opacity-60 cursor-not-allowed",
+                )}
+              >
+                {status.kind === "submitting"
+                  ? status.step
+                  : accountAddress
+                    ? "Submit"
+                    : "Connect wallet to submit"}
+              </button>
+            </div>
+            {!accountAddress && privacyTier === PrivacyTier.Public && (
+              <p className="text-xs text-muted-foreground">
+                Gas is sponsored by Enoki — you don&apos;t need any SUI.
+              </p>
             )}
-          >
-            {status.kind === "submitting"
-              ? status.step
-              : accountAddress
-                ? "Submit"
-                : "Connect wallet to submit"}
-          </button>
+          </div>
         )}
       </div>
 

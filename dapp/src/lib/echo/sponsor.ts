@@ -112,6 +112,80 @@ export async function executeSponsored(args: {
   return { digest: finalDigest };
 }
 
+/**
+ * Walletless sibling of `executeSponsored` — signs the sponsored tx with
+ * a fresh client-side Ed25519 keypair instead of dApp Kit. Used when a
+ * respondent submits a public form without connecting MetaMask/Slush:
+ * the keypair is generated, used once, then thrown away. The Sui address
+ * derived from it appears as the on-chain `submitter`; for anonymous
+ * submissions it doesn't matter (the nullifier hash is what's recorded).
+ *
+ * Caller passes the keypair so anonymous-mode flows can also use it to
+ * sign the deterministic nullifier message.
+ */
+export async function executeSponsoredWithKeypair(args: {
+  tx: Transaction;
+  keypair: import("@mysten/sui/keypairs/ed25519").Ed25519Keypair;
+  suiClient: ClientWithCoreApi;
+  waitForEffects?: boolean;
+}): Promise<SponsoredResult> {
+  const senderAddress = args.keypair.getPublicKey().toSuiAddress();
+  const txKindBytes = await args.tx.build({
+    client: args.suiClient,
+    onlyTransactionKind: true,
+  });
+  const transactionKindBytes = uint8ArrayToBase64(txKindBytes);
+
+  const createResp = await fetch(apiUrl("/api/sponsor"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      transactionKindBytes,
+      sender: senderAddress,
+    }),
+  });
+  if (!createResp.ok) {
+    const err = await createResp.json().catch(() => ({}));
+    throw new Error(
+      (err as { error?: string }).error ??
+        `Sponsor create HTTP ${createResp.status}`,
+    );
+  }
+  const { bytes, digest } = (await createResp.json()) as {
+    bytes: string;
+    digest: string;
+  };
+
+  // Decode base64 → Uint8Array → sign with the ephemeral keypair.
+  const sponsoredBytes = base64ToUint8Array(bytes);
+  const { signature } = await args.keypair.signTransaction(sponsoredBytes);
+
+  const execResp = await fetch(apiUrl("/api/sponsor/execute"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ digest, signature }),
+  });
+  if (!execResp.ok) {
+    const err = await execResp.json().catch(() => ({}));
+    throw new Error(
+      (err as { error?: string }).error ??
+        `Sponsor execute HTTP ${execResp.status}`,
+    );
+  }
+  const { digest: finalDigest } = (await execResp.json()) as { digest: string };
+  return { digest: finalDigest };
+}
+
+function base64ToUint8Array(b64: string): Uint8Array {
+  const binary =
+    typeof atob !== "undefined"
+      ? atob(b64)
+      : Buffer.from(b64, "base64").toString("binary");
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);

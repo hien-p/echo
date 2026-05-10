@@ -37,7 +37,7 @@ export {
   resolveAddressToName,
   shortAddress,
 } from "./suins";
-export { executeSponsored } from "./sponsor";
+export { executeSponsored, executeSponsoredWithKeypair } from "./sponsor";
 export {
   buildCreateFormTx,
   buildSubmitTx,
