@@ -37,6 +37,10 @@ describe("echo e2e flow", () => {
         tx.pure.u8(0),
         tx.pure.u64(0n),
         tx.pure.string(""),
+        // extra_admins: vector<address>. Empty for single-admin (sender)
+        // public forms; tests for multi-admin minting live in the Move
+        // unit tests under move/echo/tests/.
+        tx.pure.vector("address", []),
         tx.object(SUI_CLOCK_OBJECT_ID),
       ],
     });
