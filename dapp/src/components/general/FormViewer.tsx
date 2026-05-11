@@ -527,7 +527,9 @@ function Takeover({
 
       <FooterChrome
         canGoBack={idx > 0}
-        canGoNext={idx < totalSteps - 1 && (stepKind !== "question" || isCurrentValid)}
+        canGoNext={
+          idx < totalSteps - 1 && (stepKind !== "question" || isCurrentValid)
+        }
         onBack={goBack}
         onNext={goNext}
       />
@@ -799,7 +801,10 @@ function SubmittedTakeover({
         </button>
         <p className="mt-4 text-[11px] text-zinc-600">
           Powered by{" "}
-          <Link href="/" className="text-zinc-400 underline hover:text-zinc-200">
+          <Link
+            href="/"
+            className="text-zinc-400 underline hover:text-zinc-200"
+          >
             Echo
           </Link>{" "}
           · forms on Sui · Walrus · Seal
@@ -911,11 +916,7 @@ function TakeoverInput({
             { value: "no", label: "No" },
           ]}
           selected={
-            value?.kind === "checkbox"
-              ? value.value
-                ? ["yes"]
-                : ["no"]
-              : []
+            value?.kind === "checkbox" ? (value.value ? ["yes"] : ["no"]) : []
           }
           multi={false}
           onToggle={(v) => {
