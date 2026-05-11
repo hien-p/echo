@@ -1,0 +1,22 @@
+{
+  "headers": {
+    "/_next/static/chunks/*": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    }
+  },
+  "routes": {
+    "/forms/*": "/forms/_/index.html",
+    "/forms/*/": "/forms/_/index.html",
+    "/forms/*/admin": "/forms/_/admin/index.html",
+    "/forms/*/admin/": "/forms/_/admin/index.html"
+  },
+  "metadata": {
+    "link": "https://github.com/hien-p/echo",
+    "image_url": null,
+    "description": "Decentralized feedback & form platform on Sui + Walrus + Seal",
+    "project_url": null,
+    "creator": null
+  },
+  "site_name": "My Walrus Site",
+  "object_id": "0x1be8f3fe5dc456cfd69c4c6a6f714608da770af551f34d6164d062583af43627"
+}
