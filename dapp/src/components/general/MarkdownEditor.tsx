@@ -14,16 +14,23 @@ import { MarkdownView } from "./MarkdownView";
 /**
  * Build the URL we embed in markdown for an uploaded blob.
  *
- * Goes through our own /api/walrus/blob/<id> edge proxy instead of the
- * raw aggregator. The aggregators serve bytes with `x-content-type-
- * options: nosniff` and no `content-type` header, which Chrome
- * interprets as "do NOT render this in <img>" — every direct embed
- * silently failed. The proxy sniffs the magic bytes and re-emits a
- * proper image/* content-type so the markdown preview actually shows
- * the image.
+ * Routes through our own /api/walrus/blob/<id> edge proxy instead of
+ * the raw aggregator. The aggregators serve blob bytes with
+ * `x-content-type-options: nosniff` and no `content-type` header, which
+ * Chrome interprets as "do NOT render this in <img>" — every direct
+ * embed silently failed. The proxy sniffs the magic bytes and re-emits
+ * a proper image/* content-type so the markdown actually renders.
+ *
+ * Returns an ABSOLUTE URL (pinned to the current origin) so the
+ * markdown is portable — paste the answer into a GitHub README, blog,
+ * Notion page, or any other site and the embed still works because
+ * the <img> can fetch back to our hosted proxy. A relative URL would
+ * have resolved to whatever domain the markdown was pasted on and
+ * 404'd outside Echo.
  */
 function imageProxyUrl(blobId: string): string {
-  return `/api/walrus/blob/${blobId}`;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/api/walrus/blob/${blobId}`;
 }
 
 /**
