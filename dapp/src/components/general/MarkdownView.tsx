@@ -32,38 +32,29 @@ export function MarkdownView({ source }: { source: string }) {
               </a>
             );
           },
-          // Constrain image size, keep alt text accessible. Wrap in a sized
-          // figure so the slot is reserved while the image is fetching —
-          // otherwise lazy-loaded blobs can collapse to a sliver before
-          // their intrinsic dimensions arrive (the "tiny dot" preview bug).
+          // Constrain image size, keep alt text accessible. Inline styles
+          // (instead of Tailwind classes) so we don't get bitten by the
+          // project's t-shirt-key spacing shadowing that broke max-w-* /
+          // max-h-* earlier in this viewer's debugging.
           img({ src, alt }) {
-            if (!src) return null;
-            const url = typeof src === "string" ? src : undefined;
+            if (!src || typeof src !== "string") return null;
             return (
-              <span className="my-2 inline-flex flex-col gap-1">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={url}
-                  alt={alt ?? ""}
-                  className="block max-h-72 max-w-full min-h-[120px] rounded border bg-zinc-900/50 object-contain"
-                  loading="lazy"
-                  onError={(e) => {
-                    // Surface a visible fallback when the blob fails to
-                    // load — far better than the silent empty box that
-                    // made image upload look broken end-to-end.
-                    const img = e.currentTarget;
-                    img.style.display = "none";
-                    const next = img.nextElementSibling;
-                    if (next instanceof HTMLElement) next.style.display = "";
-                  }}
-                />
-                <span
-                  className="hidden text-xs text-rose-300"
-                  aria-hidden="true"
-                >
-                  ⚠ Image failed to load: {alt || url}
-                </span>
-              </span>
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={src}
+                alt={alt ?? ""}
+                style={{
+                  display: "block",
+                  maxWidth: "100%",
+                  maxHeight: "18rem",
+                  marginTop: "0.5rem",
+                  marginBottom: "0.5rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid rgb(63 63 70)",
+                  backgroundColor: "rgb(24 24 27)",
+                }}
+                loading="lazy"
+              />
             );
           },
           // Code blocks get a subtle bg.

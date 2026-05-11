@@ -11,15 +11,19 @@ import { cn } from "@/lib/utils";
 import { uploadBytesViaPublisher } from "@/lib/echo/walrus";
 import { MarkdownView } from "./MarkdownView";
 
-const TESTNET_AGGREGATOR = "https://aggregator.walrus-testnet.walrus.space";
-const MAINNET_AGGREGATOR = "https://aggregator.walrus.atalma.io";
-
-function aggregatorUrl(blobId: string): string {
-  const base =
-    process.env.NEXT_PUBLIC_WALRUS_NETWORK === "mainnet"
-      ? MAINNET_AGGREGATOR
-      : TESTNET_AGGREGATOR;
-  return `${base}/v1/blobs/${blobId}`;
+/**
+ * Build the URL we embed in markdown for an uploaded blob.
+ *
+ * Goes through our own /api/walrus/blob/<id> edge proxy instead of the
+ * raw aggregator. The aggregators serve bytes with `x-content-type-
+ * options: nosniff` and no `content-type` header, which Chrome
+ * interprets as "do NOT render this in <img>" — every direct embed
+ * silently failed. The proxy sniffs the magic bytes and re-emits a
+ * proper image/* content-type so the markdown preview actually shows
+ * the image.
+ */
+function imageProxyUrl(blobId: string): string {
+  return `/api/walrus/blob/${blobId}`;
 }
 
 /**
@@ -101,7 +105,7 @@ export function MarkdownEditor({
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const result = await uploadBytesViaPublisher(bytes);
-      const final = `![${file.name}](${aggregatorUrl(result.blobId)})`;
+      const final = `![${file.name}](${imageProxyUrl(result.blobId)})`;
       // Read latest value via the ref so we don't race a typed-while-
       // uploading edit; replace this specific placeholder with the
       // final markdown.
