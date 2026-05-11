@@ -51,7 +51,7 @@ export function MarkdownEditor({
   value,
   onChange,
   placeholder,
-  minHeight = 120,
+  minHeight = 280,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -145,23 +145,53 @@ export function MarkdownEditor({
   };
 
   return (
-    <div className="border rounded flex flex-col">
-      <div className="flex items-center justify-between gap-2 px-2 py-1 border-b text-xs flex-wrap">
-        <div className="flex items-center gap-1">
+    <div className="flex flex-col rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-zinc-800 text-xs">
+        <div className="flex items-center gap-0.5">
           <ToolbarButton
-            label="Bold"
+            label="Bold (⌘B)"
             disabled={tab !== "edit"}
             onClick={() => wrapSelection("**")}
           >
-            <Bold size={12} />
+            <Bold size={14} />
           </ToolbarButton>
           <ToolbarButton
-            label="Italic"
+            label="Italic (⌘I)"
             disabled={tab !== "edit"}
             onClick={() => wrapSelection("*")}
           >
-            <Italic size={12} />
+            <Italic size={14} />
           </ToolbarButton>
+          <span className="mx-1 h-4 w-px bg-zinc-800" />
+          <ToolbarButton
+            label="Heading"
+            disabled={tab !== "edit"}
+            onClick={() => insertAtCursor("\n## ")}
+          >
+            <span className="font-bold text-[13px] leading-none">H</span>
+          </ToolbarButton>
+          <ToolbarButton
+            label="Quote"
+            disabled={tab !== "edit"}
+            onClick={() => insertAtCursor("\n> ")}
+          >
+            <span className="text-[14px] leading-none">&ldquo;</span>
+          </ToolbarButton>
+          <ToolbarButton
+            label="List"
+            disabled={tab !== "edit"}
+            onClick={() => insertAtCursor("\n- ")}
+          >
+            <span className="text-[14px] leading-none">•</span>
+          </ToolbarButton>
+          <ToolbarButton
+            label="Code"
+            disabled={tab !== "edit"}
+            onClick={() => wrapSelection("`")}
+          >
+            <span className="font-mono text-[12px] leading-none">{"</>"}</span>
+          </ToolbarButton>
+          <span className="mx-1 h-4 w-px bg-zinc-800" />
           <ToolbarButton
             label="Link"
             disabled={tab !== "edit"}
@@ -171,10 +201,10 @@ export function MarkdownEditor({
               wrapSelection("[", `](${url})`);
             }}
           >
-            <LinkIcon size={12} />
+            <LinkIcon size={14} />
           </ToolbarButton>
           <ToolbarButton
-            label="Image"
+            label="Image (or drop / paste)"
             disabled={tab !== "edit" || uploading}
             onClick={() => {
               const input = document.createElement("input");
@@ -187,7 +217,7 @@ export function MarkdownEditor({
               input.click();
             }}
           >
-            <ImageIcon size={12} />
+            <ImageIcon size={14} />
           </ToolbarButton>
         </div>
         <div className="flex items-center gap-1">
@@ -213,14 +243,14 @@ export function MarkdownEditor({
           onDragOver={(e) => e.preventDefault()}
           placeholder={
             placeholder ??
-            "Markdown supported. **bold**, *italic*, [link](url), ![alt](image). Drop or paste images to upload to Walrus."
+            "Write your answer in markdown.\n\n**bold**, *italic*, # heading, > quote, `code`, [link](url).\n\nDrop or paste an image and we'll upload it to Walrus, then insert ![alt](url) at your cursor."
           }
-          className="w-full px-2 py-2 outline-none resize-y bg-transparent"
+          className="w-full resize-y bg-transparent px-5 py-4 text-base leading-[1.7] text-zinc-100 placeholder:text-zinc-600 outline-none focus:placeholder:text-zinc-700"
           style={{ minHeight }}
         />
       ) : (
         <div
-          className="p-3 text-sm leading-relaxed [&_img]:my-2 [&_img]:max-h-72 [&_img]:rounded [&_img]:border [&_img]:border-zinc-700 [&_img]:bg-zinc-900 [&_a]:underline [&_a]:text-blue-400 hover:[&_a]:text-blue-300 [&_p]:my-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:ml-6 [&_ol]:list-decimal [&_ol]:ml-6"
+          className="px-5 py-4 text-base leading-[1.7] text-zinc-100 [&_p]:my-3 [&_img]:my-3 [&_img]:max-h-[420px] [&_img]:rounded-lg [&_img]:border [&_img]:border-zinc-800 [&_img]:bg-zinc-900 [&_a]:font-medium [&_a]:text-blue-400 [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:text-blue-300 [&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:tracking-tight [&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-zinc-700 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-zinc-300 [&_code]:rounded [&_code]:bg-zinc-800 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-[0.9em] [&_code]:font-mono [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-zinc-800 [&_pre]:bg-zinc-950 [&_pre]:p-3 [&_pre]:text-sm [&_hr]:my-6 [&_hr]:border-zinc-800"
           style={{ minHeight }}
         >
           {value.trim() ? (
@@ -233,12 +263,17 @@ export function MarkdownEditor({
         </div>
       )}
 
-      <div className="px-2 py-1 border-t text-[10px] text-muted-foreground flex items-center justify-between gap-2">
-        <span>
-          Markdown · drop or paste images to upload to Walrus
-          {uploading && " · uploading…"}
+      <div className="flex items-center justify-between gap-2 border-t border-zinc-800 px-3 py-2 text-[11px] text-zinc-500">
+        <span className="flex items-center gap-2">
+          <span>Markdown · drop or paste images</span>
+          {uploading && (
+            <span className="inline-flex items-center gap-1.5 text-blue-400">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
+              uploading to Walrus…
+            </span>
+          )}
         </span>
-        {error && <span className="text-destructive">{error}</span>}
+        {error && <span className="text-rose-400">{error}</span>}
       </div>
     </div>
   );
@@ -263,8 +298,10 @@ function ToolbarButton({
       title={label}
       aria-label={label}
       className={cn(
-        "p-1 rounded",
-        disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-accent",
+        "inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-300 transition-colors",
+        disabled
+          ? "cursor-not-allowed opacity-30"
+          : "hover:bg-zinc-800 hover:text-zinc-50",
       )}
     >
       {children}
@@ -286,10 +323,10 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "px-2 py-0.5 rounded",
+        "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
         active
-          ? "bg-foreground text-background"
-          : "text-muted-foreground hover:bg-accent",
+          ? "bg-zinc-800 text-zinc-50"
+          : "text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-200",
       )}
     >
       {children}

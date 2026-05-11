@@ -868,12 +868,10 @@ function TakeoverInput({
       );
     case "rich_text":
       return (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50">
-          <MarkdownEditor
-            value={value?.kind === "text" ? value.value : ""}
-            onChange={(next) => onChange({ kind: "text", value: next })}
-          />
-        </div>
+        <MarkdownEditor
+          value={value?.kind === "text" ? value.value : ""}
+          onChange={(next) => onChange({ kind: "text", value: next })}
+        />
       );
     case "single_select":
     case "dropdown":
