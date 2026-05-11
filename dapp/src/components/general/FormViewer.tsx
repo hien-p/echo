@@ -1,13 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
+import { ChevronDown, ChevronUp, Check, Lock } from "lucide-react";
+import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
-import { FormFieldInput } from "./FormFieldInput";
-import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import { MarkdownEditor } from "./MarkdownEditor";
 import {
   PrivacyTier,
   buildSubmitAnonymousTx,
@@ -86,13 +94,17 @@ export const FormViewer = ({ formId }: { formId: string }) => {
   });
 
   if (formQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading form…</p>;
+    return (
+      <div className="flex min-h-[calc(100dvh-0px)] items-center justify-center bg-zinc-950 text-zinc-500">
+        Loading form…
+      </div>
+    );
   }
   if (formQuery.error) {
     return (
-      <p className="text-sm text-destructive">
+      <div className="flex min-h-[calc(100dvh-0px)] items-center justify-center bg-zinc-950 px-6 text-center text-sm text-rose-400">
         Failed to load: {(formQuery.error as Error).message}
-      </p>
+      </div>
     );
   }
   if (!formQuery.data) return null;
@@ -101,73 +113,58 @@ export const FormViewer = ({ formId }: { formId: string }) => {
   const isOpen = onChain.status === 1;
 
   return (
-    // Outer page surface — neutral background with vertical breathing room.
-    // Form lives inside a centered card, Typeform/Google-Forms style.
-    <div className="-mx-2xs -my-2xs min-h-[calc(100dvh-0px)] bg-muted/30 px-4 py-10 sm:py-16">
-      <div className="mx-auto max-w-[680px]">
-        {/* Card surface — soft shadow, generous padding, accent stripe on top
-            so the brand is felt without dragging the app chrome back in. */}
-        <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-          <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-foreground to-emerald-500" />
-          <div className="flex flex-col gap-8 p-6 sm:p-10">
-            <header className="flex flex-col gap-3">
-              <h1 className="text-3xl font-semibold tracking-tight leading-tight">
-                {metadata.title}
-              </h1>
-              {metadata.description && (
-                <p className="text-base text-muted-foreground leading-relaxed">
-                  {metadata.description}
-                </p>
-              )}
-              {/* Tier badge for non-Public — explicit trust signal so the
-                  respondent knows what model they're submitting under. */}
-              {onChain.privacy_tier !== 0 && (
-                <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 w-fit font-medium">
-                  🔒 {TIER_LABELS[onChain.privacy_tier] ?? "encrypted"} · Seal
-                </span>
-              )}
-            </header>
+    <TakeoverShell>
+      {!isOpen ? (
+        <ClosedNotice
+          title={metadata.title}
+          status={STATUS_LABELS[onChain.status] ?? "unknown"}
+        />
+      ) : (
+        <GatedTakeover
+          formId={formId}
+          packageId={packageId}
+          schema={schema}
+          metadata={metadata}
+          schemaVersion={Number(onChain.schema_version)}
+          privacyTier={onChain.privacy_tier}
+          unlockMs={onChain.unlock_ms}
+          conditionalPolicyId={onChain.conditional_policy_id}
+          thresholdN={onChain.threshold_n}
+          dAppKit={dAppKit}
+          suiClient={suiClient}
+          accountAddress={account?.address}
+        />
+      )}
+    </TakeoverShell>
+  );
+};
 
-            {!isOpen ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900 p-4 text-sm text-amber-800 dark:text-amber-200">
-                This form isn&apos;t accepting submissions right now (
-                {STATUS_LABELS[onChain.status] ?? "unknown"}).
-              </div>
-            ) : (
-              <GatedSubmit
-                formId={formId}
-                packageId={packageId}
-                schema={schema}
-                schemaVersion={Number(onChain.schema_version)}
-                privacyTier={onChain.privacy_tier}
-                unlockMs={onChain.unlock_ms}
-                conditionalPolicyId={onChain.conditional_policy_id}
-                thresholdN={onChain.threshold_n}
-                dAppKit={dAppKit}
-                suiClient={suiClient}
-                accountAddress={account?.address}
-              />
-            )}
-          </div>
-        </div>
-        {/* Subtle attribution — respondents know what platform they're on
-            without the full app chrome competing for attention. */}
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          Powered by{" "}
-          <Link href="/" className="font-medium underline hover:text-foreground">
-            Echo
-          </Link>{" "}
-          · forms on Sui · Walrus · Seal
+function TakeoverShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="-mx-2xs -my-2xs relative min-h-[calc(100dvh-0px)] bg-zinc-950 text-zinc-100 antialiased">
+      {children}
+    </div>
+  );
+}
+
+function ClosedNotice({ title, status }: { title: string; status: string }) {
+  return (
+    <div className="flex min-h-[calc(100dvh-0px)] items-center justify-center px-6">
+      <div className="max-w-md text-center">
+        <h1 className="text-2xl font-semibold text-zinc-100">{title}</h1>
+        <p className="mt-3 text-sm text-zinc-400">
+          This form isn&apos;t accepting submissions right now ({status}).
         </p>
       </div>
     </div>
   );
-};
+}
 
-interface GatedSubmitProps {
+interface GatedProps {
   formId: string;
   packageId: string;
   schema: FormSchema;
+  metadata: FormMetadata;
   schemaVersion: number;
   privacyTier: number;
   unlockMs: string;
@@ -178,7 +175,7 @@ interface GatedSubmitProps {
   accountAddress?: string;
 }
 
-function GatedSubmit(props: GatedSubmitProps) {
+function GatedTakeover(props: GatedProps) {
   const { schema, accountAddress, suiClient } = props;
   const gating = schema.gating;
 
@@ -196,32 +193,37 @@ function GatedSubmit(props: GatedSubmitProps) {
 
   if (gating && accountAddress && gateQuery.data && !gateQuery.data.ok) {
     return (
-      <div className="border rounded p-3 bg-amber-50 dark:bg-amber-950/30 flex flex-col gap-2">
-        <p className="text-sm text-amber-800 dark:text-amber-300">
-          🔒 {gateQuery.data.reason}
-        </p>
-        <button
-          type="button"
-          onClick={() => gateQuery.refetch()}
-          disabled={gateQuery.isFetching}
-          className={cn(
-            "border rounded px-3 py-1 text-xs w-fit",
-            gateQuery.isFetching ? "opacity-60" : "hover:bg-accent",
-          )}
-        >
-          {gateQuery.isFetching ? "Checking…" : "Verify again"}
-        </button>
+      <div className="flex min-h-[calc(100dvh-0px)] items-center justify-center px-6">
+        <div className="max-w-md rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 text-center">
+          <Lock size={28} className="mx-auto text-amber-400" />
+          <p className="mt-4 text-sm text-amber-100">{gateQuery.data.reason}</p>
+          <button
+            type="button"
+            onClick={() => gateQuery.refetch()}
+            disabled={gateQuery.isFetching}
+            className="mt-5 rounded-full bg-amber-400 px-5 py-2 text-xs font-semibold text-zinc-950 hover:bg-amber-300 disabled:opacity-60"
+          >
+            {gateQuery.isFetching ? "Checking…" : "Verify again"}
+          </button>
+        </div>
       </div>
     );
   }
 
-  return <SubmitForm {...props} />;
+  return <Takeover {...props} />;
 }
 
-function SubmitForm({
+type SubmitStatus =
+  | { kind: "idle" }
+  | { kind: "submitting"; step: string }
+  | { kind: "submitted"; digest: string }
+  | { kind: "error"; message: string };
+
+function Takeover({
   formId,
   packageId,
   schema,
+  metadata,
   schemaVersion,
   privacyTier,
   unlockMs,
@@ -230,29 +232,63 @@ function SubmitForm({
   dAppKit,
   suiClient,
   accountAddress,
-}: GatedSubmitProps) {
+}: GatedProps) {
   const [answers, setAnswers] = useState<Record<string, SubmissionAnswer>>({});
   const [anonymous, setAnonymous] = useState(false);
-  const [pageIdx, setPageIdx] = useState(0);
-  const [status, setStatus] = useState<
-    | { kind: "idle" }
-    | { kind: "submitting"; step: string }
-    | { kind: "submitted"; digest: string }
-    | { kind: "error"; message: string }
-  >({ kind: "idle" });
+  const [idx, setIdx] = useState(0);
+  const [status, setStatus] = useState<SubmitStatus>({ kind: "idle" });
 
-  const pageNumbers = Array.from(
-    new Set(schema.fields.map((f) => f.page ?? 0)),
-  ).sort((a, b) => a - b);
-  const currentPage = pageNumbers[pageIdx] ?? 0;
-  const totalPages = pageNumbers.length;
-  const isLastPage = pageIdx === totalPages - 1;
+  const visibleFields = useMemo(
+    () => schema.fields.filter((f) => isFieldVisible(f, answers)),
+    [schema.fields, answers],
+  );
 
-  const setAnswer = (id: string, value: SubmissionAnswer) =>
-    setAnswers((curr) => ({ ...curr, [id]: value }));
+  // Steps = intro (0) + each visible question + review/submit. Intro is the
+  // Typeform-style cover ("Press Enter to start") that anchors the brand
+  // and tier badge before the first question. The total step count is
+  // visibleFields.length + 2 (intro + review).
+  const totalSteps = visibleFields.length + 2;
+  const stepKind: "intro" | "question" | "review" =
+    idx === 0 ? "intro" : idx <= visibleFields.length ? "question" : "review";
+  const currentField =
+    stepKind === "question" ? visibleFields[idx - 1] : undefined;
 
-  const validate = (): string | null => {
-    for (const f of schema.fields) {
+  const setAnswer = useCallback(
+    (id: string, value: SubmissionAnswer) =>
+      setAnswers((curr) => ({ ...curr, [id]: value })),
+    [],
+  );
+
+  const isCurrentValid = useMemo(() => {
+    if (stepKind !== "question" || !currentField) return true;
+    const a = answers[currentField.id];
+    if (!currentField.required) return true;
+    if (!a) return false;
+    if (a.kind === "text") return a.value.trim().length > 0;
+    if (a.kind === "choice") {
+      if (Array.isArray(a.value)) return a.value.length > 0;
+      return Boolean(a.value);
+    }
+    if (a.kind === "rating") return Boolean(a.value);
+    if (a.kind === "checkbox") return a.value === true;
+    if (a.kind === "blob") return Boolean(a.blobId);
+    if (a.kind === "date") return Boolean(a.value);
+    return true;
+  }, [stepKind, currentField, answers]);
+
+  const goBack = useCallback(() => {
+    setIdx((i) => Math.max(0, i - 1));
+    setStatus({ kind: "idle" });
+  }, []);
+
+  const goNext = useCallback(() => {
+    if (stepKind === "question" && !isCurrentValid) return;
+    setIdx((i) => Math.min(totalSteps - 1, i + 1));
+    setStatus({ kind: "idle" });
+  }, [stepKind, isCurrentValid, totalSteps]);
+
+  const validateAll = (): string | null => {
+    for (const f of visibleFields) {
       if (!f.required) continue;
       const a = answers[f.id];
       if (!a) return `Field "${f.label}" is required.`;
@@ -269,22 +305,13 @@ function SubmitForm({
     return null;
   };
 
-  // Walletless mode: when the respondent hasn't connected a wallet, we
-  // generate a one-shot Ed25519 keypair locally, use it to sign the
-  // sponsored tx, and discard it. The keypair never persists; its Sui
-  // address is what shows up on chain as the submitter (or, for
-  // anonymous submissions, the input to the nullifier hash). Only valid
-  // for Public tier (Seal-tier submissions still encrypt to the form's
-  // identity which doesn't depend on the submitter wallet, so there's
-  // no fundamental block — but we keep the walletless path Public-only
-  // for now to avoid surprising users about Seal trust assumptions).
   const submit = async (mode: "wallet" | "walletless" = "wallet") => {
     setStatus({ kind: "idle" });
     if (mode === "wallet" && !accountAddress) {
       setStatus({ kind: "error", message: "Connect a wallet first." });
       return;
     }
-    const err = validate();
+    const err = validateAll();
     if (err) {
       setStatus({ kind: "error", message: err });
       return;
@@ -328,7 +355,7 @@ function SubmitForm({
         });
         setStatus({
           kind: "submitting",
-          step: "Uploading ciphertext to Walrus (publisher)…",
+          step: "Uploading ciphertext to Walrus…",
         });
         const out = await uploadBytesViaPublisher(ciphertext);
         blobId = out.blobId;
@@ -340,14 +367,12 @@ function SubmitForm({
         }
         setStatus({
           kind: "submitting",
-          step: "Uploading payload to Walrus (publisher)…",
+          step: "Uploading payload to Walrus…",
         });
         const out = await uploadJsonViaPublisher(payload);
         blobId = out.blobId;
       }
 
-      // Spin up an ephemeral keypair for walletless mode. The submitter
-      // address shown on chain is whatever this keypair derives to.
       const ephemeralKeypair =
         mode === "walletless" ? new Ed25519Keypair() : null;
       const ephemeralAddress = ephemeralKeypair
@@ -361,20 +386,11 @@ function SubmitForm({
           step: "Deriving anonymous nullifier…",
         });
         if (mode === "walletless" && ephemeralKeypair) {
-          // Walletless anonymous: nullifier source is the ephemeral
-          // key's signature over the canonical message. Each fresh
-          // submission gets a different commitment — chain-level
-          // dedupe doesn't apply, but for a Public tier walletless
-          // form that's the expected demo behavior.
           const { canonicalMessage } = await import("@/lib/echo/nullifier");
           const msg = canonicalMessage(formId, ephemeralAddress!);
           const { signature } = await ephemeralKeypair.signPersonalMessage(
             new TextEncoder().encode(msg),
           );
-          // SHA-256 of the base64 signature string — matches the shape
-          // deriveCommitment uses for wallet-mode (it hashes the decoded
-          // bytes; close enough for the demo since walletless commitments
-          // can't be deduped across sessions anyway).
           const sigBytes = new TextEncoder().encode(signature);
           const hash = await crypto.subtle.digest("SHA-256", sigBytes);
           commitment = new Uint8Array(hash);
@@ -419,12 +435,10 @@ function SubmitForm({
               suiClient,
               dAppKit,
             });
-      void ephemeralAddress; // intentionally not surfaced to the UI
+      void ephemeralAddress;
       setStatus({ kind: "submitted", digest });
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
-      // Move's ECommitmentAlreadyUsed = 7 in echo::form. Surface a friendly
-      // message instead of the raw "MoveAbort … 7" string.
       const friendly =
         /commitments_used|abort.*\b7\b|ECommitmentAlreadyUsed/i.test(raw)
           ? "You've already submitted to this form anonymously from this wallet. Each wallet can submit anonymously once per form."
@@ -433,133 +447,306 @@ function SubmitForm({
     }
   };
 
-  const visibleFields = schema.fields
-    .filter((f) => (f.page ?? 0) === currentPage)
-    .filter((f) => isFieldVisible(f, answers));
+  // Global keyboard nav. Handled at the document level so chevron
+  // navigation works no matter which input is focused. Enter on the
+  // current question advances; ArrowUp/ArrowDown jump backwards/forwards.
+  useEffect(() => {
+    const handler = (ev: globalThis.KeyboardEvent) => {
+      const target = ev.target as HTMLElement | null;
+      const inEditable =
+        target?.tagName === "TEXTAREA" ||
+        (target?.tagName === "INPUT" &&
+          (target as HTMLInputElement).type !== "checkbox") ||
+        target?.isContentEditable;
+      if (ev.key === "ArrowDown" && !inEditable) {
+        ev.preventDefault();
+        goNext();
+      } else if (ev.key === "ArrowUp" && !inEditable) {
+        ev.preventDefault();
+        goBack();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [goBack, goNext]);
 
-  // Celebratory full-card success state — replaces the form entirely.
   if (status.kind === "submitted") {
-    return <SubmittedState digest={status.digest} onSubmitAnother={() => {
-      setAnswers({});
-      setAnonymous(false);
-      setPageIdx(0);
-      setStatus({ kind: "idle" });
-    }} />;
+    return (
+      <SubmittedTakeover
+        digest={status.digest}
+        onSubmitAnother={() => {
+          setAnswers({});
+          setAnonymous(false);
+          setIdx(0);
+          setStatus({ kind: "idle" });
+        }}
+      />
+    );
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      {totalPages > 1 && <PageProgress current={pageIdx} total={totalPages} />}
+    <div className="relative flex min-h-[calc(100dvh-0px)] flex-col">
+      <ProgressBar
+        current={idx}
+        total={totalSteps - 1 /* intro doesn't count toward % */}
+      />
 
-      <div className="flex flex-col gap-7">
-        {visibleFields.map((field) => (
-          <FormFieldInput
-            key={field.id}
-            field={field}
-            value={answers[field.id]}
-            onChange={(v) => setAnswer(field.id, v)}
-          />
-        ))}
+      <div className="flex flex-1 items-center justify-center px-6 py-16 sm:px-12">
+        <div className="w-full max-w-2xl">
+          {stepKind === "intro" && (
+            <IntroStep
+              metadata={metadata}
+              privacyTier={privacyTier}
+              questionCount={visibleFields.length}
+              onStart={goNext}
+            />
+          )}
+          {stepKind === "question" && currentField && (
+            <QuestionStep
+              field={currentField}
+              index={idx - 1}
+              total={visibleFields.length}
+              value={answers[currentField.id]}
+              onChange={(v) => setAnswer(currentField.id, v)}
+              onAdvance={goNext}
+              isValid={isCurrentValid}
+            />
+          )}
+          {stepKind === "review" && (
+            <ReviewStep
+              accountAddress={accountAddress}
+              privacyTier={privacyTier}
+              anonymous={anonymous}
+              onAnonymousChange={setAnonymous}
+              status={status}
+              onSubmit={submit}
+            />
+          )}
+        </div>
       </div>
 
-      {isLastPage && (
-        <div className="rounded-xl border bg-muted/40 p-4 flex flex-col gap-2">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <span className="relative inline-flex shrink-0 mt-0.5">
-              <input
-                type="checkbox"
-                checked={anonymous}
-                onChange={(e) => setAnonymous(e.target.checked)}
-                className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-border bg-background transition-colors checked:bg-foreground checked:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/10 focus-visible:ring-offset-2"
-              />
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-background opacity-0 peer-checked:opacity-100">
-                ✓
-              </span>
-            </span>
-            <span className="flex flex-col gap-1">
-              <span className="text-sm font-medium">Submit anonymously</span>
-              <span className="text-xs text-muted-foreground leading-relaxed">
-                Your wallet signs a one-time nullifier; only the 32-byte hash
-                hits the chain — never your address. Each wallet can submit
-                anonymously <strong>once</strong> per form.
-              </span>
-            </span>
-          </label>
-        </div>
+      <FooterChrome
+        canGoBack={idx > 0}
+        canGoNext={idx < totalSteps - 1 && (stepKind !== "question" || isCurrentValid)}
+        onBack={goBack}
+        onNext={goNext}
+      />
+    </div>
+  );
+}
+
+// ───────────────────────── Steps ─────────────────────────
+
+function IntroStep({
+  metadata,
+  privacyTier,
+  questionCount,
+  onStart,
+}: {
+  metadata: FormMetadata;
+  privacyTier: number;
+  questionCount: number;
+  onStart: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-6">
+      {privacyTier !== 0 && (
+        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+          <Lock size={11} />
+          {TIER_LABELS[privacyTier] ?? "encrypted"} · Seal
+        </span>
       )}
+      <h1 className="text-4xl font-semibold leading-tight tracking-tight text-zinc-50 sm:text-5xl">
+        {metadata.title}
+      </h1>
+      {metadata.description && (
+        <p className="text-base leading-relaxed text-zinc-400">
+          {metadata.description}
+        </p>
+      )}
+      <p className="text-xs text-zinc-500">
+        {questionCount} question{questionCount === 1 ? "" : "s"} · gas sponsored
+        by Enoki · answers stored on Walrus
+      </p>
+      <div className="mt-2 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onStart}
+          className="rounded-full bg-blue-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400"
+        >
+          Start
+        </button>
+        <span className="text-xs text-zinc-500">
+          press <KeyHint>Enter ↵</KeyHint>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function QuestionStep({
+  field,
+  index,
+  total,
+  value,
+  onChange,
+  onAdvance,
+  isValid,
+}: {
+  field: FormField;
+  index: number;
+  total: number;
+  value?: SubmissionAnswer;
+  onChange: (v: SubmissionAnswer) => void;
+  onAdvance: () => void;
+  isValid: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-6">
+      <header className="flex items-start gap-3">
+        <span className="mt-2 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-xs font-semibold text-zinc-300">
+          {index + 1}
+        </span>
+        <h2 className="text-2xl font-semibold leading-tight text-zinc-50 sm:text-3xl">
+          {field.label}
+          {field.required && (
+            <span className="ml-1 text-rose-400" aria-label="required">
+              *
+            </span>
+          )}
+        </h2>
+      </header>
+
+      <TakeoverInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        onAdvance={onAdvance}
+      />
 
       <div className="flex items-center gap-3 pt-2">
-        {pageIdx > 0 && (
+        <button
+          type="button"
+          onClick={onAdvance}
+          disabled={!isValid}
+          className={cn(
+            "rounded-full px-6 py-2.5 text-sm font-semibold shadow-lg transition",
+            isValid
+              ? "bg-blue-500 text-white shadow-blue-500/20 hover:bg-blue-400"
+              : "cursor-not-allowed bg-zinc-800 text-zinc-500 shadow-none",
+          )}
+        >
+          OK
+        </button>
+        <span className="text-xs text-zinc-500">
+          press <KeyHint>Enter ↵</KeyHint>
+        </span>
+        <span className="ml-auto text-[11px] uppercase tracking-wider text-zinc-600">
+          {index + 1} / {total}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ReviewStep({
+  accountAddress,
+  privacyTier,
+  anonymous,
+  onAnonymousChange,
+  status,
+  onSubmit,
+}: {
+  accountAddress?: string;
+  privacyTier: number;
+  anonymous: boolean;
+  onAnonymousChange: (v: boolean) => void;
+  status: SubmitStatus;
+  onSubmit: (mode?: "wallet" | "walletless") => void;
+}) {
+  const submitting = status.kind === "submitting";
+  const canWalletless =
+    !accountAddress && privacyTier === PrivacyTier.Public && !submitting;
+  return (
+    <div className="flex flex-col gap-6">
+      <h2 className="text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">
+        Ready to submit?
+      </h2>
+      <p className="text-sm leading-relaxed text-zinc-400">
+        Your answers are bundled into a single payload, uploaded to Walrus, and
+        a SubmissionRef is anchored on Sui. Gas is sponsored by Enoki — you
+        don&apos;t need any SUI in your wallet.
+      </p>
+
+      <button
+        type="button"
+        onClick={() => onAnonymousChange(!anonymous)}
+        className={cn(
+          "flex items-start gap-3 rounded-2xl border px-4 py-3 text-left transition",
+          anonymous
+            ? "border-blue-500/60 bg-blue-500/10"
+            : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-700",
+        )}
+      >
+        <span
+          className={cn(
+            "mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition",
+            anonymous
+              ? "border-blue-400 bg-blue-500 text-white"
+              : "border-zinc-700 bg-zinc-950",
+          )}
+        >
+          {anonymous && <Check size={14} strokeWidth={3} />}
+        </span>
+        <span className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-zinc-100">
+            Submit anonymously
+          </span>
+          <span className="text-xs leading-relaxed text-zinc-500">
+            Your wallet signs a one-time nullifier; only the 32-byte hash hits
+            the chain — never your address. Each wallet can submit anonymously{" "}
+            <strong className="text-zinc-300">once</strong> per form.
+          </span>
+        </span>
+      </button>
+
+      <div className="flex flex-wrap items-center gap-3 pt-2">
+        {canWalletless && (
           <button
             type="button"
-            onClick={() => setPageIdx((i) => i - 1)}
-            className="rounded-lg border px-4 py-2 text-sm hover:bg-accent transition-colors"
+            onClick={() => onSubmit("walletless")}
+            className="rounded-full border border-zinc-700 bg-zinc-900 px-5 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-600 hover:bg-zinc-800"
+            title="Echo generates a one-time keypair locally, signs the sponsored tx, and discards it. No wallet needed."
           >
-            ← Previous
+            Submit without wallet
           </button>
         )}
-        {!isLastPage ? (
-          <button
-            type="button"
-            onClick={() => setPageIdx((i) => i + 1)}
-            className="ml-auto rounded-lg bg-foreground text-background px-5 py-2 text-sm font-medium hover:opacity-90 transition-opacity shadow-sm"
-          >
-            Next →
-          </button>
-        ) : (
-          <div className="ml-auto flex flex-col items-end gap-1.5">
-            <div className="flex items-center gap-2">
-              {/* Walletless path is only offered for Public tier today —
-                  encrypted tiers still ask for a wallet so the Seal trust
-                  model isn't surprising. */}
-              {!accountAddress &&
-                privacyTier === PrivacyTier.Public &&
-                status.kind !== "submitting" && (
-                  <button
-                    type="button"
-                    onClick={() => void submit("walletless")}
-                    className="rounded-lg border px-4 py-2.5 text-sm hover:bg-accent transition-colors"
-                    title="Echo generates a one-time keypair locally, signs the sponsored tx, and discards it. No wallet needed."
-                  >
-                    Submit without wallet
-                  </button>
-                )}
-              <button
-                type="button"
-                onClick={() => void submit("wallet")}
-                disabled={!accountAddress || status.kind === "submitting"}
-                className={cn(
-                  "rounded-lg px-6 py-2.5 text-sm font-medium transition-all shadow-sm",
-                  accountAddress && status.kind !== "submitting"
-                    ? "bg-foreground text-background hover:opacity-90"
-                    : "bg-muted text-muted-foreground cursor-not-allowed",
-                )}
-              >
-                {status.kind === "submitting"
-                  ? "Submitting…"
-                  : accountAddress
-                    ? "Submit"
-                    : "Connect wallet to submit"}
-              </button>
-            </div>
-            {!accountAddress && privacyTier === PrivacyTier.Public && (
-              <p className="text-xs text-muted-foreground">
-                Gas is sponsored by Enoki — you don&apos;t need any SUI.
-              </p>
-            )}
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={() => onSubmit("wallet")}
+          disabled={!accountAddress || submitting}
+          className={cn(
+            "rounded-full px-6 py-2.5 text-sm font-semibold shadow-lg transition",
+            accountAddress && !submitting
+              ? "bg-blue-500 text-white shadow-blue-500/20 hover:bg-blue-400"
+              : "cursor-not-allowed bg-zinc-800 text-zinc-500 shadow-none",
+          )}
+        >
+          {submitting
+            ? "Submitting…"
+            : accountAddress
+              ? "Submit"
+              : "Connect wallet to submit"}
+        </button>
       </div>
 
-      {status.kind === "submitting" && (
-        <SubmitStepper
-          isPublic={privacyTier === PrivacyTier.Public}
-          step={status.step}
-          done={false}
-        />
+      {submitting && (
+        <p className="text-xs text-zinc-500">
+          {status.kind === "submitting" ? status.step : ""}
+        </p>
       )}
       {status.kind === "error" && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4 text-sm text-rose-300">
           {status.message}
         </div>
       )}
@@ -567,37 +754,7 @@ function SubmitForm({
   );
 }
 
-/**
- * Page progress indicator at top of multi-page forms. Pill chip with
- * current/total counter + a thin filled-bar showing completion.
- */
-function PageProgress({ current, total }: { current: number; total: number }) {
-  const pct = ((current + 1) / total) * 100;
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium uppercase tracking-wider text-muted-foreground">
-          Step {current + 1} of {total}
-        </span>
-        <span className="text-muted-foreground tabular-nums">
-          {Math.round(pct)}%
-        </span>
-      </div>
-      <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-foreground transition-[width] duration-300"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/**
- * Friendly post-submit screen — replaces the form entirely. Big checkmark
- * + thanks copy + tx digest + two CTAs (submit another / view source).
- */
-function SubmittedState({
+function SubmittedTakeover({
   digest,
   onSubmitAnother,
 }: {
@@ -605,152 +762,512 @@ function SubmittedState({
   onSubmitAnother: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center gap-6 py-6 text-center">
-      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="36"
-          height="36"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+    <div className="-mx-2xs -my-2xs flex min-h-[calc(100dvh-0px)] items-center justify-center bg-zinc-950 px-6 text-center">
+      <div className="flex max-w-md flex-col items-center gap-6">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+          <Check size={36} strokeWidth={2.5} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <h2 className="text-3xl font-semibold tracking-tight text-zinc-50">
+            Thanks for submitting!
+          </h2>
+          <p className="text-sm text-zinc-400">
+            Your response is on chain. The form admin can decrypt it (or read
+            plaintext for Public forms) at their convenience.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-zinc-500">
+          <span>tx</span>
+          <code className="rounded-md bg-zinc-900 px-2 py-1 font-mono text-zinc-300">
+            {digest.slice(0, 10)}…{digest.slice(-6)}
+          </code>
+          <a
+            href={`https://suiscan.xyz/testnet/tx/${digest}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 underline hover:text-blue-300"
+          >
+            view on Suiscan ↗
+          </a>
+        </div>
+        <button
+          type="button"
+          onClick={onSubmitAnother}
+          className="rounded-full border border-zinc-700 bg-zinc-900 px-5 py-2.5 text-sm font-medium text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800"
         >
-          <path d="M20 6 9 17l-5-5" />
-        </svg>
-      </div>
-      <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold tracking-tight">
-          Thanks for submitting!
-        </h2>
-        <p className="text-sm text-muted-foreground max-w-[420px]">
-          Your response is on chain. The form admin can decrypt it (or read
-          plaintext for Public forms) at their convenience.
+          Submit another response
+        </button>
+        <p className="mt-4 text-[11px] text-zinc-600">
+          Powered by{" "}
+          <Link href="/" className="text-zinc-400 underline hover:text-zinc-200">
+            Echo
+          </Link>{" "}
+          · forms on Sui · Walrus · Seal
         </p>
       </div>
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span>tx</span>
-        <code className="rounded bg-muted px-2 py-0.5 font-mono">
-          {digest.slice(0, 10)}…{digest.slice(-6)}
-        </code>
-        <a
-          href={`https://suiscan.xyz/testnet/tx/${digest}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline hover:text-foreground"
-        >
-          view on Suiscan ↗
-        </a>
-      </div>
-      <button
-        type="button"
-        onClick={onSubmitAnother}
-        className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
-      >
-        Submit another response
-      </button>
     </div>
   );
 }
 
-/**
- * Visible Seal → Walrus → Sui sequence rendered during submit. Mirrors
- * sui-stack-crm's "Commit & Encrypt" pattern — making the stack tangible
- * instead of hiding everything behind a single spinner. Public-tier
- * submissions skip the encrypt stage (greyed out).
- */
-function SubmitStepper({
-  isPublic,
-  step,
-  done,
+// ───────────────────────── Inputs (takeover variants) ─────────────────────────
+
+function TakeoverInput({
+  field,
+  value,
+  onChange,
+  onAdvance,
 }: {
-  isPublic: boolean;
-  step: string;
-  done: boolean;
+  field: FormField;
+  value?: SubmissionAnswer;
+  onChange: (v: SubmissionAnswer) => void;
+  onAdvance: () => void;
 }) {
-  // Classify the current step string into a stage so the stepper updates
-  // without re-piping discrete enum values from the submit fn.
-  const stage: "encrypt" | "upload" | "record" | "done" = done
-    ? "done"
-    : /encrypt/i.test(step)
-      ? "encrypt"
-      : /walrus|publisher/i.test(step)
-        ? "upload"
-        : /sui|chain|sponsor/i.test(step)
-          ? "record"
-          : "encrypt";
+  const onTextKey = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      onAdvance();
+    }
+  };
+  const onTextareaKey = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    // Cmd/Ctrl+Enter advances long-text — plain Enter inserts newline.
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      onAdvance();
+    }
+  };
 
-  const stages: Array<{
-    id: "encrypt" | "upload" | "record";
-    label: string;
-    sub: string;
-    skip?: boolean;
-  }> = [
-    {
-      id: "encrypt",
-      label: "Seal",
-      sub: "encrypt locally",
-      skip: isPublic,
-    },
-    { id: "upload", label: "Walrus", sub: "store ciphertext" },
-    { id: "record", label: "Sui", sub: "anchor on chain" },
-  ];
+  switch (field.type) {
+    case "short_text":
+    case "url":
+      return (
+        <AutoFocusInput
+          type={field.type === "url" ? "url" : "text"}
+          placeholder="Type your answer here…"
+          value={value?.kind === "text" ? value.value : ""}
+          onChange={(v) => onChange({ kind: "text", value: v })}
+          onKeyDown={onTextKey}
+        />
+      );
+    case "long_text":
+      return (
+        <AutoFocusTextarea
+          placeholder="Type your answer here… (⌘ + Enter to continue)"
+          value={value?.kind === "text" ? value.value : ""}
+          onChange={(v) => onChange({ kind: "text", value: v })}
+          onKeyDown={onTextareaKey}
+        />
+      );
+    case "rich_text":
+      return (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50">
+          <MarkdownEditor
+            value={value?.kind === "text" ? value.value : ""}
+            onChange={(next) => onChange({ kind: "text", value: next })}
+          />
+        </div>
+      );
+    case "single_select":
+    case "dropdown":
+      return (
+        <ChoiceList
+          options={field.options}
+          selected={
+            value?.kind === "choice" && typeof value.value === "string"
+              ? [value.value]
+              : []
+          }
+          multi={false}
+          onToggle={(v) => {
+            onChange({ kind: "choice", value: v });
+            // Auto-advance for single-select — feels like Typeform.
+            setTimeout(onAdvance, 180);
+          }}
+        />
+      );
+    case "multi_select": {
+      const arr =
+        value?.kind === "choice" && Array.isArray(value.value)
+          ? value.value
+          : [];
+      return (
+        <ChoiceList
+          options={field.options}
+          selected={arr}
+          multi
+          onToggle={(v) => {
+            const next = arr.includes(v)
+              ? arr.filter((x) => x !== v)
+              : [...arr, v];
+            onChange({ kind: "choice", value: next });
+          }}
+        />
+      );
+    }
+    case "checkbox":
+      return (
+        <ChoiceList
+          options={[
+            { value: "yes", label: "Yes" },
+            { value: "no", label: "No" },
+          ]}
+          selected={
+            value?.kind === "checkbox"
+              ? value.value
+                ? ["yes"]
+                : ["no"]
+              : []
+          }
+          multi={false}
+          onToggle={(v) => {
+            onChange({ kind: "checkbox", value: v === "yes" });
+            setTimeout(onAdvance, 180);
+          }}
+        />
+      );
+    case "rating": {
+      const scale = field.scale ?? 5;
+      const current = value?.kind === "rating" ? value.value : 0;
+      return (
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: scale }, (_, i) => i + 1).map((n) => {
+            const active = n <= current;
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => {
+                  onChange({ kind: "rating", value: n });
+                  setTimeout(onAdvance, 180);
+                }}
+                className={cn(
+                  "h-12 w-12 rounded-lg border text-base font-semibold transition",
+                  active
+                    ? "border-blue-400 bg-blue-500 text-white"
+                    : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800",
+                )}
+              >
+                {n}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+    case "date":
+    case "time":
+      return (
+        <AutoFocusInput
+          type={field.type}
+          value={value?.kind === "date" ? value.value : ""}
+          onChange={(v) => onChange({ kind: "date", value: v })}
+          onKeyDown={onTextKey}
+        />
+      );
+    case "file_upload":
+    case "screenshot":
+    case "video":
+      return (
+        <FileTakeover
+          field={field}
+          value={value?.kind === "blob" ? value : undefined}
+          onChange={onChange}
+        />
+      );
+    default:
+      return null;
+  }
+}
 
-  const order: Array<"encrypt" | "upload" | "record"> = [
-    "encrypt",
-    "upload",
-    "record",
-  ];
-  const currentIdx = stage === "done" ? 3 : order.indexOf(stage);
+function AutoFocusInput({
+  type,
+  placeholder,
+  value,
+  onChange,
+  onKeyDown,
+}: {
+  type: "text" | "url" | "date" | "time";
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+  onKeyDown: (e: ReactKeyboardEvent<HTMLInputElement>) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
+  return (
+    <input
+      ref={ref}
+      type={type}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
+      className="w-full border-0 border-b border-zinc-700 bg-transparent pb-3 text-2xl text-zinc-50 placeholder:text-zinc-600 focus:border-blue-400 focus:outline-none focus:ring-0 sm:text-3xl"
+    />
+  );
+}
+
+function AutoFocusTextarea({
+  placeholder,
+  value,
+  onChange,
+  onKeyDown,
+}: {
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+  onKeyDown: (e: ReactKeyboardEvent<HTMLTextAreaElement>) => void;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
+      rows={4}
+      className="w-full resize-y border-0 border-b border-zinc-700 bg-transparent pb-3 text-xl leading-relaxed text-zinc-50 placeholder:text-zinc-600 focus:border-blue-400 focus:outline-none focus:ring-0 sm:text-2xl"
+    />
+  );
+}
+
+function ChoiceList({
+  options,
+  selected,
+  multi,
+  onToggle,
+}: {
+  options: Array<{ value: string; label: string }>;
+  selected: string[];
+  multi: boolean;
+  onToggle: (v: string) => void;
+}) {
+  // Letter shortcut: A, B, C… up to 26. Press to toggle.
+  useEffect(() => {
+    const handler = (ev: globalThis.KeyboardEvent) => {
+      const target = ev.target as HTMLElement | null;
+      if (
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable
+      )
+        return;
+      const code = ev.key.toUpperCase().charCodeAt(0);
+      const idx = code - 65;
+      if (idx < 0 || idx >= options.length) return;
+      ev.preventDefault();
+      onToggle(options[idx].value);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [options, onToggle]);
 
   return (
-    <ol className="flex items-stretch gap-0 text-xs border rounded overflow-hidden">
-      {stages.map((s, i) => {
-        const skipped = !!s.skip;
-        const isCurrent = !skipped && i === currentIdx;
-        const isComplete = !skipped && i < currentIdx;
+    <div className="flex flex-col gap-2.5">
+      {options.map((opt, i) => {
+        const isSelected = selected.includes(opt.value);
+        const letter = String.fromCharCode(65 + i);
         return (
-          <li
-            key={s.id}
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onToggle(opt.value)}
             className={cn(
-              "flex-1 px-3 py-2 flex items-center gap-2 border-r last:border-r-0 transition",
-              skipped && "opacity-40",
-              isCurrent && "bg-amber-50 dark:bg-amber-950/30",
-              isComplete && "bg-emerald-50 dark:bg-emerald-950/30",
+              "group flex items-center gap-3 rounded-full border px-4 py-3 text-left text-base transition",
+              isSelected
+                ? "border-blue-400/70 bg-blue-500/15 text-zinc-50"
+                : "border-zinc-800 bg-zinc-900/60 text-zinc-200 hover:border-zinc-700 hover:bg-zinc-900",
             )}
           >
             <span
               className={cn(
-                "inline-flex items-center justify-center w-5 h-5 rounded-full border text-[10px] font-medium tabular-nums",
-                skipped && "border-border text-muted-foreground",
-                isCurrent &&
-                  "border-amber-400 bg-amber-100 text-amber-900 animate-pulse",
-                isComplete &&
-                  "border-emerald-400 bg-emerald-100 text-emerald-900",
-                !skipped &&
-                  !isCurrent &&
-                  !isComplete &&
-                  "border-border text-muted-foreground",
+                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold uppercase tracking-wider",
+                isSelected
+                  ? "bg-blue-500 text-white"
+                  : "bg-zinc-800 text-zinc-300 group-hover:bg-zinc-700",
               )}
             >
-              {skipped ? "—" : isComplete ? "✓" : i + 1}
+              {letter}
             </span>
-            <span className="flex flex-col leading-tight">
-              <span className="font-semibold uppercase tracking-wide text-[10px]">
-                {s.label}
-              </span>
-              <span className="text-muted-foreground text-[10px]">
-                {skipped ? "skipped" : s.sub}
-              </span>
-            </span>
-          </li>
+            <span className="flex-1">{opt.label}</span>
+            {multi && isSelected && (
+              <Check size={16} className="text-blue-300" />
+            )}
+          </button>
         );
       })}
-    </ol>
+      {multi && (
+        <p className="mt-1 text-[11px] uppercase tracking-wider text-zinc-600">
+          Select all that apply
+        </p>
+      )}
+    </div>
   );
 }
+
+function FileTakeover({
+  field,
+  value,
+  onChange,
+}: {
+  field: FormField & { type: "file_upload" | "screenshot" | "video" };
+  value?: Extract<SubmissionAnswer, { kind: "blob" }>;
+  onChange: (v: SubmissionAnswer) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingName, setPendingName] = useState<string | null>(null);
+  const accept =
+    "accept" in field && field.accept
+      ? field.accept
+      : field.type === "screenshot"
+        ? "image/*"
+        : field.type === "video"
+          ? "video/*"
+          : undefined;
+
+  const upload = async (file: File) => {
+    setError(null);
+    setUploading(true);
+    setPendingName(file.name);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const out = await uploadBytesViaPublisher(bytes);
+      onChange({
+        kind: "blob",
+        blobId: out.blobId,
+        mimeType: file.type || undefined,
+        bytes: file.size,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (value) {
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+        <Check size={18} className="text-emerald-400" />
+        <code className="flex-1 text-sm text-zinc-300">
+          {value.blobId.slice(0, 18)}…
+        </code>
+        <button
+          type="button"
+          onClick={() => onChange({ kind: "blob", blobId: "", bytes: 0 })}
+          className="text-xs text-zinc-500 underline hover:text-zinc-300"
+        >
+          replace
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-zinc-700 bg-zinc-900/20 px-6 py-10 text-center transition hover:border-zinc-600 hover:bg-zinc-900/40">
+      <input
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void upload(f);
+        }}
+      />
+      <span className="text-sm font-medium text-zinc-200">
+        {uploading
+          ? `Uploading ${pendingName ?? "…"}`
+          : `Click to upload ${
+              field.type === "screenshot"
+                ? "an image"
+                : field.type === "video"
+                  ? "a video"
+                  : "a file"
+            }`}
+      </span>
+      {accept && (
+        <span className="text-xs text-zinc-500">
+          Accepts <code>{accept}</code>
+        </span>
+      )}
+      {error && <span className="text-xs text-rose-400">{error}</span>}
+    </label>
+  );
+}
+
+// ───────────────────────── Chrome ─────────────────────────
+
+function ProgressBar({ current, total }: { current: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, (current / total) * 100) : 0;
+  return (
+    <div className="absolute left-0 right-0 top-0 h-[3px] bg-zinc-900">
+      <div
+        className="h-full bg-blue-500 transition-[width] duration-300"
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+function FooterChrome({
+  canGoBack,
+  canGoNext,
+  onBack,
+  onNext,
+}: {
+  canGoBack: boolean;
+  canGoNext: boolean;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 flex items-end justify-between gap-3 px-4 pb-4 sm:px-6 sm:pb-6">
+      <Link
+        href="/"
+        className="pointer-events-auto rounded-full bg-zinc-900/80 px-3 py-1.5 text-[11px] font-medium text-zinc-400 backdrop-blur transition hover:bg-zinc-800 hover:text-zinc-200"
+      >
+        Powered by <span className="text-zinc-200">Echo</span>
+      </Link>
+      <div className="pointer-events-auto flex overflow-hidden rounded-full bg-blue-500 shadow-lg shadow-blue-500/20">
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={!canGoBack}
+          className="px-3 py-2 text-white transition hover:bg-blue-400 disabled:opacity-40"
+          aria-label="Previous question"
+        >
+          <ChevronUp size={18} />
+        </button>
+        <span className="w-px bg-blue-400/40" />
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={!canGoNext}
+          className="px-3 py-2 text-white transition hover:bg-blue-400 disabled:opacity-40"
+          aria-label="Next question"
+        >
+          <ChevronDown size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function KeyHint({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="rounded-md bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-300">
+      {children}
+    </kbd>
+  );
+}
+
+// ───────────────────────── Helpers ─────────────────────────
 
 function parseSealServers(raw: string): { objectId: string; weight: number }[] {
   if (!raw) return [];
