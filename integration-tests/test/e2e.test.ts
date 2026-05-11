@@ -4,6 +4,44 @@ import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { loadAccountKeypair } from "../src/utils/getNewAccount";
 
+/**
+ * Localnet quirk: `executeTransaction` returns once the tx commits, but
+ * the GRPC node's object index lags by a checkpoint or two. Subsequent
+ * `tx.object(id)` calls then 404 with "Object not found". Poll
+ * `getObject` until each id resolves before letting the test continue.
+ */
+async function waitForObjects(
+  client: SuiGrpcClient,
+  ids: string[],
+  {
+    timeoutMs = 8_000,
+    intervalMs = 100,
+  }: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  const pending = new Set(ids);
+  while (pending.size > 0) {
+    if (Date.now() > deadline) {
+      throw new Error(
+        `waitForObjects timeout after ${timeoutMs}ms, still missing: ${[...pending].join(", ")}`,
+      );
+    }
+    await Promise.all(
+      [...pending].map(async (id) => {
+        try {
+          await client.getObject({ objectId: id });
+          pending.delete(id);
+        } catch {
+          /* still indexing */
+        }
+      }),
+    );
+    if (pending.size > 0) {
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+  }
+}
+
 describe("echo e2e flow", () => {
   let packageId: string;
   let formId: string;
@@ -73,6 +111,10 @@ describe("echo e2e flow", () => {
     expect(ownedCap).toBeDefined();
     formId = sharedForm!.objectId;
     formOwnerCapId = ownedCap!.objectId;
+
+    // Block until the GRPC node has indexed both objects so the next
+    // test's tx.object() resolution doesn't 404.
+    await waitForObjects(suiClient, [formId, formOwnerCapId]);
   });
 
   it("FormOwnerCap can close its own form", async () => {
@@ -91,6 +133,9 @@ describe("echo e2e flow", () => {
       include: { effects: true },
     });
     expect(resp.FailedTransaction).toBeUndefined();
+    // close_form mutates form's version — give the indexer a beat to
+    // catch up before the next test reads it.
+    await waitForObjects(suiClient, [formId]);
   });
 
   it("rejects submit on a closed form", async () => {

@@ -976,6 +976,13 @@ function TakeoverInput({
           onChange={onChange}
         />
       );
+    case "signature":
+      return (
+        <SignaturePad
+          value={value?.kind === "blob" ? value : undefined}
+          onChange={onChange}
+        />
+      );
     default:
       return null;
   }
@@ -1205,6 +1212,182 @@ function FileTakeover({
 }
 
 // ───────────────────────── Chrome ─────────────────────────
+
+function SignaturePad({
+  value,
+  onChange,
+}: {
+  value?: Extract<SubmissionAnswer, { kind: "blob" }>;
+  onChange: (v: SubmissionAnswer) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawingRef = useRef(false);
+  const lastPosRef = useRef<{ x: number; y: number } | null>(null);
+  const [hasStrokes, setHasStrokes] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Logical dimensions; the canvas is sized via CSS, the bitmap is
+  // upscaled to devicePixelRatio for crisp strokes on hi-dpi screens.
+  const W = 680;
+  const H = 220;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.scale(dpr, dpr);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#fafafa";
+    ctx.lineWidth = 2.5;
+  }, []);
+
+  const localPos = (
+    e: React.PointerEvent<HTMLCanvasElement>,
+  ): { x: number; y: number } => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * W,
+      y: ((e.clientY - rect.top) / rect.height) * H,
+    };
+  };
+
+  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drawingRef.current = true;
+    lastPosRef.current = localPos(e);
+    setHasStrokes(true);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return;
+    const ctx = canvasRef.current?.getContext("2d");
+    const last = lastPosRef.current;
+    const next = localPos(e);
+    if (!ctx || !last) return;
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    ctx.lineTo(next.x, next.y);
+    ctx.stroke();
+    lastPosRef.current = next;
+  };
+
+  const onPointerUp = () => {
+    drawingRef.current = false;
+    lastPosRef.current = null;
+  };
+
+  const clear = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasStrokes(false);
+    if (value) onChange({ kind: "blob", blobId: "", bytes: 0 });
+  };
+
+  const save = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/png"),
+      );
+      if (!blob) throw new Error("Could not export signature.");
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const out = await uploadBytesViaPublisher(bytes);
+      onChange({
+        kind: "blob",
+        blobId: out.blobId,
+        mimeType: "image/png",
+        bytes: blob.size,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (value && value.blobId) {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="rounded-lg border border-zinc-800 bg-white p-2">
+          {/* Render the stored signature back via the proxy so the
+              browser sees image/png and the trust chain is consistent
+              with rich-text image embeds. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/api/walrus/blob/${value.blobId}`}
+            alt="signature"
+            className="block h-[180px] w-full object-contain"
+          />
+        </div>
+        <div className="flex items-center gap-3 text-xs text-zinc-500">
+          <code className="rounded bg-zinc-900 px-2 py-0.5">
+            {value.blobId.slice(0, 14)}…
+          </code>
+          <button
+            type="button"
+            onClick={clear}
+            className="text-zinc-400 underline hover:text-zinc-200"
+          >
+            redraw
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <canvas
+        ref={canvasRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerUp}
+        onPointerCancel={onPointerUp}
+        className="h-[220px] w-full touch-none rounded-lg border border-zinc-800 bg-zinc-950"
+        style={{ touchAction: "none" }}
+      />
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={clear}
+          disabled={!hasStrokes || uploading}
+          className="rounded-full border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-zinc-600 hover:bg-zinc-800 disabled:opacity-40"
+        >
+          Clear
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          disabled={!hasStrokes || uploading}
+          className={cn(
+            "rounded-full px-5 py-2 text-xs font-semibold shadow-lg transition",
+            hasStrokes && !uploading
+              ? "bg-blue-500 text-white shadow-blue-500/20 hover:bg-blue-400"
+              : "cursor-not-allowed bg-zinc-800 text-zinc-500 shadow-none",
+          )}
+        >
+          {uploading ? "Uploading…" : "Save signature"}
+        </button>
+        <span className="text-[11px] text-zinc-500">
+          Sign with mouse or touch · uploads to Walrus on save
+        </span>
+      </div>
+      {error && <p className="text-xs text-rose-400">{error}</p>}
+    </div>
+  );
+}
 
 function ProgressBar({ current, total }: { current: number; total: number }) {
   const pct = total > 0 ? Math.min(100, (current / total) * 100) : 0;

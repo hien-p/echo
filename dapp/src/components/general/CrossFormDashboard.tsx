@@ -359,6 +359,76 @@ export const CrossFormDashboard = () => {
     staleTime: 5 * 60_000, // members rarely change (caps are owner-bound)
   });
 
+  // Bounty TVL — sum SUI locked across all BountyPool objects whose
+  // form_id matches one of the user's owned forms. We page through
+  // shared BountyPool objects via a getOwnedObjects on the package's
+  // bounty type (no owner filter — pools are shared) and reduce by
+  // form_id membership. Cheap because BountyPool count tracks form
+  // count, not submission count.
+  const bountyTotalsQuery = useQuery({
+    queryKey: ["echo", "dashboard-bounties", packageId, formIdsKey],
+    queryFn: async (): Promise<{ totalMist: bigint; pools: number }> => {
+      if (formCards.length === 0) return { totalMist: BigInt(0), pools: 0 };
+      const formIdSet = new Set(formCards.map((f) => f.id));
+      // Use raw RPC since the GRPC client doesn't expose a typed
+      // queryEvents helper for the BountyOpened event we want to
+      // window-scan. The fullnode REST endpoint is fine for a one-shot
+      // dashboard sum.
+      const fullnodeUrl = clientConfig.SUI_FULLNODE_URL;
+      const eventType = `${packageId}::bounty::BountyOpened`;
+      const resp = await fetch(fullnodeUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "suix_queryEvents",
+          params: [{ MoveEventType: eventType }, null, 200, true],
+        }),
+      });
+      if (!resp.ok) return { totalMist: BigInt(0), pools: 0 };
+      const json = (await resp.json()) as {
+        result?: {
+          data?: Array<{
+            parsedJson?: { pool_id?: string; form_id?: string };
+          }>;
+        };
+      };
+      const events = json.result?.data ?? [];
+      const ownedPoolIds = events
+        .filter(
+          (e) => e.parsedJson?.form_id && formIdSet.has(e.parsedJson.form_id),
+        )
+        .map((e) => e.parsedJson!.pool_id!)
+        .filter(Boolean);
+      if (ownedPoolIds.length === 0) return { totalMist: BigInt(0), pools: 0 };
+      const pools = await suiClient.getObjects({
+        objectIds: ownedPoolIds,
+        include: { json: true },
+      });
+      let totalMist = BigInt(0);
+      for (const p of pools.objects as unknown as Array<{
+        json?: { funds?: string | { value?: string } };
+      }>) {
+        const funds = p.json?.funds;
+        const raw =
+          typeof funds === "string"
+            ? funds
+            : typeof funds === "object" && funds && "value" in funds
+              ? funds.value
+              : "0";
+        try {
+          totalMist += BigInt(raw ?? "0");
+        } catch {
+          /* skip malformed */
+        }
+      }
+      return { totalMist, pools: ownedPoolIds.length };
+    },
+    enabled: formCards.length > 0 && packageId.startsWith("0x"),
+    staleTime: 30_000,
+  });
+
   // 4) Approvals per Threshold form. Calls the existing on-chain index
   //    (ApprovalPosted events) once per Threshold form with k≥2.
   const approvalsByFormQuery = useQuery({
@@ -718,6 +788,19 @@ export const CrossFormDashboard = () => {
       <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5 text-sm">
         <Metric value={formCards.length} label="forms" />
         <Metric value={statusCounts.total} label="submissions" />
+        {bountyTotalsQuery.data && bountyTotalsQuery.data.pools > 0 && (
+          <Metric
+            value={`${formatSui(bountyTotalsQuery.data.totalMist)} SUI`}
+            label={`bounty TVL (${bountyTotalsQuery.data.pools} pool${bountyTotalsQuery.data.pools === 1 ? "" : "s"})`}
+          />
+        )}
+        <Link
+          href="/insights"
+          className="text-xs text-muted-foreground underline hover:text-foreground"
+          title="Ask questions across every form's submissions (Memwal RAG)"
+        >
+          Insights →
+        </Link>
         <span className="text-border" aria-hidden>
           |
         </span>
@@ -961,7 +1044,7 @@ function Metric({
   active,
   onClick,
 }: {
-  value: number;
+  value: number | string;
   label: string;
   active?: boolean;
   onClick?: () => void;
@@ -1341,6 +1424,22 @@ function parseSealServers(raw: string): { objectId: string; weight: number }[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * Format a SUI amount in MIST (1 SUI = 10^9 MIST) as a short decimal
+ * string with at most 3 fractional digits, trimming trailing zeros.
+ * Used by the dashboard's bounty TVL metric.
+ */
+function formatSui(mist: bigint): string {
+  const SCALE = BigInt(1_000_000_000);
+  const whole = mist / SCALE;
+  const frac = mist % SCALE;
+  if (frac === BigInt(0)) return whole.toString();
+  // 9 decimal digits of fraction, padded with leading zeros
+  const fracStr = frac.toString().padStart(9, "0").slice(0, 3);
+  const trimmed = fracStr.replace(/0+$/, "");
+  return trimmed ? `${whole}.${trimmed}` : whole.toString();
 }
 
 function bytesToHex(bytes: Uint8Array): string {

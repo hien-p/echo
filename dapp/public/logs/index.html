@@ -159,6 +159,118 @@
         Tag values: feat | fix | chore | docs | refactor
       -->
 
+        <article class="log-card" data-date="2026-05-11">
+          <header>
+            <time datetime="2026-05-11">2026-05-11</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Public form viewer becomes a Typeform-style takeover</h3>
+          <p>
+            <strong>One question per screen, full-bleed dark.</strong> Public
+            <code>/forms/[id]</code> shed the centered scroll-card and now
+            mounts a <code>fixed inset-0</code> takeover — intro page → numbered
+            question pages → review/submit → success. Choices render as dark
+            pill buttons with <kbd>A</kbd> <kbd>B</kbd> <kbd>C</kbd> letter
+            shortcuts (single-select auto-advances after pick); text / URL
+            fields use thin underline inputs (<kbd>Enter</kbd> advances);
+            long-text uses a borderless textarea (<kbd>⌘+Enter</kbd>). A
+            top-pinned 3px progress bar plus bottom-right ↑/↓ chevrons make
+            keyboard nav explicit. Header is suppressed on share-link routes via
+            <code>usePathname()</code>. Walletless mode (Public tier only)
+            generates an ephemeral Ed25519 keypair, signs the sponsored tx, and
+            discards it — respondent never connects a wallet.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-11">
+          <header>
+            <time datetime="2026-05-11">2026-05-11</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Walrus image proxy — embed-anywhere image / GIF / video</h3>
+          <p>
+            <strong
+              >Walrus aggregators serve blobs with
+              <code>x-content-type-options: nosniff</code> and no
+              <code>content-type</code> header</strong
+            >, so Chrome silently refuses to render them in
+            <code>&lt;img&gt;</code>. New edge route
+            <code>/api/walrus/blob/[id]</code> fetches the blob, sniffs magic
+            bytes (PNG / JPEG / GIF / WebP / MP4 family / WebM / OGG / AVI /
+            HEIC / WAV / PDF), and re-emits with the correct
+            <code>content-type</code> +
+            <code>cache-control: immutable, max-age=1y</code>. Markdown editor
+            inserts absolute URLs pinned to the current origin so the markdown
+            is portable — paste a Walrus screenshot into a GitHub README,
+            Notion, blog, anywhere — the embed still works because
+            <code>access-control-allow-origin: *</code> lets the proxy serve any
+            origin. Drop / paste / pick now accepts videos too; videos get a
+            <code>#video</code> URL fragment hint so
+            <code>MarkdownView</code> swaps <code>&lt;img&gt;</code> for
+            <code>&lt;video controls preload="metadata" playsInline&gt;</code>
+            without needing rehype-raw.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-11">
+          <header>
+            <time datetime="2026-05-11">2026-05-11</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Three load-bearing bugs squashed under the takeover</h3>
+          <p>
+            <strong>500 on every <code>/forms/[id]</code></strong> traced to a
+            known <code>@cloudflare/next-on-pages</code> 1.13.x bug:
+            <code>ReferenceError: async__chunk_&lt;id&gt; is not defined</code>
+            when React 19 + edge runtime + nested
+            <code>dynamic({ ssr: false })</code> wrap a module graph past a
+            certain size. Local dev never reproduced. Removed the redundant
+            dynamic wrapper in <code>FormViewerClient</code> (parent was already
+            <code>"use client"</code>) and the bug evaporated.
+            <strong
+              >~150px-wide content column with every word on its own
+              line</strong
+            >
+            turned out to be this project's Tailwind 4 theme shadowing t-shirt
+            keys (<code>max-w-2xl</code> resolves to <code>--spacing-2xl</code>,
+            ~px not 42rem) — the <code>globals.css</code> comment literally
+            calls this out. Switched to arbitrary widths (<code
+              >max-w-[680px]</code
+            >
+            etc.).
+            <strong>Image upload silently wiped on completion</strong> was a
+            stale-closure race in <code>MarkdownEditor.uploadAndInsert</code>:
+            the async resolve ran
+            <code>onChange(value.replace(placeholder, final))</code> against the
+            closure-captured pre-insert value, so the placeholder we'd just
+            inserted got overwritten with the original value. Fixed via a
+            <code>latestValueRef</code> mirrored on every render.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-11">
+          <header>
+            <time datetime="2026-05-11">2026-05-11</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Markdown editor + preview — feels like writing in Substack</h3>
+          <p>
+            <strong>Editor opens at 280px tall</strong> (was 120) with 16px /
+            1.7-line-height type and generous padding so respondents can
+            actually compose paragraphs. Toolbar gained Heading (<code>## </code
+            >), Quote (<code>&gt; </code>), List (<code>- </code>), and Code
+            (<code>`</code>) shortcuts alongside Bold / Italic / Link / Image.
+            Preview pane gets full typography: H1 24px, H2 20px, H3 18px,
+            blockquote with left border + italic, inline code as bg-zinc-800
+            chip, code blocks as bordered panels, <code>&lt;hr&gt;</code> as
+            visible separator. Images now center in the column (margin-auto),
+            cap at 32rem tall (was 18rem), and display an italic caption
+            underneath when alt-text is descriptive — filenames like
+            <code>Foo_Bar.png</code> are auto-suppressed. Pulsing blue dot
+            during upload shows the bytes are in flight.
+          </p>
+        </article>
+
         <article class="log-card" data-date="2026-05-09">
           <header>
             <time datetime="2026-05-09">2026-05-09</time>
