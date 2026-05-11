@@ -95,14 +95,14 @@ export const FormViewer = ({ formId }: { formId: string }) => {
 
   if (formQuery.isLoading) {
     return (
-      <div className="flex min-h-[calc(100dvh-0px)] items-center justify-center bg-zinc-950 text-zinc-500">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-500">
         Loading form…
       </div>
     );
   }
   if (formQuery.error) {
     return (
-      <div className="flex min-h-[calc(100dvh-0px)] items-center justify-center bg-zinc-950 px-6 text-center text-sm text-rose-400">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-center text-sm text-rose-400">
         Failed to load: {(formQuery.error as Error).message}
       </div>
     );
@@ -153,8 +153,8 @@ function TakeoverShell({ children }: { children: React.ReactNode }) {
 
 function ClosedNotice({ title, status }: { title: string; status: string }) {
   return (
-    <div className="flex min-h-[calc(100dvh-0px)] items-center justify-center px-6">
-      <div className="max-w-md text-center">
+    <div className="flex min-h-screen items-center justify-center px-6">
+      <div className="max-w-[420px] text-center">
         <h1 className="text-2xl font-semibold text-zinc-100">{title}</h1>
         <p className="mt-3 text-sm text-zinc-400">
           This form isn&apos;t accepting submissions right now ({status}).
@@ -197,8 +197,8 @@ function GatedTakeover(props: GatedProps) {
 
   if (gating && accountAddress && gateQuery.data && !gateQuery.data.ok) {
     return (
-      <div className="flex min-h-[calc(100dvh-0px)] items-center justify-center px-6">
-        <div className="max-w-md rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 text-center">
+      <div className="flex min-h-screen items-center justify-center px-6">
+        <div className="max-w-[420px] rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 text-center">
           <Lock size={28} className="mx-auto text-amber-400" />
           <p className="mt-4 text-sm text-amber-100">{gateQuery.data.reason}</p>
           <button
@@ -489,14 +489,14 @@ function Takeover({
   }
 
   return (
-    <div className="relative flex min-h-[calc(100dvh-0px)] flex-col">
+    <div className="relative flex min-h-screen flex-col">
       <ProgressBar
         current={idx}
         total={totalSteps - 1 /* intro doesn't count toward % */}
       />
 
       <div className="flex flex-1 items-center justify-center px-6 py-16 sm:px-12">
-        <div className="w-full max-w-2xl">
+        <div className="w-full max-w-[680px]">
           {stepKind === "intro" && (
             <IntroStep
               metadata={metadata}
@@ -769,7 +769,7 @@ function SubmittedTakeover({
 }) {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-zinc-950 px-6 text-center">
-      <div className="flex max-w-md flex-col items-center gap-6">
+      <div className="flex max-w-[460px] flex-col items-center gap-6">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
           <Check size={36} strokeWidth={2.5} />
         </div>
