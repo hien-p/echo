@@ -208,11 +208,14 @@ export function MarkdownEditor({
           style={{ minHeight }}
         />
       ) : (
-        <div className="p-3 prose prose-sm max-w-none" style={{ minHeight }}>
+        <div
+          className="p-3 text-sm leading-relaxed [&_img]:my-2 [&_img]:max-h-72 [&_img]:rounded [&_img]:border [&_img]:border-zinc-700 [&_img]:bg-zinc-900 [&_a]:underline [&_a]:text-blue-400 hover:[&_a]:text-blue-300 [&_p]:my-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:ml-6 [&_ol]:list-decimal [&_ol]:ml-6"
+          style={{ minHeight }}
+        >
           {value.trim() ? (
             <MarkdownView source={value} />
           ) : (
-            <p className="text-muted-foreground text-sm italic">
+            <p className="text-zinc-500 text-sm italic">
               Nothing to preview yet.
             </p>
           )}

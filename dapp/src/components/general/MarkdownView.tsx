@@ -32,17 +32,38 @@ export function MarkdownView({ source }: { source: string }) {
               </a>
             );
           },
-          // Constrain image size, keep alt text accessible.
+          // Constrain image size, keep alt text accessible. Wrap in a sized
+          // figure so the slot is reserved while the image is fetching —
+          // otherwise lazy-loaded blobs can collapse to a sliver before
+          // their intrinsic dimensions arrive (the "tiny dot" preview bug).
           img({ src, alt }) {
             if (!src) return null;
+            const url = typeof src === "string" ? src : undefined;
             return (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={typeof src === "string" ? src : undefined}
-                alt={alt ?? ""}
-                className="max-w-full max-h-72 my-2 rounded border"
-                loading="lazy"
-              />
+              <span className="my-2 inline-flex flex-col gap-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={alt ?? ""}
+                  className="block max-h-72 max-w-full min-h-[120px] rounded border bg-zinc-900/50 object-contain"
+                  loading="lazy"
+                  onError={(e) => {
+                    // Surface a visible fallback when the blob fails to
+                    // load — far better than the silent empty box that
+                    // made image upload look broken end-to-end.
+                    const img = e.currentTarget;
+                    img.style.display = "none";
+                    const next = img.nextElementSibling;
+                    if (next instanceof HTMLElement) next.style.display = "";
+                  }}
+                />
+                <span
+                  className="hidden text-xs text-rose-300"
+                  aria-hidden="true"
+                >
+                  ⚠ Image failed to load: {alt || url}
+                </span>
+              </span>
             );
           },
           // Code blocks get a subtle bg.
