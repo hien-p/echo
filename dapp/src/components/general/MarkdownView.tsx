@@ -32,29 +32,58 @@ export function MarkdownView({ source }: { source: string }) {
               </a>
             );
           },
-          // Constrain image size, keep alt text accessible. Inline styles
-          // (instead of Tailwind classes) so we don't get bitten by the
-          // project's t-shirt-key spacing shadowing that broke max-w-* /
-          // max-h-* earlier in this viewer's debugging.
+          // Substack-style centered image with optional caption.
+          // The img sits in a centered figure block: full panel width,
+          // up to 32rem tall, generous vertical breathing room, soft
+          // border. Alt text becomes a small italic caption beneath.
+          // Inline styles to dodge the project's Tailwind 4 t-shirt-key
+          // spacing shadowing that previously broke max-w-* / max-h-*.
           img({ src, alt }) {
             if (!src || typeof src !== "string") return null;
+            // Strip file extension from caption when alt is clearly a
+            // filename (e.g. "Sui_Primary-Gradient.png" → no caption)
+            // — looks like noise. Real descriptive alt-text stays.
+            const trimmed = (alt ?? "").trim();
+            const looksLikeFilename = /\.[a-z0-9]{1,5}$/i.test(trimmed);
+            const caption = trimmed && !looksLikeFilename ? trimmed : null;
             return (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={src}
-                alt={alt ?? ""}
+              <span
                 style={{
                   display: "block",
-                  maxWidth: "100%",
-                  maxHeight: "18rem",
-                  marginTop: "0.5rem",
-                  marginBottom: "0.5rem",
-                  borderRadius: "0.5rem",
-                  border: "1px solid rgb(63 63 70)",
-                  backgroundColor: "rgb(24 24 27)",
+                  margin: "1.25rem auto",
+                  textAlign: "center",
                 }}
-                loading="lazy"
-              />
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt={alt ?? ""}
+                  style={{
+                    display: "block",
+                    margin: "0 auto",
+                    maxWidth: "100%",
+                    maxHeight: "32rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid rgb(39 39 42)",
+                    backgroundColor: "rgb(24 24 27)",
+                    objectFit: "contain",
+                  }}
+                  loading="lazy"
+                />
+                {caption && (
+                  <span
+                    style={{
+                      display: "block",
+                      marginTop: "0.5rem",
+                      fontSize: "0.8125rem",
+                      fontStyle: "italic",
+                      color: "rgb(161 161 170)",
+                    }}
+                  >
+                    {caption}
+                  </span>
+                )}
+              </span>
             );
           },
           // Code blocks get a subtle bg.
