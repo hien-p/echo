@@ -7,7 +7,11 @@ const DEFAULT_PUBLISHER =
   process.env.NEXT_PUBLIC_WALRUS_PUBLISHER_URL ??
   "https://publisher.walrus-testnet.walrus.space";
 const DEFAULT_EPOCHS = 5;
-const MAX_BYTES = 5 * 1024 * 1024; // 5MB cap
+// Cap at 50 MB. Cloudflare Workers themselves accept up to 100 MB request
+// bodies, so this leaves headroom for Next.js framing while comfortably
+// covering screenshots and short videos. Original 5 MB rejected most
+// screen recordings out of the gate.
+const MAX_BYTES = 50 * 1024 * 1024;
 
 interface PublisherSuccess {
   newlyCreated?: {
@@ -34,8 +38,11 @@ interface PublisherSuccess {
 export async function POST(request: Request) {
   const lenHeader = request.headers.get("content-length");
   if (lenHeader && Number(lenHeader) > MAX_BYTES) {
+    const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
     return NextResponse.json(
-      { error: `Payload exceeds ${MAX_BYTES} byte limit` },
+      {
+        error: `Image too large for the upload proxy (${mb(Number(lenHeader))} > ${mb(MAX_BYTES)} cap). Compress or resize before re-uploading.`,
+      },
       { status: 413 },
     );
   }
