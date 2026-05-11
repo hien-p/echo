@@ -52,6 +52,15 @@ export function MarkdownEditor({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Mirror the latest `value` prop into a ref so async paths (Walrus
+  // upload completion) can read post-insert state instead of the
+  // closure-captured value from when uploadAndInsert was first called.
+  // Without this, the final-replace step ran against the pre-insert
+  // value, so the placeholder we inserted at the cursor got wiped along
+  // with the final markdown — the image just vanished from the editor.
+  const latestValueRef = useRef(value);
+  latestValueRef.current = value;
+
   const insertAtCursor = (text: string) => {
     const ta = ref.current;
     if (!ta) {
@@ -93,11 +102,13 @@ export function MarkdownEditor({
       const bytes = new Uint8Array(await file.arrayBuffer());
       const result = await uploadBytesViaPublisher(bytes);
       const final = `![${file.name}](${aggregatorUrl(result.blobId)})`;
-      // Replace the first placeholder occurrence with the final markdown.
-      onChange(value.replace(placeholder, final));
+      // Read latest value via the ref so we don't race a typed-while-
+      // uploading edit; replace this specific placeholder with the
+      // final markdown.
+      onChange(latestValueRef.current.replace(placeholder, final));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      onChange(value.replace(placeholder, ""));
+      onChange(latestValueRef.current.replace(placeholder, ""));
     } finally {
       setUploading(false);
     }
