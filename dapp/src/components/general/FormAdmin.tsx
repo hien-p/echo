@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import Link from "next/link";
@@ -39,6 +39,12 @@ import { TimeLockBadge } from "./TimeLockBadge";
 import { MarkdownView } from "./MarkdownView";
 import { SuiNSName } from "./SuiNSName";
 import { WalrusBlobLink } from "./WalrusBlobLink";
+import {
+  dispatchWebhook,
+  getWebhookUrl,
+  setWebhookUrl,
+  type WebhookPayload,
+} from "@/lib/echo/webhooks";
 
 interface OnChainForm {
   schema_blob_id: string;
@@ -924,6 +930,7 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
           <WalrusBlobLink label="Metadata" blobId={onChain.metadata_blob_id} />
         </p>
         <BrandedShareLink formId={formId} />
+        <WebhookConfig formId={formId} />
       </header>
 
       {demoMode && (
@@ -1903,5 +1910,122 @@ function FilterChip({
     >
       {label}
     </button>
+  );
+}
+
+/**
+ * Per-form webhook URL editor + Test button. Persists to localStorage
+ * (admin-side only). New submissions trigger a POST from whichever
+ * admin tab is open with this URL configured — see CrossFormDashboard
+ * for the dispatch site. v0 limitation: webhook only fires while at
+ * least one admin tab watches the dashboard. Production v1 should
+ * store the URL on-chain on Form and tail submission events server-side.
+ */
+function WebhookConfig({ formId }: { formId: string }) {
+  const [url, setUrl] = useState("");
+  const [testStatus, setTestStatus] = useState<
+    | { kind: "idle" }
+    | { kind: "testing" }
+    | { kind: "ok"; status: number }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
+
+  // Hydrate from localStorage on mount.
+  useEffect(() => {
+    const saved = getWebhookUrl(formId);
+    if (saved) setUrl(saved);
+  }, [formId]);
+
+  // Persist on change (debounced via plain useEffect — webhook URL
+  // changes are rare, so don't bother with a delay).
+  useEffect(() => {
+    setWebhookUrl(formId, url);
+  }, [formId, url]);
+
+  const test = async () => {
+    if (!url.trim()) return;
+    setTestStatus({ kind: "testing" });
+    const payload: WebhookPayload = {
+      event: "submission.test",
+      form_id: formId,
+      submission_id: "0x" + "0".repeat(64),
+      payload_blob_id: "test-blob-id",
+      submitter: null,
+      anonymous: true,
+      ts: Date.now(),
+    };
+    const res = await dispatchWebhook(url.trim(), payload);
+    if (res.ok) {
+      setTestStatus({ kind: "ok", status: res.status ?? 200 });
+    } else {
+      setTestStatus({
+        kind: "error",
+        message: res.error ?? `HTTP ${res.status}`,
+      });
+    }
+  };
+
+  return (
+    <details className="text-xs">
+      <summary className="cursor-pointer text-muted-foreground underline w-fit">
+        🪝 Webhook on submit
+      </summary>
+      <div className="mt-2 border rounded p-3 bg-card flex flex-col gap-2">
+        <p className="text-muted-foreground">
+          We&apos;ll POST a JSON payload to this URL whenever a new submission
+          lands on this form. Pipes into Slack / Discord / Linear / Zapier /
+          your own backend. Saved locally per browser; fires while any admin tab
+          is open. v1 will move this on-chain so closed laptops don&apos;t drop
+          traffic.
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="url"
+            placeholder="https://hooks.slack.com/services/…"
+            value={url}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              setTestStatus({ kind: "idle" });
+            }}
+            className="border rounded px-2 py-1 font-mono flex-1 min-w-[280px]"
+          />
+          <button
+            type="button"
+            disabled={!url.trim() || testStatus.kind === "testing"}
+            onClick={() => void test()}
+            className={cn(
+              "border rounded px-3 py-1",
+              !url.trim() || testStatus.kind === "testing"
+                ? "opacity-60 cursor-not-allowed"
+                : "hover:bg-accent",
+            )}
+          >
+            {testStatus.kind === "testing" ? "Testing…" : "Test"}
+          </button>
+        </div>
+        {testStatus.kind === "ok" && (
+          <p className="text-emerald-700 dark:text-emerald-400">
+            ✓ Webhook responded HTTP {testStatus.status}.
+          </p>
+        )}
+        {testStatus.kind === "error" && (
+          <p className="text-destructive">✗ {testStatus.message}</p>
+        )}
+        <details className="text-muted-foreground">
+          <summary className="cursor-pointer underline w-fit">
+            Payload shape
+          </summary>
+          <pre className="mt-1 bg-muted/40 border rounded p-2 overflow-x-auto text-[10px]">{`{
+  "event": "submission.created",
+  "form_id": "0x...",
+  "submission_id": "0x...",
+  "payload_blob_id": "<walrus blob id>",
+  "submitter": "0x..." | null,
+  "anonymous": false,
+  "ts": 1778500000000
+}`}</pre>
+        </details>
+      </div>
+    </details>
   );
 }

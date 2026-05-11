@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SuiProvider } from "@/contexts/SuiProvider";
 import { Header } from "@/components/general/Header";
+import { Toaster } from "@/components/general/Toaster";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -34,6 +35,7 @@ export default function RootLayout({
         <SuiProvider>
           <Header />
           <main className="p-2xs flex-1 w-full">{children}</main>
+          <Toaster />
         </SuiProvider>
       </body>
     </html>

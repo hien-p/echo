@@ -12,7 +12,7 @@
  * v0.3 — adding an on-chain or Walrus-blob status layer is a follow-up.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
@@ -30,6 +30,12 @@ import {
   type FormMetadata,
 } from "@/lib/echo";
 import { useDemoAdminMode } from "./DemoAdminToggle";
+import { pushToast } from "./Toaster";
+import {
+  dispatchWebhook,
+  getWebhookUrl,
+  type WebhookPayload,
+} from "@/lib/echo/webhooks";
 import { SuiNSName } from "./SuiNSName";
 
 interface OwnedCap {
@@ -485,6 +491,62 @@ export const CrossFormDashboard = () => {
       return next;
     });
   }, [submissionsQuery.data]);
+
+  // Realtime new-submission toast + webhook dispatch. The submissions
+  // query already polls every 8s; we diff against the previous id-set
+  // to detect new arrivals. The first poll after mount is treated as
+  // baseline (no toast for already-existing submissions), so admins
+  // don't get blasted with N notifications when they open the page.
+  const seenIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const rows = submissionsQuery.data ?? [];
+    if (rows.length === 0) return;
+    const formById = new Map(formCards.map((f) => [f.id, f]));
+    if (seenIdsRef.current === null) {
+      // First load — seed and don't notify.
+      seenIdsRef.current = new Set(rows.map((r) => r.submissionId));
+      return;
+    }
+    const seen = seenIdsRef.current;
+    const fresh = rows.filter((r) => !seen.has(r.submissionId));
+    if (fresh.length === 0) return;
+    for (const row of fresh) {
+      seen.add(row.submissionId);
+      const form = formById.get(row.formId);
+      const formTitle = form?.title ?? `form ${row.formId.slice(0, 10)}…`;
+      const submitterLabel = row.anonymous
+        ? "anonymous"
+        : `${row.submitter.slice(0, 8)}…${row.submitter.slice(-4)}`;
+      pushToast({
+        kind: "info",
+        title: `New submission · ${formTitle}`,
+        body: `from ${submitterLabel}`,
+        href: `/forms/${row.formId}/admin#${row.submissionId}`,
+      });
+      const url = getWebhookUrl(row.formId);
+      if (url) {
+        const payload: WebhookPayload = {
+          event: "submission.created",
+          form_id: row.formId,
+          submission_id: row.submissionId,
+          payload_blob_id: row.payloadBlobId,
+          submitter: row.anonymous ? null : row.submitter,
+          anonymous: row.anonymous,
+          ts: Date.now(),
+        };
+        void dispatchWebhook(url, payload).then((res) => {
+          if (!res.ok) {
+            pushToast({
+              kind: "error",
+              title: `Webhook failed for ${formTitle}`,
+              body: res.error ?? `HTTP ${res.status}`,
+              ttlMs: 10_000,
+            });
+          }
+        });
+      }
+    }
+  }, [submissionsQuery.data, formCards]);
 
   const setRowStatus = (submissionId: string, status: Status) => {
     writeStatus(submissionId, status);
