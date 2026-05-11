@@ -140,8 +140,12 @@ export const FormViewer = ({ formId }: { formId: string }) => {
 };
 
 function TakeoverShell({ children }: { children: React.ReactNode }) {
+  // Fixed inset-0 escapes the global <main> padding and the page-level
+  // <section max-w-[768px]> wrapper. Internal scroll keeps the viewport
+  // pinned; z-40 sits below the wallet-modal layer but above everything
+  // else on the page.
   return (
-    <div className="-mx-2xs -my-2xs relative min-h-[calc(100dvh-0px)] bg-zinc-950 text-zinc-100 antialiased">
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-zinc-950 text-zinc-100 antialiased">
       {children}
     </div>
   );
@@ -764,7 +768,7 @@ function SubmittedTakeover({
   onSubmitAnother: () => void;
 }) {
   return (
-    <div className="-mx-2xs -my-2xs flex min-h-[calc(100dvh-0px)] items-center justify-center bg-zinc-950 px-6 text-center">
+    <div className="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-zinc-950 px-6 text-center">
       <div className="flex max-w-md flex-col items-center gap-6">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
           <Check size={36} strokeWidth={2.5} />
