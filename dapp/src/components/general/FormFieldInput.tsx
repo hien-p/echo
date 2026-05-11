@@ -176,9 +176,7 @@ export function FormFieldInput({
           className={cn(
             "group flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-all",
             "hover:border-foreground/40 hover:bg-accent/40",
-            checked
-              ? "border-foreground/60 bg-accent/60"
-              : "border-border",
+            checked ? "border-foreground/60 bg-accent/60" : "border-border",
           )}
         >
           <span
@@ -193,9 +191,7 @@ export function FormFieldInput({
           </span>
           <span className="font-medium">
             {field.label}
-            {field.required && (
-              <span className="text-destructive ml-1">*</span>
-            )}
+            {field.required && <span className="text-destructive ml-1">*</span>}
           </span>
         </button>
       );
@@ -206,12 +202,7 @@ export function FormFieldInput({
       const tight = field.scale > 7;
       return (
         <Field label={field.label} required={field.required}>
-          <div
-            className={cn(
-              "flex flex-wrap gap-2",
-              tight && "gap-1.5",
-            )}
-          >
+          <div className={cn("flex flex-wrap gap-2", tight && "gap-1.5")}>
             {Array.from({ length: field.scale }, (_, i) => i + 1).map((n) => {
               const selected = current >= n;
               return (
@@ -312,16 +303,8 @@ function UploadField({
           ? "video/*"
           : undefined;
 
-  const maxBytes = "maxSizeBytes" in field ? field.maxSizeBytes : undefined;
-
   const upload = async (file: File) => {
     setError(null);
-    if (maxBytes && file.size > maxBytes) {
-      setError(
-        `File too large (${humanSize(file.size)} > ${humanSize(maxBytes)}).`,
-      );
-      return;
-    }
     setUploading(true);
     setPendingName(file.name);
     try {
@@ -379,7 +362,6 @@ function UploadField({
           {accept && (
             <span className="text-xs text-muted-foreground">
               Accepts <code>{accept}</code>
-              {maxBytes && ` · max ${humanSize(maxBytes)}`}
             </span>
           )}
         </label>
