@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
@@ -100,47 +101,65 @@ export const FormViewer = ({ formId }: { formId: string }) => {
   const isOpen = onChain.status === 1;
 
   return (
-    <div className="flex flex-col gap-md">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {metadata.title}
-        </h1>
-        {metadata.description && (
-          <p className="text-sm text-muted-foreground">
-            {metadata.description}
-          </p>
-        )}
-        {/* Tier-only badge — drop the open/submission_count line; those
-            are admin-side stats and add noise to a public submission view.
-            For non-Public tiers we still surface the encryption pill so
-            respondents know what trust model they're submitting under. */}
-        {onChain.privacy_tier !== 0 && (
-          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 w-fit">
-            🔒 {TIER_LABELS[onChain.privacy_tier] ?? "encrypted"} · Seal
-          </span>
-        )}
-      </header>
+    // Outer page surface — neutral background with vertical breathing room.
+    // Form lives inside a centered card, Typeform/Google-Forms style.
+    <div className="-mx-2xs -my-2xs min-h-[calc(100dvh-0px)] bg-muted/30 px-4 py-10 sm:py-16">
+      <div className="mx-auto max-w-[680px]">
+        {/* Card surface — soft shadow, generous padding, accent stripe on top
+            so the brand is felt without dragging the app chrome back in. */}
+        <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+          <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-foreground to-emerald-500" />
+          <div className="flex flex-col gap-8 p-6 sm:p-10">
+            <header className="flex flex-col gap-3">
+              <h1 className="text-3xl font-semibold tracking-tight leading-tight">
+                {metadata.title}
+              </h1>
+              {metadata.description && (
+                <p className="text-base text-muted-foreground leading-relaxed">
+                  {metadata.description}
+                </p>
+              )}
+              {/* Tier badge for non-Public — explicit trust signal so the
+                  respondent knows what model they're submitting under. */}
+              {onChain.privacy_tier !== 0 && (
+                <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 w-fit font-medium">
+                  🔒 {TIER_LABELS[onChain.privacy_tier] ?? "encrypted"} · Seal
+                </span>
+              )}
+            </header>
 
-      {!isOpen ? (
-        <p className="text-sm text-amber-700">
-          This form is not accepting submissions (
-          {STATUS_LABELS[onChain.status] ?? "unknown"}).
+            {!isOpen ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900 p-4 text-sm text-amber-800 dark:text-amber-200">
+                This form isn&apos;t accepting submissions right now (
+                {STATUS_LABELS[onChain.status] ?? "unknown"}).
+              </div>
+            ) : (
+              <GatedSubmit
+                formId={formId}
+                packageId={packageId}
+                schema={schema}
+                schemaVersion={Number(onChain.schema_version)}
+                privacyTier={onChain.privacy_tier}
+                unlockMs={onChain.unlock_ms}
+                conditionalPolicyId={onChain.conditional_policy_id}
+                thresholdN={onChain.threshold_n}
+                dAppKit={dAppKit}
+                suiClient={suiClient}
+                accountAddress={account?.address}
+              />
+            )}
+          </div>
+        </div>
+        {/* Subtle attribution — respondents know what platform they're on
+            without the full app chrome competing for attention. */}
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          Powered by{" "}
+          <Link href="/" className="font-medium underline hover:text-foreground">
+            Echo
+          </Link>{" "}
+          · forms on Sui · Walrus · Seal
         </p>
-      ) : (
-        <GatedSubmit
-          formId={formId}
-          packageId={packageId}
-          schema={schema}
-          schemaVersion={Number(onChain.schema_version)}
-          privacyTier={onChain.privacy_tier}
-          unlockMs={onChain.unlock_ms}
-          conditionalPolicyId={onChain.conditional_policy_id}
-          thresholdN={onChain.threshold_n}
-          dAppKit={dAppKit}
-          suiClient={suiClient}
-          accountAddress={account?.address}
-        />
-      )}
+      </div>
     </div>
   );
 };
@@ -418,49 +437,63 @@ function SubmitForm({
     .filter((f) => (f.page ?? 0) === currentPage)
     .filter((f) => isFieldVisible(f, answers));
 
+  // Celebratory full-card success state — replaces the form entirely.
+  if (status.kind === "submitted") {
+    return <SubmittedState digest={status.digest} onSubmitAnother={() => {
+      setAnswers({});
+      setAnonymous(false);
+      setPageIdx(0);
+      setStatus({ kind: "idle" });
+    }} />;
+  }
+
   return (
-    <div className="flex flex-col gap-md">
-      {totalPages > 1 && (
-        <p className="text-xs text-muted-foreground">
-          Page {pageIdx + 1} of {totalPages}
-        </p>
-      )}
-      {visibleFields.map((field) => (
-        <FormFieldInput
-          key={field.id}
-          field={field}
-          value={answers[field.id]}
-          onChange={(v) => setAnswer(field.id, v)}
-        />
-      ))}
+    <div className="flex flex-col gap-8">
+      {totalPages > 1 && <PageProgress current={pageIdx} total={totalPages} />}
+
+      <div className="flex flex-col gap-7">
+        {visibleFields.map((field) => (
+          <FormFieldInput
+            key={field.id}
+            field={field}
+            value={answers[field.id]}
+            onChange={(v) => setAnswer(field.id, v)}
+          />
+        ))}
+      </div>
 
       {isLastPage && (
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={anonymous}
-              onChange={(e) => setAnonymous(e.target.checked)}
-            />
-            Submit anonymously
-          </span>
-          {anonymous && (
-            <span className="text-xs text-muted-foreground pl-6">
-              Your wallet signs a one-time nullifier; only the 32-byte hash hits
-              the chain — never your address. Each wallet can submit anonymously{" "}
-              <strong>once</strong> per form (a second attempt from the same
-              wallet is rejected on chain).
+        <div className="rounded-xl border bg-muted/40 p-4 flex flex-col gap-2">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <span className="relative inline-flex shrink-0 mt-0.5">
+              <input
+                type="checkbox"
+                checked={anonymous}
+                onChange={(e) => setAnonymous(e.target.checked)}
+                className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-border bg-background transition-colors checked:bg-foreground checked:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/10 focus-visible:ring-offset-2"
+              />
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-background opacity-0 peer-checked:opacity-100">
+                ✓
+              </span>
             </span>
-          )}
-        </label>
+            <span className="flex flex-col gap-1">
+              <span className="text-sm font-medium">Submit anonymously</span>
+              <span className="text-xs text-muted-foreground leading-relaxed">
+                Your wallet signs a one-time nullifier; only the 32-byte hash
+                hits the chain — never your address. Each wallet can submit
+                anonymously <strong>once</strong> per form.
+              </span>
+            </span>
+          </label>
+        </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex items-center gap-3 pt-2">
         {pageIdx > 0 && (
           <button
             type="button"
             onClick={() => setPageIdx((i) => i - 1)}
-            className="border rounded px-3 py-1 text-sm hover:bg-accent"
+            className="rounded-lg border px-4 py-2 text-sm hover:bg-accent transition-colors"
           >
             ← Previous
           </button>
@@ -469,23 +502,23 @@ function SubmitForm({
           <button
             type="button"
             onClick={() => setPageIdx((i) => i + 1)}
-            className="border rounded px-3 py-1 text-sm hover:bg-accent ml-auto"
+            className="ml-auto rounded-lg bg-foreground text-background px-5 py-2 text-sm font-medium hover:opacity-90 transition-opacity shadow-sm"
           >
             Next →
           </button>
         ) : (
           <div className="ml-auto flex flex-col items-end gap-1.5">
             <div className="flex items-center gap-2">
-              {/* Walletless path: only offered for Public tier today.
-                  Encrypted tiers still need the wallet because anonymous
-                  + encrypted is a more complex trust story. */}
+              {/* Walletless path is only offered for Public tier today —
+                  encrypted tiers still ask for a wallet so the Seal trust
+                  model isn't surprising. */}
               {!accountAddress &&
                 privacyTier === PrivacyTier.Public &&
                 status.kind !== "submitting" && (
                   <button
                     type="button"
                     onClick={() => void submit("walletless")}
-                    className="border rounded px-3 py-2 text-sm hover:bg-accent"
+                    className="rounded-lg border px-4 py-2.5 text-sm hover:bg-accent transition-colors"
                     title="Echo generates a one-time keypair locally, signs the sponsored tx, and discards it. No wallet needed."
                   >
                     Submit without wallet
@@ -496,14 +529,14 @@ function SubmitForm({
                 onClick={() => void submit("wallet")}
                 disabled={!accountAddress || status.kind === "submitting"}
                 className={cn(
-                  "border rounded px-4 py-2 font-medium",
+                  "rounded-lg px-6 py-2.5 text-sm font-medium transition-all shadow-sm",
                   accountAddress && status.kind !== "submitting"
                     ? "bg-foreground text-background hover:opacity-90"
-                    : "opacity-60 cursor-not-allowed",
+                    : "bg-muted text-muted-foreground cursor-not-allowed",
                 )}
               >
                 {status.kind === "submitting"
-                  ? status.step
+                  ? "Submitting…"
                   : accountAddress
                     ? "Submit"
                     : "Connect wallet to submit"}
@@ -518,21 +551,106 @@ function SubmitForm({
         )}
       </div>
 
-      {(status.kind === "submitting" || status.kind === "submitted") && (
+      {status.kind === "submitting" && (
         <SubmitStepper
           isPublic={privacyTier === PrivacyTier.Public}
-          step={status.kind === "submitting" ? status.step : "done"}
-          done={status.kind === "submitted"}
+          step={status.step}
+          done={false}
         />
       )}
       {status.kind === "error" && (
-        <p className="text-sm text-destructive">{status.message}</p>
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          {status.message}
+        </div>
       )}
-      {status.kind === "submitted" && (
-        <p className="text-sm text-emerald-700">
-          ✓ Submitted. Tx digest: <code>{status.digest.slice(0, 12)}…</code>
+    </div>
+  );
+}
+
+/**
+ * Page progress indicator at top of multi-page forms. Pill chip with
+ * current/total counter + a thin filled-bar showing completion.
+ */
+function PageProgress({ current, total }: { current: number; total: number }) {
+  const pct = ((current + 1) / total) * 100;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">
+          Step {current + 1} of {total}
+        </span>
+        <span className="text-muted-foreground tabular-nums">
+          {Math.round(pct)}%
+        </span>
+      </div>
+      <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-foreground transition-[width] duration-300"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Friendly post-submit screen — replaces the form entirely. Big checkmark
+ * + thanks copy + tx digest + two CTAs (submit another / view source).
+ */
+function SubmittedState({
+  digest,
+  onSubmitAnother,
+}: {
+  digest: string;
+  onSubmitAnother: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-6 py-6 text-center">
+      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="36"
+          height="36"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      </div>
+      <div className="flex flex-col gap-2">
+        <h2 className="text-2xl font-semibold tracking-tight">
+          Thanks for submitting!
+        </h2>
+        <p className="text-sm text-muted-foreground max-w-[420px]">
+          Your response is on chain. The form admin can decrypt it (or read
+          plaintext for Public forms) at their convenience.
         </p>
-      )}
+      </div>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>tx</span>
+        <code className="rounded bg-muted px-2 py-0.5 font-mono">
+          {digest.slice(0, 10)}…{digest.slice(-6)}
+        </code>
+        <a
+          href={`https://suiscan.xyz/testnet/tx/${digest}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-foreground"
+        >
+          view on Suiscan ↗
+        </a>
+      </div>
+      <button
+        type="button"
+        onClick={onSubmitAnother}
+        className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+      >
+        Submit another response
+      </button>
     </div>
   );
 }
