@@ -61,7 +61,7 @@ export async function GET(
 
   const buf = await upstream.arrayBuffer();
   const contentType =
-    sniffMime(new Uint8Array(buf, 0, Math.min(16, buf.byteLength))) ??
+    sniffMime(new Uint8Array(buf, 0, Math.min(32, buf.byteLength))) ??
     "application/octet-stream";
 
   return new Response(buf, {
@@ -79,6 +79,7 @@ export async function GET(
 }
 
 function sniffMime(b: Uint8Array): string | null {
+  // Images
   if (
     b.length >= 4 &&
     b[0] === 0x89 &&
@@ -97,18 +98,59 @@ function sniffMime(b: Uint8Array): string | null {
     b[3] === 0x38
   )
     return "image/gif";
+  // RIFF container — WEBP at offset 8 == "WEBP", AVI == "AVI ", WAV == "WAVE"
   if (
     b.length >= 12 &&
     b[0] === 0x52 &&
     b[1] === 0x49 &&
     b[2] === 0x46 &&
-    b[3] === 0x46 &&
-    b[8] === 0x57 &&
-    b[9] === 0x45 &&
-    b[10] === 0x42 &&
-    b[11] === 0x50
+    b[3] === 0x46
+  ) {
+    if (b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50)
+      return "image/webp";
+    if (b[8] === 0x41 && b[9] === 0x56 && b[10] === 0x49 && b[11] === 0x20)
+      return "video/x-msvideo";
+    if (b[8] === 0x57 && b[9] === 0x41 && b[10] === 0x56 && b[11] === 0x45)
+      return "audio/wav";
+  }
+  // ISOBMFF — bytes 4..7 == "ftyp"; brand at 8..11 disambiguates
+  // mp4 / quicktime / heic / m4a etc. The previous narrow match (00 00
+  // 00 18) only caught one specific size header and missed most real
+  // mp4s, so videos uploaded by respondents were silently served as
+  // octet-stream and failed to play.
+  if (
+    b.length >= 12 &&
+    b[4] === 0x66 &&
+    b[5] === 0x74 &&
+    b[6] === 0x79 &&
+    b[7] === 0x70
+  ) {
+    const brand = String.fromCharCode(b[8], b[9], b[10], b[11]);
+    if (brand === "qt  ") return "video/quicktime";
+    if (brand === "heic" || brand === "heix" || brand === "mif1")
+      return "image/heic";
+    if (brand.startsWith("M4A")) return "audio/mp4";
+    return "video/mp4"; // mp4, mp42, isom, M4V, dash, …
+  }
+  // WEBM / Matroska — EBML magic 1A 45 DF A3
+  if (
+    b.length >= 4 &&
+    b[0] === 0x1a &&
+    b[1] === 0x45 &&
+    b[2] === 0xdf &&
+    b[3] === 0xa3
   )
-    return "image/webp";
+    return "video/webm";
+  // OGG container (theora/vorbis)
+  if (
+    b.length >= 4 &&
+    b[0] === 0x4f &&
+    b[1] === 0x67 &&
+    b[2] === 0x67 &&
+    b[3] === 0x53
+  )
+    return "video/ogg";
+  // Documents
   if (
     b.length >= 4 &&
     b[0] === 0x25 &&
@@ -117,13 +159,5 @@ function sniffMime(b: Uint8Array): string | null {
     b[3] === 0x46
   )
     return "application/pdf";
-  if (
-    b.length >= 4 &&
-    b[0] === 0x00 &&
-    b[1] === 0x00 &&
-    b[2] === 0x00 &&
-    b[3] === 0x18
-  )
-    return "video/mp4";
   return null;
 }

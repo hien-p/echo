@@ -46,6 +46,11 @@ export function MarkdownView({ source }: { source: string }) {
             const trimmed = (alt ?? "").trim();
             const looksLikeFilename = /\.[a-z0-9]{1,5}$/i.test(trimmed);
             const caption = trimmed && !looksLikeFilename ? trimmed : null;
+            // Video hint: editor inserts ![name](url#video) for any
+            // video/* upload so we can swap <img> → <video controls>
+            // without needing rehype-raw / inline HTML support.
+            const isVideo = /#video(?:\?|$)/i.test(src);
+            const cleanSrc = src.replace(/#video$/i, "");
             return (
               <span
                 style={{
@@ -54,22 +59,40 @@ export function MarkdownView({ source }: { source: string }) {
                   textAlign: "center",
                 }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={src}
-                  alt={alt ?? ""}
-                  style={{
-                    display: "block",
-                    margin: "0 auto",
-                    maxWidth: "100%",
-                    maxHeight: "32rem",
-                    borderRadius: "0.5rem",
-                    border: "1px solid rgb(39 39 42)",
-                    backgroundColor: "rgb(24 24 27)",
-                    objectFit: "contain",
-                  }}
-                  loading="lazy"
-                />
+                {isVideo ? (
+                  <video
+                    src={cleanSrc}
+                    controls
+                    preload="metadata"
+                    playsInline
+                    style={{
+                      display: "block",
+                      margin: "0 auto",
+                      maxWidth: "100%",
+                      maxHeight: "32rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid rgb(39 39 42)",
+                      backgroundColor: "rgb(0 0 0)",
+                    }}
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={cleanSrc}
+                    alt={alt ?? ""}
+                    style={{
+                      display: "block",
+                      margin: "0 auto",
+                      maxWidth: "100%",
+                      maxHeight: "32rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid rgb(39 39 42)",
+                      backgroundColor: "rgb(24 24 27)",
+                      objectFit: "contain",
+                    }}
+                    loading="lazy"
+                  />
+                )}
                 {caption && (
                   <span
                     style={{

@@ -112,10 +112,14 @@ export function MarkdownEditor({
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const result = await uploadBytesViaPublisher(bytes);
-      const final = `![${file.name}](${imageProxyUrl(result.blobId)})`;
-      // Read latest value via the ref so we don't race a typed-while-
-      // uploading edit; replace this specific placeholder with the
-      // final markdown.
+      // Both images (incl. animated GIFs) and videos use the markdown
+      // image syntax `![alt](url)`. Videos get a `#video` URL fragment
+      // hint so MarkdownView can swap the rendered <img> for a <video
+      // controls> tag without needing rehype-raw / inline HTML support.
+      // Fragments are ignored by the proxy when fetching the bytes.
+      const isVideo = file.type.startsWith("video/");
+      const url = imageProxyUrl(result.blobId) + (isVideo ? "#video" : "");
+      const final = `![${file.name}](${url})`;
       onChange(latestValueRef.current.replace(placeholder, final));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -125,11 +129,14 @@ export function MarkdownEditor({
     }
   };
 
+  const isUploadable = (mime: string) =>
+    mime.startsWith("image/") || mime.startsWith("video/");
+
   const onPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = Array.from(e.clipboardData.items);
-    const imageItem = items.find((it) => it.type.startsWith("image/"));
-    if (!imageItem) return;
-    const file = imageItem.getAsFile();
+    const item = items.find((it) => isUploadable(it.type));
+    if (!item) return;
+    const file = item.getAsFile();
     if (!file) return;
     e.preventDefault();
     await uploadAndInsert(file);
@@ -137,7 +144,7 @@ export function MarkdownEditor({
 
   const onDrop = async (e: React.DragEvent<HTMLTextAreaElement>) => {
     const file = Array.from(e.dataTransfer.files).find((f) =>
-      f.type.startsWith("image/"),
+      isUploadable(f.type),
     );
     if (!file) return;
     e.preventDefault();
@@ -204,12 +211,12 @@ export function MarkdownEditor({
             <LinkIcon size={14} />
           </ToolbarButton>
           <ToolbarButton
-            label="Image (or drop / paste)"
+            label="Image, GIF, or video (or drop / paste)"
             disabled={tab !== "edit" || uploading}
             onClick={() => {
               const input = document.createElement("input");
               input.type = "file";
-              input.accept = "image/*";
+              input.accept = "image/*,video/*";
               input.onchange = () => {
                 const f = input.files?.[0];
                 if (f) void uploadAndInsert(f);
@@ -243,7 +250,7 @@ export function MarkdownEditor({
           onDragOver={(e) => e.preventDefault()}
           placeholder={
             placeholder ??
-            "Write your answer in markdown.\n\n**bold**, *italic*, # heading, > quote, `code`, [link](url).\n\nDrop or paste an image and we'll upload it to Walrus, then insert ![alt](url) at your cursor."
+            "Write your answer in markdown.\n\n**bold**, *italic*, # heading, > quote, `code`, [link](url).\n\nDrop or paste an image, GIF, or video — we'll upload it to Walrus and insert it at your cursor."
           }
           className="w-full resize-y bg-transparent px-5 py-4 text-base leading-[1.7] text-zinc-100 placeholder:text-zinc-600 outline-none focus:placeholder:text-zinc-700"
           style={{ minHeight }}
