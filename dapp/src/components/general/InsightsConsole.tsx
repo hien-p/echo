@@ -5,9 +5,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { motion } from "motion/react";
 import {
-  ArrowUp,
+  ArrowDown,
+  ArrowRight,
   Database,
   Lightbulb,
+  Mic,
   Paperclip,
   Sparkles,
 } from "lucide-react";
@@ -15,20 +17,21 @@ import { apiUrl, clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 import { useDemoAdminMode } from "./DemoAdminToggle";
-import { DitherShader } from "@/components/marketing/DitherShader";
 
 /**
- * Insights console — Kraft-style hero chat prompt bar instead of the
- * old vertical form. Big display headline, rounded chat input with
- * suggestion chips and a circular send button, results render below
- * the input as a streaming-style answer card.
+ * Insights — Kraft-style chat surface.
  *
- * RAG pipeline is unchanged from the previous flat-form version:
- *   1. Pick a form  →  auto-index its submissions into a Memwal namespace
- *      (once per session per id)
- *   2. Type a question  →  /api/insights/query routes through OpenRouter
- *      with the namespace memories injected as context
- *   3. Render the model's answer in a card below the prompt
+ * Layout mirrors the Kraft AI-SaaS template (/Users/harryphan/Downloads/saas):
+ * left-aligned oversized headline, single wide pill input, action row
+ * BELOW the input (paperclip / lightbulb / form-selector / suggest /
+ * mic / circular send), soft purple radial-gradient backdrop, "Echo can
+ * make mistakes" caveat, footer subhead + scroll indicator.
+ *
+ * RAG pipeline unchanged:
+ *   - formsQuery → listOwnedObjects(FormOwnerCap) → getObjects + Walrus metadata
+ *   - indexMutation → /api/insights/index_form (auto-fires once per session per id)
+ *   - queryMutation → /api/insights/query (OpenRouter + Memwal middleware)
+ *   - Answer rendered in a card below the chat surface
  */
 
 interface OnChainForm {
@@ -52,6 +55,8 @@ const SUGGESTIONS = [
   "Where did Echo feel rough or confusing?",
   "Would respondents use Echo for a real form?",
   "Summarize the most common feedback themes.",
+  "List the top three complaints by frequency.",
+  "What features are people asking for?",
 ];
 
 export const InsightsConsole = () => {
@@ -180,218 +185,192 @@ export const InsightsConsole = () => {
   }
 
   return (
-    <div className="relative flex flex-col gap-10">
-      {/* === Hero panel — Kraft chat-prompt-bar pattern === */}
-      <motion.section
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-        className="relative overflow-hidden rounded-3xl border border-border bg-card"
+    <div className="relative -mx-4 sm:-mx-8 lg:-mx-12">
+      {/* Soft radial gradient backdrop — light-purple wash like Kraft */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
       >
-        {/* Dither shader backdrop — adds the Kraft "ambient blob" feel
-            without committing to a heavy shader. Sits behind everything. */}
-        <div className="pointer-events-none absolute inset-0 opacity-40 dark:opacity-60">
-          <DitherShader variant="cta" />
-        </div>
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/30 via-background/60 to-background" />
+        <div className="absolute left-1/2 top-1/2 h-[140%] w-[140%] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(circle_at_center,_rgba(124,58,237,0.18)_0%,_rgba(99,102,241,0.10)_30%,_transparent_65%)] dark:bg-[radial-gradient(circle_at_center,_rgba(139,92,246,0.30)_0%,_rgba(99,102,241,0.18)_30%,_transparent_65%)]" />
+      </div>
 
-        <div className="relative z-10 flex flex-col items-center gap-8 px-6 py-16 sm:px-12 sm:py-20 lg:py-24">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Memwal RAG · powered by OpenRouter
-            </span>
-            <h2 className="text-balance text-[clamp(2rem,5vw,4rem)] font-medium leading-[1.05] tracking-tight text-foreground">
-              Ask your forms —{" "}
-              <em className="font-serif text-foreground/70">they remember.</em>
-            </h2>
-            <p className="max-w-[42rem] text-sm leading-relaxed text-muted-foreground sm:text-base">
-              Echo indexes every submission into a private namespace and lets
-              you query it in plain English. Pick a form, ask anything, get a
-              synthesized answer with the underlying submissions as context.
-            </p>
+      <section className="flex min-h-[calc(100vh-7rem)] flex-col px-6 pb-12 pt-12 sm:px-12 lg:px-20">
+        {/* Headline — bold left-aligned, italic-serif accent like Kraft's
+            "the future of creativity" */}
+        <motion.h1
+          initial={{ opacity: 0, y: 24, filter: "blur(8px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+          className="text-balance text-[clamp(2.5rem,7vw,6.5rem)] font-semibold leading-[1.05] tracking-tight text-foreground"
+        >
+          Ask Echo —
+          <br />
+          the <em className="font-serif italic text-foreground/60">
+            future
+          </em>{" "}
+          of feedback
+        </motion.h1>
+
+        {/* Spacer pushes the input bar to roughly viewport center */}
+        <div className="min-h-12 flex-1" />
+
+        {/* === The chat bar === */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className="mx-auto w-full max-w-[1080px]"
+        >
+          {/* Tall rounded input (single pill) */}
+          <div className="rounded-3xl border border-border/60 bg-card/70 px-7 py-6 shadow-2xl shadow-foreground/[0.04] backdrop-blur-md">
+            <textarea
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  onAsk();
+                }
+              }}
+              placeholder="Ask Echo anything…"
+              rows={2}
+              className="w-full resize-none border-0 bg-transparent text-xl text-foreground placeholder:text-muted-foreground/70 outline-none sm:text-2xl"
+            />
           </div>
 
-          {/* Chat-prompt card */}
-          <div className="w-full max-w-[768px]">
-            <ChatPrompt
-              question={question}
-              setQuestion={setQuestion}
-              onAsk={onAsk}
-              canAsk={canAsk}
-              pending={queryMutation.isPending}
+          {/* Action row BELOW the input — matches Kraft layout exactly */}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <CircleButton ariaLabel="Attach (coming soon)" disabled>
+              <Paperclip size={16} strokeWidth={1.75} />
+            </CircleButton>
+            <CircleButton ariaLabel="Think mode (coming soon)" disabled>
+              <Lightbulb size={16} strokeWidth={1.75} />
+            </CircleButton>
+
+            {/* Form selector — Kraft's "Create Design" slot */}
+            <FormSelectorChip
+              forms={forms}
               selectedFormId={selectedFormId}
               setSelectedFormId={setSelectedFormId}
-              forms={forms}
               demoMode={demoMode}
             />
 
-            {/* Suggestion chips below the input */}
-            <div className="mt-4 flex flex-wrap items-center gap-2 px-1">
-              <span className="text-[11px] text-muted-foreground">try:</span>
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setQuestion(s)}
-                  className="rounded-full border border-border bg-background/60 px-3 py-1.5 text-xs text-muted-foreground transition hover:border-foreground/40 hover:text-foreground hover:bg-background"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+            {/* Suggestions menu — Kraft's "Wireframe" slot */}
+            <SuggestionChip onPick={setQuestion} />
+
+            <span className="ml-auto hidden text-[11px] text-muted-foreground sm:inline">
+              <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono">⌘↵</kbd>
+            </span>
+
+            <CircleButton ariaLabel="Voice (coming soon)" disabled>
+              <Mic size={15} strokeWidth={1.75} />
+            </CircleButton>
+
+            {/* Send — big black circle like Kraft */}
+            <button
+              type="button"
+              onClick={onAsk}
+              disabled={!canAsk}
+              aria-label="Ask"
+              className={cn(
+                "inline-flex h-11 w-11 items-center justify-center rounded-full shadow-lg transition",
+                canAsk
+                  ? "bg-foreground text-background shadow-foreground/20 hover:opacity-90"
+                  : "cursor-not-allowed bg-muted text-muted-foreground shadow-none",
+              )}
+            >
+              {queryMutation.isPending ? (
+                <Sparkles size={18} className="animate-pulse" />
+              ) : (
+                <ArrowRight size={18} strokeWidth={2.25} />
+              )}
+            </button>
           </div>
 
-          {/* Status line — index progress + namespace */}
-          {selected && (
-            <IndexStatus
-              status={indexMutation}
-              onReindex={() => indexMutation.mutate(selected.id)}
-            />
-          )}
-        </div>
-      </motion.section>
+          <p className="mt-6 text-center text-xs text-muted-foreground/70">
+            Echo can make mistakes — answers are synthesized from real
+            submissions, but verify the source if it matters.
+          </p>
 
-      {/* === Answer / error panel === */}
+          {selected && (
+            <div className="mt-4 flex justify-center">
+              <IndexStatus
+                status={indexMutation}
+                onReindex={() => indexMutation.mutate(selected.id)}
+              />
+            </div>
+          )}
+        </motion.div>
+
+        {/* Bottom subhead + scroll affordance — Kraft footer copy slot */}
+        <div className="mt-auto flex flex-wrap items-end justify-between gap-6 pt-16">
+          <p className="max-w-[28rem] text-xs leading-relaxed text-muted-foreground">
+            Echo uses Memwal RAG over your form submissions. Pick a form, ask
+            anything, get a synthesized answer with the underlying responses as
+            context.
+          </p>
+          <ArrowDown
+            size={28}
+            strokeWidth={1.5}
+            className="text-foreground/40"
+            aria-hidden="true"
+          />
+        </div>
+      </section>
+
+      {/* Answer / error panel below the fold */}
       {(queryMutation.data?.answer || queryMutation.error instanceof Error) && (
         <motion.section
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="rounded-2xl border border-border bg-card p-6 sm:p-8"
+          className="mx-4 mb-16 mt-4 rounded-3xl border border-border bg-card p-8 shadow-xl shadow-foreground/[0.04] sm:mx-8 sm:p-10 lg:mx-12"
         >
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             <Sparkles size={12} /> Answer
           </div>
           {queryMutation.error instanceof Error ? (
-            <p className="mt-3 text-sm text-destructive">
+            <p className="mt-4 text-sm text-destructive">
               {queryMutation.error.message}
             </p>
           ) : (
-            <article className="mt-4 whitespace-pre-wrap text-base leading-relaxed text-foreground">
+            <article className="mt-5 whitespace-pre-wrap text-base leading-relaxed text-foreground">
               {queryMutation.data?.answer}
             </article>
           )}
         </motion.section>
-      )}
-
-      {/* === Empty state when no form picked yet === */}
-      {!selected && !queryMutation.data?.answer && (
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer underline-offset-4 hover:underline">
-            How Memwal RAG works
-          </summary>
-          <ul className="mt-3 list-disc space-y-1.5 pl-5 leading-relaxed">
-            <li>
-              <strong>Pick a form</strong> · we auto-index its submissions into
-              a per-form Memwal namespace by reading <code>SubmissionMade</code>{" "}
-              events, downloading the public Walrus payload for each, flattening
-              answers to text, and calling <code>memwal.remember()</code>.
-            </li>
-            <li>
-              <strong>Ask</strong> · queries route through{" "}
-              <code>/api/insights/query</code> which wraps OpenRouter with{" "}
-              <code>withMemWal</code> middleware — relevant memories get
-              auto-injected as context.
-            </li>
-            <li>
-              Encrypted tiers (Admin-only / Threshold / Conditional) can&apos;t
-              be server-indexed because the server doesn&apos;t hold session-key
-              delegation. Time-locked forms become indexable after the unlock
-              timestamp passes. Demo-admin mode lets the server index encrypted
-              forms using a designated demo key for showcase purposes only.
-            </li>
-          </ul>
-        </details>
       )}
     </div>
   );
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-//  Chat prompt — large rounded textarea with form selector + send button
+//  Sub-components
 // ─────────────────────────────────────────────────────────────────────────
 
-function ChatPrompt({
-  question,
-  setQuestion,
-  onAsk,
-  canAsk,
-  pending,
-  selectedFormId,
-  setSelectedFormId,
-  forms,
-  demoMode,
+function CircleButton({
+  children,
+  ariaLabel,
+  disabled,
 }: {
-  question: string;
-  setQuestion: (q: string) => void;
-  onAsk: () => void;
-  canAsk: boolean;
-  pending: boolean;
-  selectedFormId: string;
-  setSelectedFormId: (id: string) => void;
-  forms: FormChoice[];
-  demoMode: boolean;
+  children: React.ReactNode;
+  ariaLabel: string;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-3xl border border-border bg-background/90 p-3 shadow-xl shadow-foreground/5 backdrop-blur-md sm:p-4">
-      <textarea
-        value={question}
-        onChange={(e) => setQuestion(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            onAsk();
-          }
-        }}
-        placeholder="Ask your form anything — e.g. what worked? what was rough? top three complaints this week?"
-        rows={2}
-        className="w-full resize-none border-0 bg-transparent px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/60 outline-none sm:text-lg"
-      />
-
-      <div className="flex flex-wrap items-center gap-2 px-1">
-        {/* Form selector chip — replaces the "Create Design" chip in Kraft */}
-        <FormSelectorChip
-          forms={forms}
-          selectedFormId={selectedFormId}
-          setSelectedFormId={setSelectedFormId}
-          demoMode={demoMode}
-        />
-
-        {/* Inert decorative chips matching Kraft layout */}
-        <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs text-muted-foreground">
-          <Paperclip size={12} />
-          Attach
-        </span>
-        <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs text-muted-foreground">
-          <Lightbulb size={12} />
-          Think mode
-        </span>
-
-        <span className="ml-auto text-[10px] text-muted-foreground">
-          <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono">⌘ ↵</kbd>
-        </span>
-
-        {/* Send button — circular black, classic Kraft */}
-        <button
-          type="button"
-          onClick={onAsk}
-          disabled={!canAsk}
-          aria-label="Ask"
-          className={cn(
-            "inline-flex h-10 w-10 items-center justify-center rounded-full transition",
-            canAsk
-              ? "bg-foreground text-background hover:opacity-90"
-              : "cursor-not-allowed bg-muted text-muted-foreground",
-          )}
-        >
-          {pending ? (
-            <Sparkles size={16} className="animate-pulse" />
-          ) : (
-            <ArrowUp size={16} strokeWidth={2.5} />
-          )}
-        </button>
-      </div>
-    </div>
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      disabled={disabled}
+      className={cn(
+        "inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background text-foreground transition",
+        disabled
+          ? "cursor-default opacity-60"
+          : "hover:border-foreground/40 hover:bg-muted",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -409,32 +388,70 @@ function FormSelectorChip({
   return (
     <label
       className={cn(
-        "inline-flex h-8 items-center gap-1.5 rounded-full border bg-background px-3 text-xs transition focus-within:border-foreground/60",
+        "inline-flex h-10 items-center gap-2 rounded-full border bg-background pl-4 pr-3 text-sm transition focus-within:border-foreground/60",
         selectedFormId
           ? "border-foreground/40 text-foreground"
           : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
       )}
     >
-      <Database size={12} />
+      <Database size={14} strokeWidth={1.75} />
       <select
         value={selectedFormId}
         onChange={(e) => setSelectedFormId(e.target.value)}
-        className="cursor-pointer appearance-none bg-transparent outline-none"
+        className="cursor-pointer appearance-none bg-transparent pr-1 outline-none"
       >
         <option value="">Pick a form</option>
         {forms.map((f) => {
           const isPublic = f.privacyTier === 0;
           const isTimeLocked = f.privacyTier === 3;
-          const indexableServerSide = isPublic || isTimeLocked || demoMode;
+          const indexable = isPublic || isTimeLocked || demoMode;
           return (
-            <option key={f.id} value={f.id} disabled={!indexableServerSide}>
+            <option key={f.id} value={f.id} disabled={!indexable}>
               {f.title}
-              {!indexableServerSide ? " (encrypted)" : ""}
+              {!indexable ? " (encrypted)" : ""}
             </option>
           );
         })}
       </select>
     </label>
+  );
+}
+
+function SuggestionChip({ onPick }: { onPick: (s: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className={cn(
+          "inline-flex h-10 items-center gap-2 rounded-full border border-border bg-background px-4 text-sm text-foreground transition hover:border-foreground/40 hover:bg-muted",
+          open && "border-foreground/40 bg-muted",
+        )}
+      >
+        <Sparkles size={14} strokeWidth={1.75} />
+        Suggest
+      </button>
+      {open && (
+        <div className="absolute left-0 top-12 z-20 flex w-[min(380px,90vw)] flex-col rounded-2xl border border-border bg-card p-2 shadow-2xl shadow-foreground/10">
+          {SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onPick(s);
+                setOpen(false);
+              }}
+              className="rounded-xl px-3 py-2 text-left text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -483,25 +500,32 @@ function IndexStatus({
 
 function ConnectGate() {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-12 text-center">
-      <div className="pointer-events-none absolute inset-0 opacity-30 dark:opacity-50">
-        <DitherShader variant="cta" />
+    <div className="relative -mx-4 sm:-mx-8 lg:-mx-12">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      >
+        <div className="absolute left-1/2 top-1/2 h-[140%] w-[140%] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(circle_at_center,_rgba(124,58,237,0.18)_0%,_rgba(99,102,241,0.10)_30%,_transparent_65%)] dark:bg-[radial-gradient(circle_at_center,_rgba(139,92,246,0.30)_0%,_rgba(99,102,241,0.18)_30%,_transparent_65%)]" />
       </div>
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/50 via-background/70 to-background" />
-      <div className="relative z-10 flex flex-col items-center gap-3">
+      <section className="flex min-h-[calc(100vh-7rem)] flex-col items-start justify-center px-6 py-12 sm:px-12 lg:px-20">
         <Sparkles
           size={28}
           strokeWidth={1.5}
-          className="text-muted-foreground"
+          className="mb-6 text-muted-foreground"
         />
-        <h2 className="text-2xl font-medium tracking-tight text-foreground">
-          Connect a wallet to ask your forms
-        </h2>
-        <p className="max-w-[28rem] text-sm text-muted-foreground">
-          Insights queries the forms you hold a FormOwnerCap for. Toggle Demo
-          admin in the nav to browse the showcase forms without a wallet.
+        <h1 className="text-[clamp(2.5rem,7vw,6.5rem)] font-semibold leading-[1.05] tracking-tight text-foreground">
+          Ask Echo —
+          <br />
+          the <em className="font-serif italic text-foreground/60">
+            future
+          </em>{" "}
+          of feedback
+        </h1>
+        <p className="mt-8 max-w-[36rem] text-base text-muted-foreground">
+          Connect a wallet to query the forms you own. Or toggle Demo admin in
+          the nav to browse the showcase forms without a wallet.
         </p>
-      </div>
+      </section>
     </div>
   );
 }
