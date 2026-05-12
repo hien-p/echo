@@ -18,8 +18,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
-import { clientConfig } from "@/config/clientConfig";
+import { GripVertical, Plus, Sparkles, Trash2 } from "lucide-react";
+import { apiUrl, clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import {
   PrivacyTier,
@@ -503,6 +503,13 @@ export const FormBuilder = () => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] gap-md">
       <div className="flex flex-col gap-md">
+        <AiGeneratePanel
+          onGenerated={(g) => {
+            setTitle(g.title);
+            setDescription(g.description);
+            setFields(g.fields);
+          }}
+        />
         <div className="flex gap-2 text-xs">
           <button
             type="button"
@@ -1189,4 +1196,213 @@ function parseCoAdminTokens(
     }
   }
   return out;
+}
+
+/**
+ * AI form-builder panel — describe the feedback you want, get a draft
+ * schema injected into the builder. Uses /api/forms/generate which
+ * proxies OpenRouter (gpt-4o-mini by default) with a system prompt
+ * pinning the response to Echo's FormSchema shape.
+ *
+ * v0 collapses to a hint pill until expanded. Once generated, the
+ * user can keep iterating in the visual editor as usual — AI is just
+ * a starting-point shortcut, not a replacement for the editor.
+ */
+function AiGeneratePanel({
+  onGenerated,
+}: {
+  onGenerated: (g: {
+    title: string;
+    description: string;
+    fields: FormField[];
+  }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [status, setStatus] = useState<
+    | { kind: "idle" }
+    | { kind: "generating" }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
+
+  const examples = [
+    "NPS feedback for a Sui dApp launch — 1 rating, 1 reason, contact opt-in.",
+    "Bug report — title, steps to reproduce, expected vs actual, screenshot, severity.",
+    "Hackathon judge feedback — overall rating, what worked, what was rough, would-use yes/maybe/no.",
+  ];
+
+  const generate = async (input: string) => {
+    setStatus({ kind: "generating" });
+    try {
+      const resp = await fetch(apiUrl("/api/forms/generate"), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt: input }),
+      });
+      if (!resp.ok) {
+        const err = (await resp.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${resp.status}`);
+      }
+      const data = (await resp.json()) as {
+        title: string;
+        description: string;
+        fields: Array<{
+          id: string;
+          type: string;
+          label: string;
+          required?: boolean;
+          options?: Array<{ value: string; label: string }>;
+          scale?: number;
+          placeholder?: string;
+        }>;
+      };
+      // Coerce the loose AI response into our strict FormField type.
+      // Anything unrecognized falls back to short_text so we never
+      // crash on a model hallucination.
+      const fields: FormField[] = data.fields.map((f) => {
+        const base = { id: f.id, label: f.label, required: !!f.required };
+        const t = f.type as FormField["type"];
+        switch (t) {
+          case "single_select":
+          case "multi_select":
+          case "dropdown":
+            return {
+              ...base,
+              type: t,
+              options: f.options ?? [{ value: "yes", label: "Yes" }],
+            } as FormField;
+          case "rating":
+            return {
+              ...base,
+              type: "rating",
+              scale: f.scale ?? 5,
+            } as FormField;
+          case "long_text":
+          case "rich_text":
+          case "url":
+          case "checkbox":
+          case "date":
+          case "time":
+          case "screenshot":
+          case "video":
+          case "file_upload":
+          case "signature":
+            return { ...base, type: t } as FormField;
+          default:
+            return { ...base, type: "short_text" } as FormField;
+        }
+      });
+      onGenerated({
+        title: data.title,
+        description: data.description,
+        fields,
+      });
+      setStatus({ kind: "idle" });
+      setOpen(false);
+    } catch (e) {
+      setStatus({
+        kind: "error",
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="group flex items-center justify-between gap-3 rounded-xl border border-violet-300/40 bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/40 dark:to-blue-950/40 dark:border-violet-700/40 p-4 text-left transition hover:border-violet-400 hover:from-violet-100 hover:to-blue-100 dark:hover:from-violet-900/60 dark:hover:to-blue-900/60"
+      >
+        <span className="flex items-center gap-3">
+          <Sparkles
+            size={18}
+            className="text-violet-600 dark:text-violet-400"
+          />
+          <span className="flex flex-col">
+            <span className="font-semibold text-foreground">
+              ✨ Generate with AI
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Describe the feedback you want — we&apos;ll write the questions.
+            </span>
+          </span>
+        </span>
+        <span className="text-violet-600 dark:text-violet-400 transition group-hover:translate-x-0.5">
+          →
+        </span>
+      </button>
+    );
+  }
+
+  const generating = status.kind === "generating";
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-violet-300/40 bg-gradient-to-br from-violet-50 to-blue-50 dark:from-violet-950/40 dark:to-blue-950/40 dark:border-violet-700/40 p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Sparkles
+            size={16}
+            className="text-violet-600 dark:text-violet-400"
+          />
+          <span className="font-semibold text-foreground">
+            ✨ Generate with AI
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setStatus({ kind: "idle" });
+          }}
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
+          collapse
+        </button>
+      </div>
+      <textarea
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        placeholder="Describe the feedback you want to collect…"
+        rows={3}
+        className="w-full resize-y rounded-lg border bg-background/60 px-3 py-2 text-sm leading-relaxed outline-none focus:border-violet-400"
+        disabled={generating}
+      />
+      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+        <span className="text-muted-foreground">Try:</span>
+        {examples.map((ex) => (
+          <button
+            key={ex}
+            type="button"
+            onClick={() => setPrompt(ex)}
+            disabled={generating}
+            className="rounded-full border border-violet-300/40 dark:border-violet-700/40 bg-background/40 px-2.5 py-1 text-muted-foreground hover:bg-background hover:text-foreground"
+          >
+            {ex.slice(0, 36)}…
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void generate(prompt.trim())}
+          disabled={!prompt.trim() || generating}
+          className={cn(
+            "rounded-full px-5 py-2 text-sm font-semibold shadow-md transition",
+            !prompt.trim() || generating
+              ? "cursor-not-allowed bg-muted text-muted-foreground shadow-none"
+              : "bg-violet-600 text-white shadow-violet-500/20 hover:bg-violet-500",
+          )}
+        >
+          {generating ? "Generating…" : "Generate form"}
+        </button>
+        <span className="text-[11px] text-muted-foreground">
+          Replaces current title / description / fields. Continue in the visual
+          editor after.
+        </span>
+      </div>
+      {status.kind === "error" && (
+        <p className="text-sm text-destructive">✗ {status.message}</p>
+      )}
+    </div>
+  );
 }

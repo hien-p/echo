@@ -1,6 +1,53 @@
-# Echo — Decentralized Feedback & Form Platform
+# Echo
 
-**Walrus-native forms with on-chain composability.** Build a form, share a link, collect rich feedback (markdown + screenshots + videos), keep submissions encrypted with Seal, ask questions across the answers with Memwal-powered RAG. Built for the **Walrus Sessions hackathon**.
+> **Feedback that actually belongs to you.**
+> Walrus-native form platform — gas-sponsored answers, Seal-encrypted private tiers, on-chain composability via Sui.
+> Built for the **Walrus Sessions** hackathon.
+
+---
+
+### 30-second tour
+
+|                                                            |                                                                                                             |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 🌊 **Try a real form** (Public, gas-sponsored, walletless) | https://staging.echo-20u.pages.dev/forms/0x3121c7bf1d27de41aea9157c75a397c7899e5cb69cbc6d15e0a48ab9da2ac0e1 |
+| 🛠 **Build your own** (5 tiers, 14 field types)            | https://staging.echo-20u.pages.dev/app/forms/new                                                            |
+| 📊 **Admin dashboard** (cross-form triage + bounty TVL)    | https://staging.echo-20u.pages.dev/app/dashboard                                                            |
+| 🌐 **Marketing landing** (cinematic hero)                  | https://staging.echo-20u.pages.dev                                                                          |
+| 📝 **Devlog**                                              | https://staging.echo-20u.pages.dev/logs                                                                     |
+| 🐙 **Source**                                              | https://github.com/hien-p/echo                                                                              |
+
+### Architecture
+
+```
+              ┌─────────┐  rich-text · images · GIFs · videos
+respondent ──▶│ takeover│  drag-drop → /api/walrus/blob/<id> proxy
+              │  viewer │     (sniffs MIME, fixes nosniff)
+              └────┬────┘
+                   │ encryptForTier (Seal · 5 tiers)
+                   ▼
+              ┌─────────┐                    ┌──────────┐
+              │ Walrus  │  uploadJsonViaPub  │  Memwal  │
+              │ payload │ ◀───────────────── │   RAG    │
+              └────┬────┘                    └──────────┘
+                   │ buildSubmitTx
+                   ▼
+              ┌─────────┐  Enoki gas-sponsored
+              │   Sui   │  ephemeral keypair (walletless)
+              │ anchor  │  ApprovalWitness (m-of-n threshold)
+              └─────────┘  BountyPool · ReputationBadge · CreditTicket
+```
+
+### What makes Echo different
+
+- **5 privacy tiers** — Public, AdminOnly, **real m-of-n threshold** (votes-to-decrypt via on-chain `ApprovalWitness`), Time-locked, Conditional
+- **Walletless submit** — ephemeral Ed25519 keypair signs the gas-sponsored Enoki tx, then is discarded; respondents need zero SUI
+- **Anonymous nullifier mode** — `SHA-256(walletSig(formId))` lands on chain; one anonymous submission per wallet per form, Sybil-resistant
+- **Walrus image proxy** — re-emits blobs with proper `content-type` so embeds work in any `<img>` / `<video>` everywhere (Walrus aggregators ship `nosniff` with no MIME — Chrome refuses to render)
+- **Memwal RAG** — natural-language query across submissions
+- **Bounty pools + reputation** — admin_select / top_k / quadratic payout modes; soulbound badges from issued credit tickets
+- **SuiNS branded share links** + **per-form webhooks** + **realtime new-submission toast**
+- **Walrus Sites deploy** in addition to Cloudflare Pages
 
 > Nobody builds this on Google Forms.
 
