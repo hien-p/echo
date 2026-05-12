@@ -255,3 +255,26 @@
     transform: translateY(0);
   }
 }
+
+/* Once-only shimmer sweep used by the dashboard KPI tile big numbers.
+   Sweeps an accent-colored gradient through background-clipped text so
+   the glyphs glow from left to right on mount. */
+@keyframes kpi-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+/* Slow conic-gradient ribbon that rides the chart card border —
+   ambient motion without distracting from the chart itself. */
+@keyframes kpi-conic {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

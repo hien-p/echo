@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
-import { motion } from "motion/react";
+import { motion, useMotionValue, useSpring, useTransform } from "motion/react";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Unlock,
 } from "lucide-react";
+import AuroraBlur from "@/components/react-bits/aurora-blur";
 import { clientConfig } from "@/config/clientConfig";
 import {
   PrivacyTier,
@@ -353,7 +354,38 @@ export function DashboardKpiStrip() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="relative flex flex-col gap-4">
+      {/* Aurora ambient glow behind the strip — toned-down Walrus palette
+          so it reads as atmosphere, not a marketing background. Pointer
+          events off so spotlight/clicks pass through. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-x-8 -top-12 -bottom-8 -z-10 overflow-hidden rounded-3xl opacity-50"
+        style={{ filter: "blur(4px)" }}
+      >
+        <AuroraBlur
+          width="100%"
+          height="100%"
+          speed={0.6}
+          opacity={0.7}
+          bloomIntensity={2.2}
+          brightness={0.9}
+          saturation={1.1}
+          verticalFade={1.1}
+          noiseScale={2.5}
+          layers={[
+            { color: "#5B8DEF", speed: 0.28, intensity: 0.45 },
+            { color: "#A78BFA", speed: 0.18, intensity: 0.35 },
+            { color: "#34D399", speed: 0.22, intensity: 0.18 },
+            { color: "#FBBF24", speed: 0.12, intensity: 0.14 },
+          ]}
+          skyLayers={[
+            { color: "#0A0A0B", blend: 0.78 },
+            { color: "#111114", blend: 0.5 },
+          ]}
+        />
+      </div>
+
       {/* 4-tile KPI row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         <KpiTile
@@ -448,36 +480,94 @@ function KpiTile({
     success: "text-emerald-400",
   }[tone];
 
+  // Tone-matched accent hex for the cursor spotlight + shimmer gradient.
+  // Keeps each tile's color identity instead of a generic white glow.
+  const accentHex = {
+    default: "#5B8DEF",
+    info: "#60A5FA",
+    warning: "#FBBF24",
+    danger: "#FB7185",
+    success: "#34D399",
+  }[tone];
+
+  // Cursor-tracked spotlight — radial gradient mask follows the mouse.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const mx = useMotionValue(-200);
+  const my = useMotionValue(-200);
+  const smx = useSpring(mx, { stiffness: 220, damping: 28 });
+  const smy = useSpring(my, { stiffness: 220, damping: 28 });
+  const spotlight = useTransform(
+    [smx, smy],
+    ([x, y]) =>
+      `radial-gradient(280px circle at ${x}px ${y}px, ${accentHex}33, transparent 55%)`,
+  );
+
+  const handleMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = cardRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    mx.set(e.clientX - rect.left);
+    my.set(e.clientY - rect.top);
+  };
+  const handleLeave = () => {
+    mx.set(-200);
+    my.set(-200);
+  };
+
   const content = (
     <motion.div
+      ref={cardRef}
+      onMouseMove={handleMove}
+      onMouseLeave={handleLeave}
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="group flex h-full flex-col gap-3 rounded-2xl border border-border bg-card/60 p-4 transition hover:border-foreground/20 hover:bg-card/80"
+      className="group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card/60 p-4 backdrop-blur transition hover:border-foreground/20 hover:bg-card/80"
     >
-      <div className="flex items-center justify-between">
+      {/* Cursor-tracked spotlight */}
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{ background: spotlight }}
+      />
+      {/* Subtle inner gradient border on hover (conic ribbon) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{
+          background: `conic-gradient(from 220deg at 50% 50%, transparent 0deg, ${accentHex}66 90deg, transparent 180deg)`,
+          mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+          WebkitMask:
+            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+          maskComposite: "exclude",
+          WebkitMaskComposite: "xor",
+          padding: 1,
+        }}
+      />
+
+      <div className="relative flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           {label}
         </span>
-        <span className={toneIconCls}>{icon}</span>
+        <span
+          className={toneIconCls}
+          style={{
+            filter: `drop-shadow(0 0 8px ${accentHex}66)`,
+          }}
+        >
+          {icon}
+        </span>
       </div>
-      <div className="flex items-baseline gap-2">
+      <div className="relative flex items-baseline gap-2">
         {loading ? (
           <div className="h-9 w-20 animate-pulse rounded bg-foreground/10" />
         ) : (
-          <span
-            className="text-4xl font-medium leading-none tracking-tight text-foreground tabular-nums"
-            style={{ letterSpacing: "-0.6px" }}
-          >
-            {decimals > 0 ? (
-              value.toFixed(decimals)
-            ) : (
-              <CountUp to={value} delay={delay + 0.1} duration={1.2} />
-            )}
-            {suffix && (
-              <span className="ml-1 text-xl text-muted-foreground">{suffix}</span>
-            )}
-          </span>
+          <ShimmerNumber
+            value={value}
+            decimals={decimals}
+            suffix={suffix}
+            accent={accentHex}
+            delay={delay}
+          />
         )}
         {delta !== undefined && delta !== 0 && !loading && (
           <span
@@ -496,7 +586,7 @@ function KpiTile({
           </span>
         )}
       </div>
-      <span className="text-xs text-muted-foreground">
+      <span className="relative text-xs text-muted-foreground">
         {subline ?? "vs previous 24h"}
       </span>
     </motion.div>
@@ -514,6 +604,54 @@ function KpiTile({
     );
   }
   return content;
+}
+
+/**
+ * Big-number wrapper that sweeps a once-only shimmer across the
+ * digits as they animate from 0 → value. Uses background-clip:text so
+ * the shimmer rides INSIDE the glyphs rather than on top of them.
+ */
+function ShimmerNumber({
+  value,
+  decimals,
+  suffix,
+  accent,
+  delay,
+}: {
+  value: number;
+  decimals: number;
+  suffix: string;
+  accent: string;
+  delay: number;
+}) {
+  return (
+    <span
+      className="relative text-4xl font-medium leading-none tracking-tight tabular-nums"
+      style={{
+        letterSpacing: "-0.6px",
+        backgroundImage: `linear-gradient(110deg, var(--color-foreground) 30%, ${accent} 50%, var(--color-foreground) 70%)`,
+        backgroundSize: "200% 100%",
+        WebkitBackgroundClip: "text",
+        backgroundClip: "text",
+        color: "transparent",
+        animation: `kpi-shimmer 2.4s cubic-bezier(0.22,1,0.36,1) ${delay + 0.2}s 1 both`,
+      }}
+    >
+      {decimals > 0 ? (
+        value.toFixed(decimals)
+      ) : (
+        <CountUp to={value} delay={delay + 0.1} duration={1.2} />
+      )}
+      {suffix && (
+        <span
+          className="ml-1 text-xl"
+          style={{ color: "var(--color-muted-foreground)" }}
+        >
+          {suffix}
+        </span>
+      )}
+    </span>
+  );
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -555,9 +693,26 @@ function Submissions30dChart({
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-3 rounded-2xl border border-border bg-card/60 p-5"
+      className="relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card/60 p-5 backdrop-blur"
     >
-      <div className="flex items-end justify-between gap-4">
+      {/* Slow rotating conic-gradient ribbon along the border */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-px rounded-2xl opacity-60"
+        style={{
+          background:
+            "conic-gradient(from 0deg, transparent 0deg, #5B8DEF55 60deg, transparent 120deg, transparent 240deg, #A78BFA44 300deg, transparent 360deg)",
+          mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+          WebkitMask:
+            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+          maskComposite: "exclude",
+          WebkitMaskComposite: "xor",
+          padding: 1,
+          animation: "kpi-conic 14s linear infinite",
+        }}
+      />
+
+      <div className="relative flex items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Submissions · last 30 days
@@ -578,16 +733,24 @@ function Submissions30dChart({
       </div>
       <svg
         viewBox={`0 0 ${w} ${h}`}
-        className="h-32 w-full"
+        className="relative h-32 w-full"
         preserveAspectRatio="none"
         role="img"
         aria-label="Daily submissions for the last 30 days"
       >
         <defs>
           <linearGradient id="kpi-area-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#5B8DEF" stopOpacity="0.45" />
+            <stop offset="0%" stopColor="#5B8DEF" stopOpacity="0.55" />
+            <stop offset="60%" stopColor="#5B8DEF" stopOpacity="0.15" />
             <stop offset="100%" stopColor="#5B8DEF" stopOpacity="0" />
           </linearGradient>
+          <filter id="kpi-line-glow" x="-10%" y="-30%" width="120%" height="160%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
         <motion.path
           d={areaD}
@@ -599,13 +762,14 @@ function Submissions30dChart({
         <motion.path
           d={pathD}
           fill="none"
-          stroke="#5B8DEF"
-          strokeWidth={1.5}
+          stroke="#7BA9F7"
+          strokeWidth={1.75}
           strokeLinecap="round"
           strokeLinejoin="round"
+          filter="url(#kpi-line-glow)"
           initial={{ pathLength: 0 }}
           animate={{ pathLength: 1 }}
-          transition={{ duration: 1.2, delay: 0.35, ease: "easeInOut" }}
+          transition={{ duration: 1.4, delay: 0.35, ease: "easeInOut" }}
         />
       </svg>
       <div className="flex justify-between text-xs text-muted-foreground tabular-nums">

@@ -162,9 +162,25 @@
         <article class="log-card" data-date="2026-05-12">
           <header>
             <time datetime="2026-05-12">2026-05-12</time>
-            <span class="log-tag" data-tag="refactor">refactor</span>
+            <span class="log-tag" data-tag="feat">feat</span>
           </header>
-          <h3>Dashboard critical-path rebuild — KPI strip + real chart + dark interior</h3>
+          <h3>Dashboard KPI tiles — react-bits aurora + spotlight + shimmer + glow chart</h3>
+          <p>
+            Took the operator-console KPI strip from clean-but-flat to alive:
+            mounted the <code>react-bits</code> AuroraBlur shader behind the
+            tiles (toned-down Walrus palette — steel-blue / violet / faint
+            emerald / amber, 50% opacity, 4px blur) so the dark zone has
+            ambient dimensionality. Each tile gets a tone-matched
+            cursor-tracked spotlight (radial gradient follows the mouse),
+            a conic-gradient ribbon that breathes on hover, and a
+            <code>drop-shadow</code> on the icon in its tile's accent color.
+            Big numbers now shimmer once on mount via a background-clip
+            text gradient sweep. The 30-day chart line rides a Gaussian
+            glow filter and the card border wears a slow rotating conic
+            ribbon. Bundle stays at 8.57 kB / 350 kB First Load (the
+            shader chunk is shared with the marketing hero).
+          </p>
+        </article>
           <p>
             Deep-audit pass exposed three competing overviews
             (LivePreviewCard + SwissBentoOverview + BentoDashboard hero) all
