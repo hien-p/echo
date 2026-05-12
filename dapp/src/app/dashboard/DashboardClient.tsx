@@ -14,3 +14,16 @@ export const CrossFormDashboardClient = dynamic(
     ),
   },
 );
+
+export const BentoDashboardClient = dynamic(
+  () =>
+    import("@/components/general/BentoDashboard").then((mod) => ({
+      default: mod.BentoDashboard,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[420px] animate-pulse rounded-2xl bg-muted/40" />
+    ),
+  },
+);

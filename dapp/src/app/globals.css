@@ -7,6 +7,7 @@
   /* TODO: Customise fonts accordingly for each product */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
 
   /* === Coloring tokens: Used by default by the Shadcn Components === */
   /* Let's use the same ones in our custom components for consistency */

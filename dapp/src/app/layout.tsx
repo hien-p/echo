@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import { SuiProvider } from "@/contexts/SuiProvider";
 import { Header } from "@/components/general/Header";
 import { Toaster } from "@/components/general/Toaster";
@@ -13,6 +13,17 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Editorial italic for marketing accents — agency hero uses
+// `<em className="font-serif">` for the headline italic, but with no
+// font-serif token defined Tailwind falls back to system Times. Wire
+// Instrument Serif so the italic actually feels editorial, not 1995.
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
@@ -29,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-[100dvh] flex flex-col`}
+        className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} antialiased min-h-[100dvh] flex flex-col`}
         suppressHydrationWarning
       >
         <SuiProvider>

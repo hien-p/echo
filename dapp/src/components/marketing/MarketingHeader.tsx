@@ -8,8 +8,8 @@ const links = [
     label: "Try a form",
     href: "/forms/0x3121c7bf1d27de41aea9157c75a397c7899e5cb69cbc6d15e0a48ab9da2ac0e1",
   },
-  { label: "Build", href: "/app/forms/new" },
-  { label: "Dashboard", href: "/app/dashboard" },
+  { label: "Build", href: "/forms/new" },
+  { label: "Dashboard", href: "/dashboard" },
   { label: "Devlog", href: "/logs/" },
 ];
 
@@ -21,7 +21,7 @@ export function MarketingHeader() {
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       className="fixed left-0 right-0 top-0 z-50 px-4 py-6 sm:px-12 sm:py-8 lg:px-24"
     >
-      <div className="mx-auto flex max-w-360 items-center justify-between gap-4">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4">
         <Link
           href="/"
           className="flex h-12 shrink-0 items-center justify-center rounded-2xl bg-foreground/90 px-5 text-base font-semibold tracking-tight text-background shadow-lg backdrop-blur transition hover:opacity-90 sm:h-14 sm:text-lg"

@@ -360,7 +360,7 @@ export function MarketingHero({ startColors, endColors }: HeroProps = {}) {
       </div>
 
       <div
-        className="relative z-10 mx-auto flex h-full max-w-360 flex-col justify-start pt-44 px-6 text-left sm:px-12 sm:pt-48 md:justify-center md:pt-0 lg:px-24 2xl:max-w-450 3xl:max-w-550"
+        className="relative z-10 mx-auto flex h-full max-w-[1440px] flex-col justify-start pt-44 px-6 text-left sm:px-12 sm:pt-48 md:justify-center md:pt-0 lg:px-24 2xl:max-w-450 3xl:max-w-550"
         style={{ perspective: "1200px" }}
       >
         <h1 className="text-[clamp(3rem,8vw,12rem)] leading-[1.05] tracking-tight text-foreground">
@@ -421,7 +421,7 @@ export function MarketingHero({ startColors, endColors }: HeroProps = {}) {
         </h1>
 
         <motion.p
-          className="mt-8 max-w-md text-[clamp(1.125rem,1.5vw,1.75rem)] leading-relaxed text-foreground/80 lg:max-w-lg 2xl:max-w-xl"
+          className="mt-8 max-w-[28rem] text-[clamp(1.125rem,1.5vw,1.75rem)] leading-relaxed text-foreground/80 lg:max-w-[32rem] 2xl:max-w-[36rem]"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 1, ease: [0.25, 1, 0.5, 1], delay: 1.2 }}
@@ -444,7 +444,7 @@ export function MarketingHero({ startColors, endColors }: HeroProps = {}) {
             Try it · leave feedback →
           </Link>
           <Link
-            href="/app/forms/new"
+            href="/forms/new"
             className="inline-flex items-center gap-2 rounded-full border border-foreground/20 bg-background/40 px-6 py-3 text-base font-medium text-foreground backdrop-blur transition hover:bg-background/60"
           >
             Build a form
@@ -453,7 +453,7 @@ export function MarketingHero({ startColors, endColors }: HeroProps = {}) {
       </div>
 
       <motion.div
-        className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2 w-full max-w-360 px-6 sm:px-12 lg:px-24 2xl:max-w-450 3xl:max-w-550"
+        className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2 w-full max-w-[1440px] px-6 sm:px-12 lg:px-24 2xl:max-w-450 3xl:max-w-550"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1.2, delay: 2 }}

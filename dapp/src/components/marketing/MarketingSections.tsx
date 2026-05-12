@@ -71,12 +71,12 @@ export function PrivacyTiers() {
       id="tiers"
       className="relative bg-background px-6 py-32 sm:px-12 lg:px-24"
     >
-      <div className="mx-auto max-w-360">
+      <div className="mx-auto max-w-[1440px]">
         <motion.div {...fadeUp} className="flex flex-col gap-4">
           <span className="text-xs font-semibold uppercase tracking-widest text-foreground/50">
             Privacy
           </span>
-          <h2 className="max-w-3xl text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight text-foreground">
+          <h2 className="max-w-[48rem] text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight text-foreground">
             Five tiers, one form.
             <br />
             <em className="font-serif text-foreground/70">Pick how locked.</em>
@@ -131,12 +131,12 @@ export function FeaturedForms() {
       id="forms"
       className="relative bg-foreground px-6 py-32 text-background sm:px-12 lg:px-24"
     >
-      <div className="mx-auto max-w-360">
+      <div className="mx-auto max-w-[1440px]">
         <motion.div {...fadeUp} className="flex flex-col gap-4">
           <span className="text-xs font-semibold uppercase tracking-widest text-background/50">
             Try one
           </span>
-          <h2 className="max-w-3xl text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight">
+          <h2 className="max-w-[48rem] text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight">
             Live forms,
             <br />
             <em className="font-serif text-background/70">
@@ -185,7 +185,7 @@ export function FeaturedForms() {
               submissions. Yours in under a minute.
             </p>
             <Link
-              href="/app/forms/new"
+              href="/forms/new"
               className="mt-auto inline-flex items-center gap-2 rounded-full border border-background/30 px-5 py-2.5 text-sm font-semibold text-background transition hover:border-background hover:bg-background hover:text-foreground"
             >
               Open builder <ArrowRight size={16} />
@@ -240,12 +240,12 @@ export function StackStory() {
       id="stack"
       className="relative bg-background px-6 py-32 sm:px-12 lg:px-24"
     >
-      <div className="mx-auto max-w-360">
+      <div className="mx-auto max-w-[1440px]">
         <motion.div {...fadeUp} className="flex flex-col gap-4">
           <span className="text-xs font-semibold uppercase tracking-widest text-foreground/50">
             Stack
           </span>
-          <h2 className="max-w-3xl text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight text-foreground">
+          <h2 className="max-w-[48rem] text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight text-foreground">
             Five primitives,
             <br />
             <em className="font-serif text-foreground/70">one product.</em>
@@ -312,7 +312,7 @@ const faqs = [
   },
   {
     q: "Is there a dashboard?",
-    a: "Yes — cross-form triage queue at /app/dashboard. Filter, tag (new / open / addressed / spam / archived), prioritize, bulk export to CSV. Realtime new-submission toasts plus per-form webhooks (Slack / Discord / Linear / Zapier) so you don't need to camp the page.",
+    a: "Yes — cross-form triage queue at /dashboard. Filter, tag (new / open / addressed / spam / archived), prioritize, bulk export to CSV. Realtime new-submission toasts plus per-form webhooks (Slack / Discord / Linear / Zapier) so you don't need to camp the page.",
   },
 ];
 
@@ -337,7 +337,7 @@ function FaqItem({ q, a, index }: { q: string; a: string; index: number }) {
           +
         </span>
       </summary>
-      <p className="mt-4 max-w-3xl text-base leading-relaxed text-foreground/70">
+      <p className="mt-4 max-w-[48rem] text-base leading-relaxed text-foreground/70">
         {a}
       </p>
     </motion.details>
@@ -350,12 +350,12 @@ export function Faq() {
       id="faq"
       className="relative bg-background px-6 py-32 sm:px-12 lg:px-24"
     >
-      <div className="mx-auto max-w-360">
+      <div className="mx-auto max-w-[1440px]">
         <motion.div {...fadeUp} className="flex flex-col gap-4">
           <span className="text-xs font-semibold uppercase tracking-widest text-foreground/50">
             FAQ
           </span>
-          <h2 className="max-w-3xl text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight text-foreground">
+          <h2 className="max-w-[48rem] text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight text-foreground">
             Things people ask.
           </h2>
         </motion.div>
@@ -379,7 +379,7 @@ export function MarketingFooter() {
       id="contact"
       className="relative bg-foreground px-6 pt-24 pb-12 text-background sm:px-12 sm:pt-32 lg:px-24"
     >
-      <div className="mx-auto max-w-360">
+      <div className="mx-auto max-w-[1440px]">
         <a
           href="https://github.com/hien-p/echo"
           target="_blank"
@@ -397,7 +397,7 @@ export function MarketingFooter() {
             <Link href="/app" className="hover:text-background">
               App
             </Link>
-            <Link href="/app/forms/new" className="hover:text-background">
+            <Link href="/forms/new" className="hover:text-background">
               Build a form
             </Link>
             <Link href="/logs/" className="hover:text-background">
