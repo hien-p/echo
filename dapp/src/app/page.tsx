@@ -6,6 +6,8 @@ import {
   FeaturedForms,
   StackStory,
   Faq,
+  FlowingServices,
+  SocialProofBento,
   MarketingFooter,
 } from "@/components/marketing/MarketingSections";
 // RB Pro blocks unmounted from the marketing landing — they ship with
@@ -33,7 +35,9 @@ export default function Home() {
       <main className="-mx-2xs -my-2xs flex min-h-screen flex-col bg-background">
         <MarketingHero />
         <FeaturedForms />
+        <FlowingServices />
         <PrivacyTiers />
+        <SocialProofBento />
         <StackStory />
         <Faq />
         <MarketingFooter />

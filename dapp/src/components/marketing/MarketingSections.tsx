@@ -373,6 +373,241 @@ export function Faq() {
 //  FOOTER
 // ──────────────────────────────────────────────────────────────────────
 
+// ──────────────────────────────────────────────────────────────────────
+//  SCROLL-REVEAL TEXT (FlowingServices) — agency `services.tsx` pattern
+//  but motion-only (no GSAP). Each line reveals letter-by-letter as it
+//  scrolls into view; used as a "what Echo does" flowing menu under
+//  StackStory.
+// ──────────────────────────────────────────────────────────────────────
+
+function SplitChars({ children }: { children: string }) {
+  return (
+    <>
+      {children.split(" ").map((word, wi, all) => (
+        <span key={wi} className="inline-block whitespace-nowrap">
+          {word.split("").map((char, ci) => (
+            <motion.span
+              key={ci}
+              className="inline-block"
+              initial={{ y: "60%", opacity: 0 }}
+              whileInView={{ y: 0, opacity: 1 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{
+                duration: 0.6,
+                delay: wi * 0.04 + ci * 0.015,
+                ease: [0.22, 1, 0.36, 1] as const,
+              }}
+            >
+              {char}
+            </motion.span>
+          ))}
+          {wi < all.length - 1 && <span className="inline-block">&nbsp;</span>}
+        </span>
+      ))}
+    </>
+  );
+}
+
+const services = [
+  "Walrus-native forms",
+  "Seal-encrypted privacy",
+  "Walletless answers",
+  "Anonymous nullifiers",
+  "Bounty payouts",
+  "Soulbound reputation",
+  "Memwal RAG insights",
+];
+
+export function FlowingServices() {
+  return (
+    <section
+      id="services"
+      className="relative bg-background px-6 py-32 sm:px-12 lg:px-24"
+    >
+      <div className="mx-auto max-w-[1440px]">
+        <motion.div {...fadeUp} className="flex flex-col gap-4">
+          <span className="text-xs font-semibold uppercase tracking-widest text-foreground/50">
+            Capabilities
+          </span>
+          <h2 className="max-w-3xl text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight text-foreground">
+            What Echo does, <br />
+            <em className="font-serif text-foreground/70">end to end.</em>
+          </h2>
+        </motion.div>
+
+        <div className="mt-16 flex flex-col">
+          {services.map((s) => (
+            <div
+              key={s}
+              className="group flex items-center justify-between gap-6 border-b border-border py-6 text-[clamp(1.5rem,4vw,3.5rem)] font-medium leading-tight tracking-tight text-foreground transition hover:bg-foreground/5 sm:py-8"
+            >
+              <span className="flex-1 overflow-hidden">
+                <SplitChars>{s}</SplitChars>
+              </span>
+              <span
+                className="text-foreground/30 transition group-hover:translate-x-1 group-hover:text-foreground"
+                aria-hidden="true"
+              >
+                →
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+//  BENTO SOCIAL PROOF — agency `social-proof.tsx` pattern, 4-col grid
+//  with mixed row heights. Echo content: built-for-Sessions, stack,
+//  metrics, walrus storage, hackathon framing.
+// ──────────────────────────────────────────────────────────────────────
+
+export function SocialProofBento() {
+  const cards = [
+    {
+      // Big quote tile — col-span-2, row-span-2
+      kind: "quote" as const,
+      colSpan: "lg:col-span-2 lg:row-span-2",
+      body: (
+        <>
+          <svg
+            className="mb-6 h-10 w-10 text-foreground/20"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path d="M4.583 17.321C3.553 16.227 3 15 3 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311 1.804.167 3.226 1.648 3.226 3.489a3.5 3.5 0 01-3.5 3.5c-1.073 0-2.099-.49-2.748-1.179zm10 0C13.553 16.227 13 15 13 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311 1.804.167 3.226 1.648 3.226 3.489a3.5 3.5 0 01-3.5 3.5c-1.073 0-2.099-.49-2.748-1.179z" />
+          </svg>
+          <blockquote className="text-2xl font-medium leading-snug text-foreground sm:text-3xl">
+            We started with &ldquo;Google Forms but decentralized&rdquo; and
+            ended up shipping the most composable feedback primitive on Sui.
+            Five privacy tiers, walletless submit, on-chain bounties.
+          </blockquote>
+          <p className="mt-6 text-sm font-medium text-foreground/70">
+            built for Walrus Sessions · hien-p
+          </p>
+        </>
+      ),
+    },
+    {
+      kind: "stat" as const,
+      colSpan: "",
+      stat: "5 tiers",
+      label: "Public · AdminOnly · Threshold · Time-locked · Conditional",
+    },
+    {
+      kind: "stat" as const,
+      colSpan: "",
+      stat: "0 SUI",
+      label: "Respondents pay no gas — Enoki sponsors every submission",
+    },
+    {
+      kind: "stat" as const,
+      colSpan: "",
+      stat: "Walletless",
+      label: "Ephemeral Ed25519 keypair signs once, then discarded",
+    },
+    {
+      kind: "stat" as const,
+      colSpan: "",
+      stat: "Top 1%",
+      label: "Walrus-native form platform in the ecosystem",
+    },
+    {
+      // Wide bottom tile — col-span-3
+      kind: "story" as const,
+      colSpan: "lg:col-span-3",
+      body: (
+        <>
+          <p className="flex-1 text-xl font-medium leading-relaxed text-foreground sm:text-2xl">
+            Schemas + answers content-addressed on Walrus. Optional Seal
+            encryption for private tiers. Memwal RAG for natural-language
+            queries across submissions. Bounty pools auto-pay top responders.
+            Soulbound reputation badges issued from issued credit tickets.
+          </p>
+          <div className="mt-6 flex items-center justify-between border-t border-border pt-6">
+            <span className="text-base font-semibold text-foreground">
+              Echo · Walrus Sessions 2026
+            </span>
+            <Link
+              href="https://github.com/hien-p/echo"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-foreground/10 text-foreground transition hover:bg-foreground hover:text-background"
+              aria-label="GitHub repository"
+            >
+              <ArrowRight size={16} />
+            </Link>
+          </div>
+        </>
+      ),
+    },
+  ];
+
+  return (
+    <section
+      id="social-proof"
+      className="relative bg-background px-6 py-32 sm:px-12 lg:px-24"
+    >
+      <div className="mx-auto max-w-[1440px]">
+        <motion.div
+          {...fadeUp}
+          className="mb-12 flex flex-wrap items-end justify-between gap-6 lg:mb-16"
+        >
+          <div className="flex flex-col gap-4">
+            <span className="text-xs font-semibold uppercase tracking-widest text-foreground/50">
+              Why it matters
+            </span>
+            <h2 className="max-w-3xl text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight text-foreground">
+              Forms that move <br />
+              <em className="font-serif text-foreground/70">
+                at hackathon speed.
+              </em>
+            </h2>
+          </div>
+          <Link
+            href="/forms/new"
+            className="hidden items-center justify-center rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background transition hover:opacity-80 sm:inline-flex"
+          >
+            Build your first form
+          </Link>
+        </motion.div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 lg:grid-rows-[minmax(220px,auto)_minmax(220px,auto)_minmax(180px,auto)]">
+          {cards.map((c, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 30, scale: 0.97 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{
+                duration: 0.7,
+                delay: i * 0.08,
+                ease: [0.22, 1, 0.36, 1] as const,
+              }}
+              className={`flex flex-col rounded-2xl bg-muted/50 p-6 sm:p-8 ${c.colSpan}`}
+            >
+              {c.kind === "quote" || c.kind === "story" ? (
+                c.body
+              ) : (
+                <>
+                  <div className="flex-1">
+                    <p className="text-3xl font-semibold text-foreground sm:text-4xl">
+                      {c.stat}
+                    </p>
+                    <p className="mt-2 text-sm text-foreground/60">{c.label}</p>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function MarketingFooter() {
   return (
     <footer
