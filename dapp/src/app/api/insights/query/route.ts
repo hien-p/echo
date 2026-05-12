@@ -15,6 +15,28 @@ interface QueryRequest {
 // Override with OPENROUTER_MODEL for higher-fidelity providers.
 const DEFAULT_MODEL = "openai/gpt-4o-mini";
 
+/**
+ * Models we'll fall back to if the configured model returns a
+ * region-block error ("This model is not available in your region.")
+ * Ordered by availability breadth — Gemini Flash and the Mistral
+ * variants serve the broadest set of regions today. The first one
+ * that returns a non-region-block response wins.
+ */
+const FALLBACK_MODELS = [
+  "google/gemini-2.0-flash-001",
+  "google/gemini-flash-1.5",
+  "mistralai/mistral-small-3.1-24b-instruct",
+  "anthropic/claude-3.5-haiku",
+];
+
+/** Region-block error patterns from OpenRouter providers. */
+function isRegionBlock(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /not available in your region|geographic restriction|country not supported|unavailable in your country/i.test(
+    msg,
+  );
+}
+
 // Memwal vector search returns up to N matches sorted by distance. For the
 // demo's form scale (~3-100 submissions per form) we just pull all of them
 // and inject as context — way more reliable than depending on semantic
@@ -192,38 +214,55 @@ export async function POST(request: Request) {
     .join("\n\n");
 
   const openrouter = createOpenRouter({ apiKey: openRouterKey });
-  try {
-    const result = await generateText({
-      model: openrouter(modelId),
-      messages: [
-        {
-          role: "system",
-          content: [
-            "You analyze feedback submissions from an Echo form.",
-            "The user has authority to read every submission — they are the form owner.",
-            "Use the memory blocks below as your only source of truth.",
-            "Quote relevant text verbatim and cite the [submission ...] tag at the start of each memory.",
-            "If the memories don't answer the question, say so plainly — don't claim 'no access'.",
-            "",
-            "Memory blocks:",
-            contextBlock,
-          ].join("\n"),
-        },
-        { role: "user", content: body.question },
-      ],
-    });
+  // Try primary model first; on region-block, walk the fallback chain.
+  // Surface the LAST error to the user if every model fails.
+  const candidates = [modelId, ...FALLBACK_MODELS.filter((m) => m !== modelId)];
+  const systemPrompt = [
+    "You analyze feedback submissions from an Echo form.",
+    "The user has authority to read every submission — they are the form owner.",
+    "Use the memory blocks below as your only source of truth.",
+    "Quote relevant text verbatim and cite the [submission ...] tag at the start of each memory.",
+    "If the memories don't answer the question, say so plainly — don't claim 'no access'.",
+    "",
+    "Memory blocks:",
+    contextBlock,
+  ].join("\n");
 
-    return NextResponse.json({
-      answer: result.text,
-      tokens: result.usage,
-      namespace,
-      memoriesUsed: memories.length,
-      memoriesSource,
-    });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 502 },
-    );
+  let lastErr: unknown = null;
+  for (const m of candidates) {
+    try {
+      const result = await generateText({
+        model: openrouter(m),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: body.question },
+        ],
+      });
+      return NextResponse.json({
+        answer: result.text,
+        tokens: result.usage,
+        namespace,
+        memoriesUsed: memories.length,
+        memoriesSource,
+        modelUsed: m,
+      });
+    } catch (err) {
+      lastErr = err;
+      // Only walk the fallback chain on region-blocks. Other errors
+      // (rate-limit, malformed payload, etc.) should fail fast.
+      if (!isRegionBlock(err)) break;
+    }
   }
+  return NextResponse.json(
+    {
+      error:
+        lastErr instanceof Error
+          ? lastErr.message
+          : String(lastErr ?? "unknown"),
+      hint: isRegionBlock(lastErr)
+        ? "All tried OpenRouter models are region-blocked for this account. Set OPENROUTER_MODEL to a globally-available provider (e.g. google/gemini-2.0-flash-001) or route via a VPN."
+        : undefined,
+    },
+    { status: 502 },
+  );
 }
