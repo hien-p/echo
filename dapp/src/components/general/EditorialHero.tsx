@@ -7,19 +7,20 @@ import { StoneReveal } from "@/components/marketing/StoneReveal";
 /**
  * Synex-style editorial hero — generic, content-agnostic.
  *
- * Composition (port of the Synex spec):
+ * Composition:
  *   - warm paper background (#F2F2F0)
  *   - soft radial halo gradient at top center
  *   - optional eyebrow label
- *   - two-line H1: ghost line + solid line
+ *   - two-line H1 (ghost line + solid line)
  *   - optional subhead paragraph
  *   - optional inline pill below H1 (counts / tags / status)
- *   - two photoreal stones at bottom corners with mossy hover reveal
- *   - optional centered CTA card rising between the stones
+ *   - optional back decoration (e.g. third small blob behind)
+ *   - left + right decorations at bottom corners (default: photoreal
+ *     stones with mossy hover reveal; pass `leftDecoration` /
+ *     `rightDecoration` to override — the dashboard hero uses
+ *     `WalrusBlob` for Walrus-branded identity)
+ *   - optional centered CTA / preview card rising between the corners
  *   - bottom dark fade + scroll indicator with spinning star
- *
- * Consumed by /dashboard (admin overview hero). Pass per-page copy
- * via props; the visual treatment stays constant.
  */
 export function EditorialHero({
   eyebrow,
@@ -28,18 +29,43 @@ export function EditorialHero({
   description,
   pill,
   cta,
+  leftDecoration,
+  rightDecoration,
+  backDecoration,
   minHeight = "min(100vh, 720px)",
+  scrollLabel = "Scroll to explore",
 }: {
   eyebrow?: string;
   ghostLine: string;
   solidLine: string;
   description?: string;
-  /** Inline pill below H1 — e.g. "7 forms · 32 submissions". */
   pill?: ReactNode;
-  /** Optional centered card rising between the stones (CTA, status). */
   cta?: ReactNode;
+  leftDecoration?: ReactNode;
+  rightDecoration?: ReactNode;
+  backDecoration?: ReactNode;
   minHeight?: string;
+  scrollLabel?: string;
 }) {
+  const defaultLeft = (
+    <StoneReveal
+      side="left"
+      zBase={1}
+      zGrass={2}
+      baseSrc="https://qclay.design/lovable/synex/stone-left.png"
+      grassSrc="https://qclay.design/lovable/synex/stone-g-left.png"
+    />
+  );
+  const defaultRight = (
+    <StoneReveal
+      side="right"
+      zBase={4}
+      zGrass={5}
+      baseSrc="https://qclay.design/lovable/synex/stone-right.png"
+      grassSrc="https://qclay.design/lovable/synex/stone-g-right.png"
+    />
+  );
+
   return (
     <section
       className="relative -mx-4 overflow-hidden sm:-mx-8 lg:-mx-12"
@@ -59,6 +85,9 @@ export function EditorialHero({
             "radial-gradient(ellipse 80% 60% at 50% 30%, rgba(220,220,215,0.6) 0%, transparent 70%)",
         }}
       />
+
+      {/* Back decoration (z-0 — sits behind everything else but the bg) */}
+      {backDecoration}
 
       {/* Text content — centered column, top-anchored */}
       <div className="relative z-[3] flex flex-col items-center px-6 pt-24 text-center sm:pt-28 md:pt-36">
@@ -127,23 +156,11 @@ export function EditorialHero({
         )}
       </div>
 
-      {/* Stones */}
-      <StoneReveal
-        side="left"
-        zBase={1}
-        zGrass={2}
-        baseSrc="https://qclay.design/lovable/synex/stone-left.png"
-        grassSrc="https://qclay.design/lovable/synex/stone-g-left.png"
-      />
-      <StoneReveal
-        side="right"
-        zBase={4}
-        zGrass={5}
-        baseSrc="https://qclay.design/lovable/synex/stone-right.png"
-        grassSrc="https://qclay.design/lovable/synex/stone-g-right.png"
-      />
+      {/* Side decorations */}
+      {leftDecoration ?? defaultLeft}
+      {rightDecoration ?? defaultRight}
 
-      {/* Optional CTA card rising centered between stones */}
+      {/* Centered CTA / preview card rising between the side decorations */}
       {cta && (
         <motion.div
           initial={{ opacity: 0, y: 80, filter: "blur(8px)" }}
@@ -152,7 +169,7 @@ export function EditorialHero({
           className="absolute bottom-0 left-0 right-0 z-[3] flex justify-center px-6"
           style={{ pointerEvents: "none" }}
         >
-          <div className="pointer-events-auto mb-12">{cta}</div>
+          <div className="pointer-events-auto mb-16">{cta}</div>
         </motion.div>
       )}
 
@@ -191,7 +208,7 @@ export function EditorialHero({
             className="text-sm font-medium"
             style={{ letterSpacing: "-0.28px", color: "#FFF" }}
           >
-            Scroll to dashboard
+            {scrollLabel}
           </span>
         </div>
       </motion.div>

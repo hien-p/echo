@@ -102,9 +102,15 @@ export function BentoDashboard() {
         include: { json: true },
       });
       const network = clientConfig.WALRUS_NETWORK;
+      // Drop objects whose chain payload didn't deserialize — happens when
+      // a referenced form was deleted, lives on a different network, or
+      // hit a transient RPC error. Without this filter the downstream
+      // reduce/map crashes on `f.onChain.submission_count`.
+      const validObjects = fobjs.objects.filter(
+        (obj) => !!(obj as { json?: unknown }).json,
+      ) as unknown as Array<{ objectId: string; json: OnChainForm }>;
       const items = await Promise.all(
-        fobjs.objects.map(async (obj) => {
-          const o = obj as unknown as { objectId: string; json: OnChainForm };
+        validObjects.map(async (o) => {
           let title = "(metadata unavailable)";
           try {
             const meta = await readJsonViaAggregator<FormMetadata>(
