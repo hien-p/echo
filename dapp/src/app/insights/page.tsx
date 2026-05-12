@@ -8,13 +8,11 @@ export const metadata: Metadata = {
 };
 
 export default function InsightsPage() {
+  // No kicker/title/subtitle — InsightsConsole ships its own hero
+  // chat-prompt panel (Kraft-style), so the AppShell header would
+  // be redundant chrome. Width=wide lets the console hero breathe.
   return (
-    <AppShell
-      kicker="Memwal RAG"
-      title="Insights"
-      subtitle="Ask natural-language questions across your form submissions. Indexing uploads each submission to a private Memwal namespace; queries route through OpenRouter with the namespace memories as context."
-      width="narrow"
-    >
+    <AppShell width="wide">
       <InsightsConsole />
     </AppShell>
   );
