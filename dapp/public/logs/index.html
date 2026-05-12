@@ -162,6 +162,31 @@
         <article class="log-card" data-date="2026-05-12">
           <header>
             <time datetime="2026-05-12">2026-05-12</time>
+            <span class="log-tag" data-tag="refactor">refactor</span>
+          </header>
+          <h3>Dashboard critical-path rebuild — KPI strip + real chart + dark interior</h3>
+          <p>
+            Deep-audit pass exposed three competing overviews
+            (LivePreviewCard + SwissBentoOverview + BentoDashboard hero) all
+            showing the same numbers in three palettes — that&apos;s why it felt
+            <em>kho chiu</em>. Replaced with one cohesive surface: editorial
+            hero (brand chrome) then dark operator console below. New
+            <code>DashboardKpiStrip</code>: four live tiles (Submissions 24h Δ,
+            Open forms, Bounty TVL, Awaiting decrypt) feeding the cached
+            queries already running in CrossFormDashboard, plus a real
+            30-day submissions area chart driven by on-chain SubmissionMade
+            events (not the prior fake form-created-ms bucket). Forced dark
+            on the interior so the palette stops flickering warm → light →
+            dark on scroll. Bumped every <code>text-[10px]/[9px]</code> to
+            <code>text-xs</code> in the triage queue and added dark
+            variants to every chip. Full audit at
+            <code>plans/reports/deep-260512-dashboard-uiux-audit.md</code>.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-12">
+          <header>
+            <time datetime="2026-05-12">2026-05-12</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
           <h3>Bento charts — donut, bar list, sparkline, bigger type</h3>

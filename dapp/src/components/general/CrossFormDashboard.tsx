@@ -107,27 +107,27 @@ const STATUSES = [
   {
     value: "new",
     label: "New",
-    chip: "bg-blue-100 text-blue-900 border-blue-300",
+    chip: "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/60",
   },
   {
     value: "triaging",
     label: "Triaging",
-    chip: "bg-amber-100 text-amber-900 border-amber-300",
+    chip: "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60",
   },
   {
     value: "replied",
     label: "Replied",
-    chip: "bg-violet-100 text-violet-900 border-violet-300",
+    chip: "bg-violet-100 text-violet-900 border-violet-300 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900/60",
   },
   {
     value: "resolved",
     label: "Resolved",
-    chip: "bg-emerald-100 text-emerald-900 border-emerald-300",
+    chip: "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60",
   },
   {
     value: "archived",
     label: "Archived",
-    chip: "bg-zinc-100 text-zinc-700 border-zinc-300",
+    chip: "bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900/60 dark:text-zinc-300 dark:border-zinc-700",
   },
 ] as const;
 type Status = (typeof STATUSES)[number]["value"];
@@ -797,13 +797,13 @@ export const CrossFormDashboard = () => {
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-xl font-semibold tracking-tight">Triage</h1>
           {!demoMode && (
-            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900">
+            <span className="inline-flex items-center gap-1 text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900">
               <ShieldCheck size={10} /> Seal-verified
             </span>
           )}
           {demoMode && (
             <span
-              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-amber-800 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200"
+              className="inline-flex items-center gap-1 text-xs uppercase tracking-wide text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60"
               title={`Demo address ${demoAddress}`}
             >
               <Sparkles size={10} /> Demo · {demoAddress.slice(0, 6)}…
@@ -895,7 +895,7 @@ export const CrossFormDashboard = () => {
             clear. The active row has a filled background. */}
         <aside className="flex flex-col gap-3 lg:border-r lg:pr-4 lg:max-h-[80vh] lg:overflow-auto">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+            <h2 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
               Forms
             </h2>
             <Link
@@ -928,7 +928,7 @@ export const CrossFormDashboard = () => {
             if (group.length === 0) return null;
             return (
               <div key={tier} className="flex flex-col gap-0.5">
-                <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold mt-1 px-1">
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground/70 font-semibold mt-1 px-1">
                   {TIER_LABELS[tier]} ({group.length})
                 </h3>
                 {group.map((f) => {
@@ -954,7 +954,7 @@ export const CrossFormDashboard = () => {
                       <span className="truncate flex-1 min-w-0">
                         {f.title}
                         {tier === PrivacyTier.Threshold && k > 0 && n > 0 && (
-                          <span className="text-[10px] text-muted-foreground ml-1">
+                          <span className="text-xs text-muted-foreground ml-1">
                             {k}/{n}
                           </span>
                         )}
@@ -990,7 +990,7 @@ export const CrossFormDashboard = () => {
           {/* Submitter pill row — small, only meaningful filters here.
               Status filtering happens via the metric strip above. */}
           <div className="flex items-center gap-1.5 flex-wrap text-xs">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mr-1">
+            <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mr-1">
               Submitter:
             </span>
             {(["all", "named", "anonymous"] as const).map((opt) => (
@@ -1046,7 +1046,7 @@ export const CrossFormDashboard = () => {
                       }}
                       title={`Status: ${statusDef.label} · click to cycle`}
                       className={cn(
-                        "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide shrink-0 w-[78px] text-center",
+                        "rounded-full border px-2 py-0.5 text-xs uppercase tracking-wide shrink-0 w-[78px] text-center",
                         statusDef.chip,
                       )}
                     >
@@ -1185,15 +1185,17 @@ function FormDetailPanel({
         <div className="flex items-center gap-1.5 flex-wrap shrink-0">
           <span
             className={cn(
-              "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide",
+              "rounded-full border px-2 py-0.5 text-xs uppercase tracking-wide",
               tier === PrivacyTier.Public &&
-                "bg-zinc-100 text-zinc-700 border-zinc-300",
+                "bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900/60 dark:text-zinc-300 dark:border-zinc-700",
               tier === PrivacyTier.AdminOnly &&
-                "bg-blue-100 text-blue-900 border-blue-300",
-              isThreshold && "bg-violet-100 text-violet-900 border-violet-300",
-              isTimeLocked && "bg-amber-100 text-amber-900 border-amber-300",
+                "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/60",
+              isThreshold &&
+                "bg-violet-100 text-violet-900 border-violet-300 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900/60",
+              isTimeLocked &&
+                "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60",
               tier === PrivacyTier.Conditional &&
-                "bg-emerald-100 text-emerald-900 border-emerald-300",
+                "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60",
             )}
           >
             {TIER_LABELS[tier] ?? "?"}
@@ -1202,10 +1204,10 @@ function FormDetailPanel({
           {isMofN && (
             <span
               className={cn(
-                "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide",
+                "rounded-full border px-2 py-0.5 text-xs uppercase tracking-wide",
                 isMofNUnlocked
-                  ? "bg-emerald-100 text-emerald-900 border-emerald-300"
-                  : "bg-amber-100 text-amber-900 border-amber-300",
+                  ? "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60"
+                  : "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60",
               )}
               title="On-chain ApprovalPosted events for this form"
             >
@@ -1217,7 +1219,7 @@ function FormDetailPanel({
             form.onChain.unlock_ms &&
             Number(form.onChain.unlock_ms) > 0 && (
               <span
-                className="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide bg-amber-50 text-amber-900 border-amber-200"
+                className="rounded-full border px-2 py-0.5 text-xs uppercase tracking-wide bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border-amber-200 dark:border-amber-900/60"
                 title={`unlock_ms = ${form.onChain.unlock_ms}`}
               >
                 unlocks{" "}
@@ -1234,7 +1236,7 @@ function FormDetailPanel({
       {/* Members ACL — owner + co-admins. Always shows owner; adds
           co-admin chips as the on-chain query resolves. */}
       <div className="flex items-center gap-1.5 text-xs flex-wrap">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mr-1">
+        <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mr-1">
           Members
         </span>
         <MemberChip address={form.onChain.owner} role="owner" />
@@ -1249,7 +1251,7 @@ function FormDetailPanel({
       {/* Recent activity — last 3 SubmissionMade events (on chain). */}
       {recentSubs.length > 0 && (
         <div className="flex flex-col gap-0.5 text-xs border-t border-dashed pt-2">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">
+          <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">
             Recent activity
           </span>
           {recentSubs.map((s) => (
@@ -1364,14 +1366,14 @@ function MemberChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-mono",
+        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs font-mono",
         role === "owner"
           ? "bg-foreground/5 border-foreground/20"
           : "bg-card border-border",
       )}
       title={`${address} · ${role}`}
     >
-      <span className="text-[9px] uppercase tracking-wide opacity-60">
+      <span className="text-[11px] uppercase tracking-wide opacity-60">
         {role === "owner" ? "★" : "●"}
       </span>
       <SuiNSName address={address} />

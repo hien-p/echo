@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import Link from "next/link";
-import { ArrowRight, Lock, Inbox, Sparkles } from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
 import { EditorialHero } from "@/components/general/EditorialHero";
 import { WalrusBlob } from "@/components/marketing/WalrusBlob";
@@ -134,13 +133,28 @@ export function DashboardHero() {
     </>
   );
 
-  const previewCard = (
-    <LivePreviewCard
-      formsCount={stats.formsCount}
-      totalSubs={stats.totalSubs}
-      encryptedForms={stats.encryptedForms}
-      hasWallet={!!ownerAddress}
-    />
+  // The 4-tile KPI strip + 30d chart now lives at the top of the dark
+  // operator zone below the hero (see dashboard/page.tsx). The hero
+  // CTA is intentionally minimal — a single "Open dashboard" link
+  // anchoring to the KPI strip — so the floating card doesn't fight
+  // the photoreal blobs for attention. Stats are still surfaced in the
+  // pill above so connected-wallet users see real numbers at a glance.
+  const cta = (
+    <Link
+      href="#kpis"
+      className="inline-flex items-center gap-2 rounded-full bg-black/85 px-5 py-2.5 text-sm font-medium text-white shadow-xl backdrop-blur"
+      style={{
+        boxShadow:
+          "0 -8px 80px rgba(0,0,0,0.12), 0 40px 120px rgba(0,0,0,0.18)",
+      }}
+    >
+      <span
+        className="inline-flex h-2 w-2 rounded-full bg-emerald-400"
+        aria-hidden="true"
+      />
+      Open dashboard
+      <span aria-hidden="true">↓</span>
+    </Link>
   );
 
   return (
@@ -150,8 +164,9 @@ export function DashboardHero() {
       solidLine="Sealed end-to-end."
       description="Onchain form ownership, Walrus-native storage, walletless option. Triage, decrypt, and export every response."
       pill={pill}
-      cta={previewCard}
+      cta={cta}
       scrollLabel="Scroll to dashboard"
+      minHeight="min(86vh, 620px)"
       leftDecoration={<WalrusBlob side="left" delay={0.5} />}
       rightDecoration={<WalrusBlob side="right" delay={0.5} />}
       backDecoration={<WalrusBlob side="center" variant="back" delay={0.7} />}
@@ -159,98 +174,3 @@ export function DashboardHero() {
   );
 }
 
-/**
- * The card that rises centrally between the two front blobs. Shows
- * three live stats + a deep-link to the bento below. Replaces the
- * Synex template's Dashboard.png screenshot beat with real Echo
- * data — that's the whole point of putting this *here* instead of
- * leaving the middle empty.
- */
-function LivePreviewCard({
-  formsCount,
-  totalSubs,
-  encryptedForms,
-  hasWallet,
-}: {
-  formsCount: number;
-  totalSubs: number;
-  encryptedForms: number;
-  hasWallet: boolean;
-}) {
-  return (
-    <div
-      className="flex w-[min(90vw,560px)] flex-col gap-4 rounded-2xl bg-white p-5 shadow-xl"
-      style={{
-        color: "#05050C",
-        boxShadow:
-          "0 -8px 80px rgba(0,0,0,0.12), 0 40px 120px rgba(0,0,0,0.16)",
-      }}
-    >
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-black/50">
-          <span
-            className="inline-flex h-2 w-2 rounded-full"
-            style={{ backgroundColor: "#16a34a" }}
-            aria-hidden="true"
-          />
-          Live overview
-        </div>
-        <Link
-          href="#bento"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-black/65 hover:text-black"
-        >
-          Open dashboard <ArrowRight size={12} />
-        </Link>
-      </div>
-
-      {/* 3-stat row */}
-      <div className="grid grid-cols-3 gap-3 border-t border-black/5 pt-4">
-        <PreviewStat
-          icon={<Inbox size={14} strokeWidth={1.5} />}
-          label="Forms"
-          value={hasWallet ? formsCount : null}
-        />
-        <PreviewStat
-          icon={<Sparkles size={14} strokeWidth={1.5} />}
-          label="Submissions"
-          value={hasWallet ? totalSubs : null}
-        />
-        <PreviewStat
-          icon={<Lock size={14} strokeWidth={1.5} />}
-          label="Encrypted"
-          value={hasWallet ? encryptedForms : null}
-        />
-      </div>
-    </div>
-  );
-}
-
-function PreviewStat({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number | null;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-black/50">
-        {icon}
-        {label}
-      </div>
-      <div
-        className="text-[28px] font-medium tabular-nums leading-none"
-        style={{ letterSpacing: "-0.5px" }}
-      >
-        {value === null ? (
-          <span className="text-black/30">—</span>
-        ) : (
-          <CountUp to={value} delay={0.9} duration={1.6} />
-        )}
-      </div>
-    </div>
-  );
-}
