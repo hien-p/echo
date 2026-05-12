@@ -26,10 +26,18 @@ function isPublicShareRoute(pathname: string): boolean {
   return false;
 }
 
+function isMarketingHome(pathname: string): boolean {
+  // The new agency-style homepage at "/" ships its own header with a
+  // different nav and floating-pill aesthetic; suppress this app
+  // header there so we don't double-stack chrome.
+  return pathname === "/" || pathname === "";
+}
+
 export const Header = () => {
   const pathname = usePathname();
   const demoMode = useDemoAdminMode();
   if (isPublicShareRoute(pathname)) return null;
+  if (isMarketingHome(pathname)) return null;
   return (
     <header className="p-2xs bg-background border-b text-foreground sticky top-0 z-30 flex items-center justify-between gap-2 flex-wrap">
       <div className="flex items-center gap-3 min-w-0">
