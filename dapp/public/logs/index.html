@@ -162,6 +162,28 @@
         <article class="log-card" data-date="2026-05-12">
           <header>
             <time datetime="2026-05-12">2026-05-12</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>KPI tile typography — fix invisible numbers + breathing room</h3>
+          <p>
+            The shimmer text idiom (<code>background-clip:text</code> +
+            <code>color: transparent</code> + <code>var(--color-foreground)</code>
+            gradient stops) was rendering the big KPI numbers invisible —
+            tiles looked empty except for labels and sublines.
+            Replaced with solid <code>text-foreground</code> using a clamp
+            scale (<code>clamp(2.25rem,3vw,3.25rem)</code>) that matches
+            the homepage&apos;s typographic rhythm, plus a subtle accent
+            text-shadow for the tier-color glow. Tile padding bumped
+            <code>p-4 → p-6</code>, internal gap <code>gap-3 → gap-5</code>,
+            and the 30-day chart card&apos;s heading row now uses
+            <em>font-serif</em> on the SubmissionMade reference to match
+            the homepage italic idiom. Numbers stop clipping.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-12">
+          <header>
+            <time datetime="2026-05-12">2026-05-12</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
           <h3>Dashboard hero aligned to homepage + creative bento polish</h3>

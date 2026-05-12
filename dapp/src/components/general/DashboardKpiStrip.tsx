@@ -528,7 +528,7 @@ function KpiTile({
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card/60 p-4 backdrop-blur transition hover:border-foreground/20 hover:bg-card/80"
+      className="group relative flex h-full flex-col gap-5 overflow-hidden rounded-2xl border border-border bg-card/60 p-6 backdrop-blur transition hover:border-foreground/20 hover:bg-card/80"
     >
       {/* Cursor-tracked spotlight */}
       <motion.div
@@ -551,24 +551,24 @@ function KpiTile({
         }}
       />
 
-      <div className="relative flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+      <div className="relative flex items-start justify-between gap-3">
+        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           {label}
         </span>
         <span
           className={toneIconCls}
           style={{
-            filter: `drop-shadow(0 0 8px ${accentHex}66)`,
+            filter: `drop-shadow(0 0 10px ${accentHex}66)`,
           }}
         >
           {icon}
         </span>
       </div>
-      <div className="relative flex items-baseline gap-2">
+      <div className="relative flex items-baseline gap-2.5">
         {loading ? (
-          <div className="h-9 w-20 animate-pulse rounded bg-foreground/10" />
+          <div className="h-12 w-24 animate-pulse rounded bg-foreground/10" />
         ) : (
-          <ShimmerNumber
+          <KpiNumber
             value={value}
             decimals={decimals}
             suffix={suffix}
@@ -578,7 +578,7 @@ function KpiTile({
         )}
         {delta !== undefined && delta !== 0 && !loading && (
           <span
-            className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums ${
+            className={`inline-flex items-center gap-0.5 rounded-md px-2 py-0.5 text-xs font-medium tabular-nums ${
               delta > 0
                 ? "bg-emerald-500/15 text-emerald-400"
                 : "bg-rose-500/15 text-rose-400"
@@ -593,7 +593,7 @@ function KpiTile({
           </span>
         )}
       </div>
-      <span className="relative text-xs text-muted-foreground">
+      <span className="relative text-sm text-muted-foreground">
         {subline ?? "vs previous 24h"}
       </span>
     </motion.div>
@@ -614,11 +614,13 @@ function KpiTile({
 }
 
 /**
- * Big-number wrapper that sweeps a once-only shimmer across the
- * digits as they animate from 0 → value. Uses background-clip:text so
- * the shimmer rides INSIDE the glyphs rather than on top of them.
+ * Big KPI number. Solid foreground color (no background-clip:text —
+ * that idiom was rendering transparent in some browsers and making the
+ * digits disappear). Tailwind clamp scale matches the homepage's
+ * typographic rhythm: ~40-56px depending on viewport. Subtle accent
+ * text-shadow gives a quiet glow without sacrificing legibility.
  */
-function ShimmerNumber({
+function KpiNumber({
   value,
   decimals,
   suffix,
@@ -633,15 +635,10 @@ function ShimmerNumber({
 }) {
   return (
     <span
-      className="relative text-4xl font-medium leading-none tracking-tight tabular-nums"
+      className="text-[clamp(2.25rem,3vw,3.25rem)] font-medium leading-[1.05] tracking-tight tabular-nums text-foreground"
       style={{
-        letterSpacing: "-0.6px",
-        backgroundImage: `linear-gradient(110deg, var(--color-foreground) 30%, ${accent} 50%, var(--color-foreground) 70%)`,
-        backgroundSize: "200% 100%",
-        WebkitBackgroundClip: "text",
-        backgroundClip: "text",
-        color: "transparent",
-        animation: `kpi-shimmer 2.4s cubic-bezier(0.22,1,0.36,1) ${delay + 0.2}s 1 both`,
+        letterSpacing: "-0.03em",
+        textShadow: `0 0 24px ${accent}33`,
       }}
     >
       {decimals > 0 ? (
@@ -650,10 +647,7 @@ function ShimmerNumber({
         <CountUp to={value} delay={delay + 0.1} duration={1.2} />
       )}
       {suffix && (
-        <span
-          className="ml-1 text-xl"
-          style={{ color: "var(--color-muted-foreground)" }}
-        >
+        <span className="ml-1.5 text-base font-medium text-muted-foreground sm:text-lg">
           {suffix}
         </span>
       )}
@@ -700,7 +694,7 @@ function Submissions30dChart({
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
-      className="relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card/60 p-5 backdrop-blur"
+      className="relative flex flex-col gap-5 overflow-hidden rounded-2xl border border-border bg-card/60 p-6 backdrop-blur sm:p-7"
     >
       {/* Slow rotating conic-gradient ribbon along the border */}
       <div
@@ -719,23 +713,23 @@ function Submissions30dChart({
         }}
       />
 
-      <div className="relative flex items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+      <div className="relative flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Submissions · last 30 days
           </span>
           <span className="text-sm text-muted-foreground">
-            From SubmissionMade events on Sui
+            From <em className="font-serif">SubmissionMade</em> events on Sui
           </span>
         </div>
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-2.5">
           <span
-            className="text-3xl font-medium tabular-nums leading-none tracking-tight text-foreground"
-            style={{ letterSpacing: "-0.5px" }}
+            className="text-[clamp(2rem,2.5vw,2.75rem)] font-medium leading-[1.05] tabular-nums tracking-tight text-foreground"
+            style={{ letterSpacing: "-0.03em" }}
           >
             <CountUp to={total} delay={0.4} />
           </span>
-          <span className="text-sm text-muted-foreground">total</span>
+          <span className="text-base text-muted-foreground">total</span>
         </div>
       </div>
       <svg
