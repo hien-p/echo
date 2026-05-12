@@ -162,6 +162,27 @@
         <article class="log-card" data-date="2026-05-12">
           <header>
             <time datetime="2026-05-12">2026-05-12</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Unify dashboard query keys + respect Demo admin toggle</h3>
+          <p>
+            Visitors browsing with Demo admin ON saw triage queue load 7
+            forms while the KPI strip + Bento above said
+            &ldquo;0 / No forms yet&rdquo; — they were querying separate cache
+            keys with the wallet address instead of the demo address.
+            Routed both the KPI strip and BentoDashboard through
+            <code>useDemoAdminMode()</code> + substituted
+            <code>DEMO_ADMIN_ADDRESS</code> when the toggle is on, and
+            unified all three components on the same TanStack key
+            <code>[&ldquo;echo&rdquo;, &ldquo;dashboard-forms&rdquo;, ownerAddress, demoMode]</code>
+            so one fetch feeds the entire page (down from three duplicated
+            RPC round-trips per load).
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-12">
+          <header>
+            <time datetime="2026-05-12">2026-05-12</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
           <h3>Dashboard KPI tiles — react-bits aurora + spotlight + shimmer + glow chart</h3>

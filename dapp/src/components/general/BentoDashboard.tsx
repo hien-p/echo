@@ -31,6 +31,7 @@ import {
   SubmissionsBarList,
   MiniBars,
 } from "./BentoCharts";
+import { useDemoAdminMode } from "./DemoAdminToggle";
 
 /**
  * Apple-bento-style overview that lives ABOVE the dense
@@ -81,10 +82,15 @@ export function BentoDashboard() {
   const dAppKit = useDAppKit();
   const suiClient = dAppKit.getClient();
   const packageId = clientConfig.ECHO_PACKAGE_ID;
-  const ownerAddress = account?.address;
+  // Mirror CrossFormDashboard's ownerAddress + queryKey shape so all three
+  // dashboard components share one TanStack cache. When demo admin toggle
+  // is ON, substitute the project's demo address.
+  const demoMode = useDemoAdminMode();
+  const demoAddress = clientConfig.DEMO_ADMIN_ADDRESS;
+  const ownerAddress = demoMode ? demoAddress : account?.address;
 
   const formsQuery = useQuery({
-    queryKey: ["echo", "bento-forms", ownerAddress, packageId],
+    queryKey: ["echo", "dashboard-forms", ownerAddress, demoMode],
     queryFn: async (): Promise<BentoForm[]> => {
       if (!ownerAddress || !packageId.startsWith("0x")) return [];
       const owned = await suiClient.listOwnedObjects({
@@ -192,9 +198,7 @@ export function BentoDashboard() {
             Onchain feedback, decrypted.
           </h3>
           <p className="max-w-[460px] text-base text-muted-foreground">
-            Connect a wallet to load your own forms. Below is a preview of
-            what your dashboard looks like with live data — donut, bar list,
-            distribution sparkline, and quick actions.
+            Connect a wallet, or toggle <span className="font-medium text-foreground">Demo admin</span> in the nav to load your dashboard. Below is a preview — donut, bar list, distribution sparkline, and quick actions.
           </p>
         </div>
         <div className="flex items-center justify-center sm:col-span-5">

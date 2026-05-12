@@ -22,6 +22,7 @@ import {
 } from "@/lib/echo";
 import type { FormMetadata } from "@/lib/echo";
 import { CountUp } from "./CountUp";
+import { useDemoAdminMode } from "./DemoAdminToggle";
 
 /**
  * Dashboard KPI strip — replaces the three competing overview zones
@@ -90,11 +91,17 @@ export function DashboardKpiStrip() {
   const dAppKit = useDAppKit();
   const suiClient = dAppKit.getClient();
   const packageId = clientConfig.ECHO_PACKAGE_ID;
-  const ownerAddress = account?.address;
+  // Demo admin mode: when ON (toggle in the nav), substitute the project's
+  // demo address so visitors without a wallet can browse the demo forms.
+  // CrossFormDashboard already does this — we mirror its keys exactly so
+  // all three components share one TanStack cache.
+  const demoMode = useDemoAdminMode();
+  const demoAddress = clientConfig.DEMO_ADMIN_ADDRESS;
+  const ownerAddress = demoMode ? demoAddress : account?.address;
 
   // 1) Owned forms — same key as CrossFormDashboard so cache is shared.
   const formsQuery = useQuery({
-    queryKey: ["echo", "dashboard-forms", ownerAddress, false],
+    queryKey: ["echo", "dashboard-forms", ownerAddress, demoMode],
     queryFn: async (): Promise<FormCard[]> => {
       if (!ownerAddress || !packageId.startsWith("0x")) return [];
       const owned = await suiClient.listOwnedObjects({
@@ -347,7 +354,7 @@ export function DashboardKpiStrip() {
     return (
       <div className="rounded-2xl border border-border bg-card/40 p-8 text-center">
         <p className="text-base text-muted-foreground">
-          Connect a wallet to load your live operator metrics.
+          Connect a wallet, or toggle <span className="font-medium">Demo admin</span> in the nav to load live operator metrics.
         </p>
       </div>
     );
