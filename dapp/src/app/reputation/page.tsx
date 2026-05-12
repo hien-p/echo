@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AppShell } from "@/components/shell";
 import { ReputationDashboard } from "./ReputationClient";
 
 export const metadata: Metadata = {
@@ -8,15 +9,13 @@ export const metadata: Metadata = {
 
 export default function ReputationPage() {
   return (
-    <section className="flex flex-col gap-md max-w-[768px] mx-auto p-md w-full">
-      <header>
-        <h1 className="text-2xl font-semibold">Reputation</h1>
-        <p className="text-sm text-muted-foreground">
-          Mint your soulbound badge once, then claim credit tickets that form
-          owners issue you for quality submissions.
-        </p>
-      </header>
+    <AppShell
+      kicker="Reputation"
+      title="Soulbound badges"
+      subtitle="Mint your reputation badge once, then claim credit tickets that form owners issue you for quality submissions."
+      width="narrow"
+    >
       <ReputationDashboard />
-    </section>
+    </AppShell>
   );
 }

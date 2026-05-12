@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import { SuiProvider } from "@/contexts/SuiProvider";
 import { Header } from "@/components/general/Header";
+import { NavPill } from "@/components/shell";
 import { Toaster } from "@/components/general/Toaster";
 import "./globals.css";
 
@@ -44,7 +45,15 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <SuiProvider>
+          {/* Old shadcn header — still hides itself on / and on public
+              share routes via its internal isMarketingHome / isPublicShareRoute
+              checks. Kept for now during the shell migration; once every
+              interior route has been refactored to use AppShell, delete
+              this and rely on NavPill alone. */}
           <Header />
+          {/* New floating-pill nav — agency-aesthetic, used by AppShell
+              routes. Hides itself on /, /forms/<id>, /f/<id>, /s/<name>. */}
+          <NavPill />
           <main className="p-2xs flex-1 w-full">{children}</main>
           <Toaster />
         </SuiProvider>

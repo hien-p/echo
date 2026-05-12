@@ -33,11 +33,31 @@ function isMarketingHome(pathname: string): boolean {
   return pathname === "/" || pathname === "";
 }
 
+function isShellRoute(pathname: string): boolean {
+  // Interior routes that have been migrated to AppShell + NavPill.
+  // Header is suppressed on these so the floating-pill nav has the
+  // top of the page to itself. Add new routes here as they migrate.
+  return (
+    pathname === "/dashboard" ||
+    pathname === "/forms" ||
+    pathname === "/forms/new" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname.startsWith("/forms/") || // covers /forms/<id>/admin too
+    pathname === "/insights" ||
+    pathname.startsWith("/insights/") ||
+    pathname === "/reputation" ||
+    pathname.startsWith("/reputation/") ||
+    pathname === "/app" ||
+    pathname.startsWith("/app/")
+  );
+}
+
 export const Header = () => {
   const pathname = usePathname();
   const demoMode = useDemoAdminMode();
   if (isPublicShareRoute(pathname)) return null;
   if (isMarketingHome(pathname)) return null;
+  if (isShellRoute(pathname)) return null;
   return (
     <header className="p-2xs bg-background border-b text-foreground sticky top-0 z-30 flex items-center justify-between gap-2 flex-wrap">
       <div className="flex items-center gap-3 min-w-0">

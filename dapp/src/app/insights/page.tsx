@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AppShell } from "@/components/shell";
 import { InsightsConsole } from "./InsightsClient";
 
 export const metadata: Metadata = {
@@ -8,16 +9,13 @@ export const metadata: Metadata = {
 
 export default function InsightsPage() {
   return (
-    <section className="flex flex-col gap-md max-w-[768px] mx-auto p-md w-full">
-      <header>
-        <h1 className="text-2xl font-semibold">Insights</h1>
-        <p className="text-sm text-muted-foreground">
-          Ask natural-language questions across your form submissions. Indexing
-          uploads each submission to a private Memwal namespace; queries route
-          through OpenRouter with the namespace memories as context.
-        </p>
-      </header>
+    <AppShell
+      kicker="Memwal RAG"
+      title="Insights"
+      subtitle="Ask natural-language questions across your form submissions. Indexing uploads each submission to a private Memwal namespace; queries route through OpenRouter with the namespace memories as context."
+      width="narrow"
+    >
       <InsightsConsole />
-    </section>
+    </AppShell>
   );
 }
