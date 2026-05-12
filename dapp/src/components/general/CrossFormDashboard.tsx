@@ -56,7 +56,7 @@ interface OnChainForm {
   unlock_ms?: string;
 }
 
-interface SubmissionEvent {
+export interface SubmissionEvent {
   form_id: string;
   submission_id: string;
   submitter: string;
@@ -1514,7 +1514,7 @@ function bytesToHex(bytes: Uint8Array): string {
 
 // ---- helpers --------------------------------------------------------------
 
-async function queryEventsByFormId(
+export async function queryEventsByFormId(
   fullnodeUrl: string,
   moveEventType: string,
   formId: string,

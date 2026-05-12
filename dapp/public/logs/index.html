@@ -164,6 +164,30 @@
             <time datetime="2026-05-12">2026-05-12</time>
             <span class="log-tag" data-tag="fix">fix</span>
           </header>
+          <h3>Submissions = 0 + lag — unify queryEvents + drop redundant aurora</h3>
+          <p>
+            After the KPI strip mounted above the triage queue, submissions
+            count dropped to <strong>0</strong> even though 7 forms loaded.
+            Root cause: KpiStrip&apos;s local <code>queryEvents</code> used
+            a <code>MoveEventField</code>-only filter while CrossFormDashboard
+            used the proven <code>All&nbsp;[MoveEventType + MoveEventField]</code>
+            shape. KpiStrip ran first → its broken queryFn populated the
+            shared cache with empty data → CrossFormDashboard read 0 from
+            cache. Exported <code>queryEventsByFormId</code> + the
+            <code>SubmissionEvent</code> type from CrossFormDashboard,
+            replaced the local copy in KpiStrip. Both components now share
+            one queryFn implementation as well as one cache. Also dropped
+            the second AuroraBlur shader on the KPI section (the hero
+            already runs one) — two simultaneous WebGL canvases were the
+            source of the lag.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-12">
+          <header>
+            <time datetime="2026-05-12">2026-05-12</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
           <h3>KPI tile typography — fix invisible numbers + breathing room</h3>
           <p>
             The shimmer text idiom (<code>background-clip:text</code> +

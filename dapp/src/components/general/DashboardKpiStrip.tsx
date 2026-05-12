@@ -13,7 +13,6 @@ import {
   ShieldCheck,
   Unlock,
 } from "lucide-react";
-import AuroraBlur from "@/components/react-bits/aurora-blur";
 import { clientConfig } from "@/config/clientConfig";
 import {
   PrivacyTier,
@@ -23,6 +22,7 @@ import {
 import type { FormMetadata } from "@/lib/echo";
 import { CountUp } from "./CountUp";
 import { useDemoAdminMode } from "./DemoAdminToggle";
+import { queryEventsByFormId } from "./CrossFormDashboard";
 
 /**
  * Dashboard KPI strip — replaces the three competing overview zones
@@ -160,7 +160,11 @@ export function DashboardKpiStrip() {
       const fullnodeUrl = clientConfig.SUI_FULLNODE_URL;
       const perForm = await Promise.all(
         forms.map(async (form) => {
-          const events = await queryEvents(fullnodeUrl, eventType, form.id);
+          const events = await queryEventsByFormId(
+            fullnodeUrl,
+            eventType,
+            form.id,
+          );
           if (events.length === 0) return [] as SubmissionRow[];
           const subObjs = await suiClient.getObjects({
             objectIds: events.map((e) => e.submission_id),
@@ -361,38 +365,7 @@ export function DashboardKpiStrip() {
   }
 
   return (
-    <div className="relative flex flex-col gap-4">
-      {/* Aurora ambient glow behind the strip — toned-down Walrus palette
-          so it reads as atmosphere, not a marketing background. Pointer
-          events off so spotlight/clicks pass through. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -inset-x-8 -top-12 -bottom-8 -z-10 overflow-hidden rounded-3xl opacity-50"
-        style={{ filter: "blur(4px)" }}
-      >
-        <AuroraBlur
-          width="100%"
-          height="100%"
-          speed={0.6}
-          opacity={0.7}
-          bloomIntensity={2.2}
-          brightness={0.9}
-          saturation={1.1}
-          verticalFade={1.1}
-          noiseScale={2.5}
-          layers={[
-            { color: "#5B8DEF", speed: 0.28, intensity: 0.45 },
-            { color: "#A78BFA", speed: 0.18, intensity: 0.35 },
-            { color: "#34D399", speed: 0.22, intensity: 0.18 },
-            { color: "#FBBF24", speed: 0.12, intensity: 0.14 },
-          ]}
-          skyLayers={[
-            { color: "#0A0A0B", blend: 0.78 },
-            { color: "#111114", blend: 0.5 },
-          ]}
-        />
-      </div>
-
+    <div className="flex flex-col gap-4">
       {/* 4-tile KPI row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         <KpiTile
@@ -783,52 +756,3 @@ function Submissions30dChart({
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Local copy of the queryEvents helper (matches CrossFormDashboard's)
-// ──────────────────────────────────────────────────────────────────────
-
-interface SubmissionEvent {
-  submission_id: string;
-  submitter: string;
-  anonymous: boolean;
-}
-
-async function queryEvents(
-  fullnodeUrl: string,
-  eventType: string,
-  formId: string,
-): Promise<SubmissionEvent[]> {
-  const resp = await fetch(fullnodeUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "suix_queryEvents",
-      params: [
-        {
-          MoveEventField: {
-            path: "/form_id",
-            value: formId,
-          },
-        },
-        null,
-        500,
-        true,
-      ],
-    }),
-  });
-  if (!resp.ok) return [];
-  const json = (await resp.json()) as {
-    result?: {
-      data?: Array<{
-        type?: string;
-        parsedJson?: SubmissionEvent;
-      }>;
-    };
-  };
-  return (json.result?.data ?? [])
-    .filter((e) => e.type === eventType)
-    .map((e) => e.parsedJson)
-    .filter((p): p is SubmissionEvent => !!p && !!p.submission_id);
-}
