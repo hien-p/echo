@@ -25,6 +25,12 @@ import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import { PrivacyTier, readJsonViaAggregator } from "@/lib/echo";
 import type { FormMetadata } from "@/lib/echo";
+import {
+  TierDonut,
+  TierLegend,
+  SubmissionsBarList,
+  MiniBars,
+} from "./BentoCharts";
 
 /**
  * Apple-bento-style overview that lives ABOVE the dense
@@ -130,7 +136,12 @@ export function BentoDashboard() {
     staleTime: 30_000,
   });
 
-  const forms = formsQuery.data ?? [];
+  // Belt-and-suspenders: filter again at the consumer in case the query
+  // cache returned a stale entry built before the queryFn started
+  // dropping invalid onChain payloads.
+  const forms = (formsQuery.data ?? []).filter(
+    (f): f is BentoForm => !!f && !!f.onChain,
+  );
 
   const stats = useMemo(() => {
     const totalSubs = forms.reduce(
@@ -172,15 +183,30 @@ export function BentoDashboard() {
 
   if (!ownerAddress) {
     return (
-      <div className="rounded-2xl border border-border bg-muted/40 p-12 text-center">
-        <Inbox
-          size={28}
-          className="mx-auto text-muted-foreground"
-          strokeWidth={1.5}
-        />
-        <p className="mt-4 text-sm text-muted-foreground">
-          Connect a wallet to see your dashboard.
-        </p>
+      <div className="grid grid-cols-1 gap-4 rounded-2xl border border-border bg-card/30 p-8 sm:grid-cols-12">
+        <div className="flex flex-col gap-4 sm:col-span-7">
+          <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+            Sample dashboard
+          </span>
+          <h3 className="text-3xl font-medium tracking-tight text-foreground">
+            Onchain feedback, decrypted.
+          </h3>
+          <p className="max-w-[460px] text-base text-muted-foreground">
+            Connect a wallet to load your own forms. Below is a preview of
+            what your dashboard looks like with live data — donut, bar list,
+            distribution sparkline, and quick actions.
+          </p>
+        </div>
+        <div className="flex items-center justify-center sm:col-span-5">
+          <TierDonut
+            tierCounts={{ 0: 3, 1: 1, 2: 2, 3: 1, 4: 0 }}
+            centerLabel="57%"
+            centerSub="Encrypted"
+          />
+        </div>
+        <div className="sm:col-span-12">
+          <MiniBars values={[13, 4, 0, 6, 3, 3, 3]} height={56} />
+        </div>
       </div>
     );
   }
@@ -231,7 +257,7 @@ export function BentoDashboard() {
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-      {/* Hero stat — total submissions across every form (4×2) */}
+      {/* Hero stat — total submissions across every form (7×2) */}
       <BentoTile
         className="sm:col-span-7 sm:row-span-2"
         delay={0}
@@ -240,36 +266,52 @@ export function BentoDashboard() {
         <div className="flex h-full flex-col justify-between gap-6 p-8">
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
                 Total submissions
               </span>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-base text-muted-foreground">
                 across every form you own
               </span>
             </div>
-            <Inbox size={28} strokeWidth={1.5} className="text-foreground/40" />
+            <Inbox size={32} strokeWidth={1.5} className="text-foreground/40" />
           </div>
           <AnimatedCounter
             value={stats.totalSubs}
-            className="text-[clamp(4rem,10vw,8rem)] font-medium leading-none tracking-tight text-foreground"
+            className="text-[clamp(4.5rem,11vw,9rem)] font-medium leading-none tracking-tight text-foreground"
           />
+          {/* Distribution sparkline */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <span>Distribution by form</span>
+              <span className="tabular-nums">{forms.length} bars</span>
+            </div>
+            <MiniBars
+              values={forms.map((f) => Number(f.onChain.submission_count ?? 0))}
+              height={64}
+            />
+          </div>
           <div className="flex items-end justify-between gap-4">
-            <span className="text-sm text-muted-foreground">
-              <span className="text-foreground">{stats.formsCount}</span> form
-              {stats.formsCount === 1 ? "" : "s"} ·{" "}
-              <span className="text-foreground">{stats.openForms}</span> open
+            <span className="text-base text-muted-foreground">
+              <span className="font-medium text-foreground">
+                {stats.formsCount}
+              </span>{" "}
+              form{stats.formsCount === 1 ? "" : "s"} ·{" "}
+              <span className="font-medium text-foreground">
+                {stats.openForms}
+              </span>{" "}
+              open
             </span>
             <Link
               href="#triage"
-              className="inline-flex items-center gap-1.5 rounded-full bg-foreground/10 px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-foreground/20"
+              className="inline-flex items-center gap-1.5 rounded-full bg-foreground/10 px-4 py-2 text-sm font-medium text-foreground transition hover:bg-foreground/20"
             >
-              View all <ChevronDown size={12} />
+              View all <ChevronDown size={14} />
             </Link>
           </div>
         </div>
       </BentoTile>
 
-      {/* Encryption ratio (3×1) */}
+      {/* Privacy tier donut (5×1) */}
       <BentoTile
         className="sm:col-span-5"
         delay={0.05}
@@ -277,33 +319,23 @@ export function BentoDashboard() {
       >
         <div className="flex h-full flex-col gap-4 p-6">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
               Privacy tier mix
             </span>
-            <Lock size={18} strokeWidth={1.75} className="text-violet-400" />
+            <Lock size={20} strokeWidth={1.75} className="text-violet-400" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-5xl font-medium tracking-tight text-foreground">
-              {stats.encryptedRatio}%
-            </span>
-            <span className="text-sm text-muted-foreground">encrypted</span>
-          </div>
-          {/* Stacked bar of tier mix */}
-          <TierBar tierCounts={stats.tierCounts} total={stats.formsCount} />
-          <div className="grid grid-cols-5 gap-1 text-[10px]">
-            {tierLabels.map((t, i) => (
-              <div key={t.label} className="flex flex-col items-center gap-0.5">
-                <span className="text-foreground tabular-nums">
-                  {stats.tierCounts[i] ?? 0}
-                </span>
-                <span className={cn("text-center", t.color)}>{t.label}</span>
-              </div>
-            ))}
+          <div className="flex items-center gap-5">
+            <TierDonut
+              tierCounts={stats.tierCounts}
+              centerLabel={`${stats.encryptedRatio}%`}
+              centerSub="Encrypted"
+            />
+            <TierLegend tierCounts={stats.tierCounts} className="flex-1" />
           </div>
         </div>
       </BentoTile>
 
-      {/* Quick action — build new form (3×1) */}
+      {/* Quick action — build new form (5×1) */}
       <BentoTile
         className="sm:col-span-5"
         delay={0.1}
@@ -314,80 +346,74 @@ export function BentoDashboard() {
           className="group flex h-full flex-col justify-between gap-4 p-6"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
               Quick action
             </span>
             <FileEdit
-              size={18}
+              size={20}
               strokeWidth={1.75}
               className="text-emerald-400"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-2xl font-medium tracking-tight text-foreground">
+            <span className="text-3xl font-medium tracking-tight text-foreground">
               Build a new form
             </span>
-            <span className="text-sm text-muted-foreground">
+            <span className="text-base text-muted-foreground">
               Drag-drop · 5 templates · ✨ AI generator
             </span>
           </div>
-          <span className="inline-flex items-center gap-1 self-start rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition group-hover:gap-2">
-            Open builder <ArrowRight size={14} />
+          <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background transition group-hover:gap-2.5">
+            Open builder <ArrowRight size={15} />
           </span>
         </Link>
       </BentoTile>
 
-      {/* Recent forms list (full-width) */}
+      {/* Top forms — horizontal bar list (full-width) */}
       <BentoTile className="sm:col-span-12" delay={0.15}>
-        <div className="flex flex-col gap-4 p-6">
+        <div className="flex flex-col gap-5 p-6">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Recent forms
-            </span>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+                Top forms by submissions
+              </span>
+              <span className="text-sm text-muted-foreground">
+                Ranked across every form you own · color = privacy tier
+              </span>
+            </div>
             <Link
               href="/forms"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition hover:text-foreground"
             >
-              All forms <ArrowRight size={12} />
+              All forms <ArrowRight size={14} />
             </Link>
           </div>
-          <ul className="flex flex-col divide-y divide-border">
-            {stats.recent.map((f) => (
-              <li
-                key={f.id}
-                className="flex items-center justify-between gap-4 py-3"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <TierIcon tier={f.onChain.privacy_tier} />
-                  <Link
-                    href={`/forms/${f.id}/admin`}
-                    className="truncate font-medium text-foreground hover:underline"
-                  >
-                    {f.title}
-                  </Link>
-                  <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
-                    {tierLabels[f.onChain.privacy_tier]?.label ?? "—"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="tabular-nums text-foreground">
-                    {f.onChain.submission_count}
-                  </span>
-                  <span>responses</span>
-                  <Link
-                    href={`/forms/${f.id}/admin`}
-                    className="rounded-full border border-border px-3 py-1 text-foreground hover:bg-accent"
-                  >
-                    Open
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <SubmissionsBarList
+            items={[...forms]
+              .sort(
+                (a, b) =>
+                  Number(b.onChain.submission_count ?? 0) -
+                  Number(a.onChain.submission_count ?? 0),
+              )
+              .slice(0, 5)
+              .map((f) => {
+                const Icon = [Globe, Lock, Users, Clock, ShieldCheck][
+                  f.onChain.privacy_tier
+                ];
+                return {
+                  id: f.id,
+                  title: f.title,
+                  value: Number(f.onChain.submission_count ?? 0),
+                  tier: f.onChain.privacy_tier,
+                  icon: Icon,
+                  href: `/forms/${f.id}/admin`,
+                };
+              })}
+          />
         </div>
       </BentoTile>
 
-      {/* Insights CTA (3×1) */}
+      {/* Insights CTA (4×1) */}
       <BentoTile
         className="sm:col-span-4"
         delay={0.2}
@@ -398,26 +424,26 @@ export function BentoDashboard() {
           className="group flex h-full flex-col justify-between gap-4 p-6"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
               Memwal RAG
             </span>
-            <Brain size={18} strokeWidth={1.75} className="text-amber-400" />
+            <Brain size={20} strokeWidth={1.75} className="text-amber-400" />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xl font-medium tracking-tight text-foreground">
+            <span className="text-2xl font-medium tracking-tight text-foreground">
               Ask your forms
             </span>
-            <span className="text-sm text-muted-foreground">
-              &ldquo;What are the top 3 complaints this week?&rdquo;
+            <span className="text-base text-muted-foreground">
+              &ldquo;Top 3 complaints this week?&rdquo;
             </span>
           </div>
-          <span className="inline-flex items-center gap-1 text-xs text-foreground transition group-hover:gap-2">
-            Open Insights <ArrowUpRight size={12} />
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground transition group-hover:gap-2.5">
+            Open Insights <ArrowUpRight size={14} />
           </span>
         </Link>
       </BentoTile>
 
-      {/* Reputation CTA (3×1) */}
+      {/* Reputation CTA (4×1) */}
       <BentoTile
         className="sm:col-span-4"
         delay={0.25}
@@ -428,30 +454,30 @@ export function BentoDashboard() {
           className="group flex h-full flex-col justify-between gap-4 p-6"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
               Reputation
             </span>
             <ShieldCheck
-              size={18}
+              size={20}
               strokeWidth={1.75}
               className="text-rose-400"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xl font-medium tracking-tight text-foreground">
+            <span className="text-2xl font-medium tracking-tight text-foreground">
               Soulbound badges
             </span>
-            <span className="text-sm text-muted-foreground">
-              Issue credit tickets to top responders
+            <span className="text-base text-muted-foreground">
+              Credit tickets to top responders
             </span>
           </div>
-          <span className="inline-flex items-center gap-1 text-xs text-foreground transition group-hover:gap-2">
-            Open Reputation <ArrowUpRight size={12} />
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground transition group-hover:gap-2.5">
+            Open Reputation <ArrowUpRight size={14} />
           </span>
         </Link>
       </BentoTile>
 
-      {/* Stack badge (3×1) */}
+      {/* Stack badge (4×1) */}
       <BentoTile
         className="sm:col-span-4"
         delay={0.3}
@@ -459,23 +485,23 @@ export function BentoDashboard() {
       >
         <div className="flex h-full flex-col justify-between gap-4 p-6">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
               Stack
             </span>
-            <Zap size={18} strokeWidth={1.75} className="text-cyan-400" />
+            <Zap size={20} strokeWidth={1.75} className="text-cyan-400" />
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {["Sui", "Walrus", "Seal", "Memwal", "Enoki"].map((s) => (
               <span
                 key={s}
-                className="rounded-full border border-border bg-background/40 px-2.5 py-1 text-[11px] font-medium text-foreground/80"
+                className="rounded-full border border-border bg-background/40 px-3 py-1.5 text-sm font-medium text-foreground/80"
               >
                 {s}
               </span>
             ))}
           </div>
-          <span className="text-xs text-muted-foreground">
-            Built on five primitives, all working end-to-end on testnet.
+          <span className="text-sm text-muted-foreground">
+            Five primitives, end-to-end on testnet.
           </span>
         </div>
       </BentoTile>
@@ -529,50 +555,6 @@ const tierLabels = [
   { label: "Cond", color: "text-rose-400" },
 ];
 
-const tierBarColors = [
-  "bg-emerald-400",
-  "bg-blue-400",
-  "bg-violet-400",
-  "bg-amber-400",
-  "bg-rose-400",
-];
-
-function TierBar({
-  tierCounts,
-  total,
-}: {
-  tierCounts: Record<number, number>;
-  total: number;
-}) {
-  if (total === 0) {
-    return <div className="h-2 rounded-full bg-muted" />;
-  }
-  return (
-    <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
-      {[0, 1, 2, 3, 4].map((tier) => {
-        const count = tierCounts[tier] ?? 0;
-        const pct = (count / total) * 100;
-        if (pct === 0) return null;
-        return (
-          <div
-            key={tier}
-            className={cn("h-full transition-all", tierBarColors[tier])}
-            style={{ width: `${pct}%` }}
-            title={`${tierLabels[tier]?.label}: ${count}`}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function TierIcon({ tier }: { tier: number }) {
-  const Icon = [Globe, Lock, Users, Clock, ShieldCheck][tier] ?? Globe;
-  const colorClass = tierLabels[tier]?.color ?? "text-foreground";
-  return (
-    <Icon size={16} strokeWidth={1.75} className={cn("shrink-0", colorClass)} />
-  );
-}
 
 /**
  * Animate a number from 0 to `value` over ~800ms using easing —

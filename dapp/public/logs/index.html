@@ -164,6 +164,25 @@
             <time datetime="2026-05-12">2026-05-12</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
+          <h3>Bento charts — donut, bar list, sparkline, bigger type</h3>
+          <p>
+            Replaced the dense-but-flat bento tiles with bklit-style chart
+            primitives: 5-segment <code>TierDonut</code> with center label,
+            horizontal <code>SubmissionsBarList</code> ranked across every
+            form (color = tier), and a <code>MiniBars</code> distribution
+            sparkline at the bottom of the hero counter. Labels bumped
+            <code>text-xs → text-sm</code>, titles <code>text-xl → text-2xl</code>,
+            and the no-wallet empty state now shows a teaser donut + sample
+            data so newcomers see the product&apos;s shape before signing in.
+            Pure SVG/CSS — zero new deps, donut and bar list animate on mount.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-12">
+          <header>
+            <time datetime="2026-05-12">2026-05-12</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
           <h3>Echo-branded dashboard hero — WalrusBlobs + live preview</h3>
           <p>
             Differentiated the editorial hero from a literal Synex port:
