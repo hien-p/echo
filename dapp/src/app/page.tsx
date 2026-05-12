@@ -8,10 +8,17 @@ import {
   Faq,
   MarketingFooter,
 } from "@/components/marketing/MarketingSections";
-import { Features2 } from "@/components/blocks/features-2";
-import Stats1 from "@/components/blocks/stats-1";
-import { HowItWorks1 } from "@/components/blocks/how-it-works-1";
-import Cta1 from "@/components/blocks/cta-1";
+// RB Pro blocks unmounted from the marketing landing — they ship with
+// SaaS/security/creator placeholder content that doesn't apply to Echo,
+// and several of them use Tailwind 4 t-shirt max-w classes that this
+// project's @theme shadows onto spacing tokens (word-per-line bug).
+// Reinstate one block at a time only AFTER customizing its content +
+// auditing every max-w-* usage.
+//
+// import { Features2 } from "@/components/blocks/features-2";
+// import Stats1 from "@/components/blocks/stats-1";
+// import { HowItWorks1 } from "@/components/blocks/how-it-works-1";
+// import Cta1 from "@/components/blocks/cta-1";
 
 export const metadata: Metadata = {
   title: "Echo · Decentralized Feedback & Forms on Walrus",
@@ -26,17 +33,9 @@ export default function Home() {
       <main className="-mx-2xs -my-2xs flex min-h-screen flex-col bg-background">
         <MarketingHero />
         <FeaturedForms />
-        {/* RB Pro auto-cycling carousel of Echo's three pillars */}
-        <Features2 />
         <PrivacyTiers />
-        {/* RB Pro stats — animated metrics counter */}
-        <Stats1 />
         <StackStory />
-        {/* RB Pro how-it-works — step-by-step flow visual */}
-        <HowItWorks1 />
         <Faq />
-        {/* RB Pro CTA with parallax / cursor effect */}
-        <Cta1 />
         <MarketingFooter />
       </main>
     </>
