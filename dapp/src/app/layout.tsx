@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import {
+  Geist,
+  Geist_Mono,
+  Instrument_Serif,
+  Inter_Tight,
+} from "next/font/google";
 import { SuiProvider } from "@/contexts/SuiProvider";
 import { NavPill, SkipToContent } from "@/components/shell";
 import { Toaster } from "@/components/general/Toaster";
@@ -26,6 +31,17 @@ const instrumentSerif = Instrument_Serif({
   style: ["normal", "italic"],
 });
 
+// Editorial display face used by the Synex-style admin hero (FormAdmin
+// page). Weights 300..900 covers the eyebrow (500), headline (500),
+// and any heavier accent we want. Display "swap" so the page paints
+// before the font arrives — important for the headline blur-in entry.
+const interTight = Inter_Tight({
+  variable: "--font-inter-tight",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Echo — Decentralized Feedback & Forms",
   description:
@@ -40,7 +56,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} antialiased min-h-[100dvh] flex flex-col`}
+        className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${interTight.variable} antialiased min-h-[100dvh] flex flex-col`}
         suppressHydrationWarning
       >
         <SuiProvider>

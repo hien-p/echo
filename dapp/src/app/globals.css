@@ -8,6 +8,10 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
+  /* Editorial display face — used by the Synex-aesthetic admin hero
+     (FormAdmin). Tight letter-spacing display type. Apply via the
+     `font-display` Tailwind utility. */
+  --font-display: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
 
   /* === Coloring tokens: Used by default by the Shadcn Components === */
   /* Let's use the same ones in our custom components for consistency */
