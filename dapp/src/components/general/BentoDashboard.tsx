@@ -265,7 +265,8 @@ export function BentoDashboard() {
       <BentoTile
         className="sm:col-span-7 sm:row-span-2"
         delay={0}
-        gradient="from-blue-500/20 via-blue-500/5 to-transparent"
+        gradient="from-blue-500/25 via-blue-500/8 to-transparent"
+        glow="rgba(96,165,250,0.25)"
       >
         <div className="flex h-full flex-col justify-between gap-6 p-8">
           <div className="flex items-start justify-between gap-4">
@@ -319,7 +320,8 @@ export function BentoDashboard() {
       <BentoTile
         className="sm:col-span-5"
         delay={0.05}
-        gradient="from-violet-500/20 via-violet-500/5 to-transparent"
+        gradient="from-violet-500/25 via-violet-500/8 to-transparent"
+        glow="rgba(167,139,250,0.28)"
       >
         <div className="flex h-full flex-col gap-4 p-6">
           <div className="flex items-center justify-between">
@@ -343,7 +345,8 @@ export function BentoDashboard() {
       <BentoTile
         className="sm:col-span-5"
         delay={0.1}
-        gradient="from-emerald-500/20 via-emerald-500/5 to-transparent"
+        gradient="from-emerald-500/25 via-emerald-500/8 to-transparent"
+        glow="rgba(52,211,153,0.28)"
       >
         <Link
           href="/forms/new"
@@ -421,7 +424,8 @@ export function BentoDashboard() {
       <BentoTile
         className="sm:col-span-4"
         delay={0.2}
-        gradient="from-amber-500/20 via-amber-500/5 to-transparent"
+        gradient="from-amber-500/25 via-amber-500/8 to-transparent"
+        glow="rgba(251,191,36,0.26)"
       >
         <Link
           href="/insights"
@@ -451,7 +455,8 @@ export function BentoDashboard() {
       <BentoTile
         className="sm:col-span-4"
         delay={0.25}
-        gradient="from-rose-500/20 via-rose-500/5 to-transparent"
+        gradient="from-rose-500/25 via-rose-500/8 to-transparent"
+        glow="rgba(251,113,133,0.26)"
       >
         <Link
           href="/reputation"
@@ -485,7 +490,8 @@ export function BentoDashboard() {
       <BentoTile
         className="sm:col-span-4"
         delay={0.3}
-        gradient="from-cyan-500/20 via-cyan-500/5 to-transparent"
+        gradient="from-cyan-500/25 via-cyan-500/8 to-transparent"
+        glow="rgba(34,211,238,0.26)"
       >
         <div className="flex h-full flex-col justify-between gap-4 p-6">
           <div className="flex items-center justify-between">
@@ -517,35 +523,74 @@ export function BentoDashboard() {
 //  Pieces
 // ──────────────────────────────────────────────────────────────────────
 
+/**
+ * Bento tile — now with spring hover-lift, tier-tinted glow on hover,
+ * and a soft conic gradient ring that breathes on hover. The gradient
+ * fill underneath is the SAME pattern as before so each tile keeps its
+ * accent identity (blue hero, violet privacy, etc.).
+ */
 function BentoTile({
   children,
   className,
   delay = 0,
   gradient,
+  glow = "rgba(255,255,255,0.10)",
 }: {
   children: React.ReactNode;
   className?: string;
   delay?: number;
   gradient?: string;
+  /** Tier-matched shadow color for the hover lift. */
+  glow?: string;
 }) {
   return (
     <motion.div
-      {...fadeIn}
-      transition={{ ...fadeIn.transition, delay }}
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      whileHover={{ y: -4 }}
+      transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-border bg-card transition hover:border-foreground/20",
+        "group relative overflow-hidden rounded-2xl border border-border bg-card transition-colors duration-300 hover:border-foreground/30",
         className,
       )}
+      style={
+        {
+          "--tile-glow": glow,
+        } as React.CSSProperties
+      }
     >
+      {/* Tier-tinted gradient bg — bumped opacity so the color reads */}
       {gradient && (
         <div
           className={cn(
-            "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-60 transition group-hover:opacity-100",
+            "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-80 transition-opacity duration-300 group-hover:opacity-100",
             gradient,
           )}
           aria-hidden="true"
         />
       )}
+      {/* Conic ribbon along the border — breathes on hover */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        style={{
+          background:
+            "conic-gradient(from 180deg at 50% 50%, transparent 0deg, var(--tile-glow) 60deg, transparent 120deg, transparent 240deg, var(--tile-glow) 300deg, transparent 360deg)",
+          mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+          WebkitMask:
+            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+          maskComposite: "exclude",
+          WebkitMaskComposite: "xor",
+          padding: 1,
+        }}
+      />
+      {/* Tier-tinted glow shadow that lifts the tile off the page on hover */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{ boxShadow: `0 24px 60px -16px var(--tile-glow)` }}
+      />
       <div className="relative z-10 flex h-full flex-col">{children}</div>
     </motion.div>
   );

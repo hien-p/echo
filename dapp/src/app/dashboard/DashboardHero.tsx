@@ -133,20 +133,10 @@ export function DashboardHero() {
     </>
   );
 
-  // The 4-tile KPI strip + 30d chart now lives at the top of the dark
-  // operator zone below the hero (see dashboard/page.tsx). The hero
-  // CTA is intentionally minimal — a single "Open dashboard" link
-  // anchoring to the KPI strip — so the floating card doesn't fight
-  // the photoreal blobs for attention. Stats are still surfaced in the
-  // pill above so connected-wallet users see real numbers at a glance.
   const cta = (
     <Link
       href="#kpis"
-      className="inline-flex items-center gap-2 rounded-full bg-black/85 px-5 py-2.5 text-sm font-medium text-white shadow-xl backdrop-blur"
-      style={{
-        boxShadow:
-          "0 -8px 80px rgba(0,0,0,0.12), 0 40px 120px rgba(0,0,0,0.18)",
-      }}
+      className="inline-flex items-center gap-2 rounded-full border border-foreground/20 bg-foreground/10 px-5 py-2.5 text-sm font-medium text-foreground backdrop-blur transition hover:bg-foreground/20"
     >
       <span
         className="inline-flex h-2 w-2 rounded-full bg-emerald-400"
@@ -162,6 +152,7 @@ export function DashboardHero() {
       eyebrow="Walrus-native · Sui dApp · Seal-encrypted"
       ghostLine="Zero gas to submit."
       solidLine="Sealed end-to-end."
+      accentLine="and yours alone."
       description="Onchain form ownership, Walrus-native storage, walletless option. Triage, decrypt, and export every response."
       pill={pill}
       cta={cta}

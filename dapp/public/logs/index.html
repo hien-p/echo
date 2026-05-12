@@ -162,6 +162,29 @@
         <article class="log-card" data-date="2026-05-12">
           <header>
             <time datetime="2026-05-12">2026-05-12</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Dashboard hero aligned to homepage + creative bento polish</h3>
+          <p>
+            The warm-paper hero made <code>/dashboard</code> look like a sibling
+            site to the rest of Echo. Aligned it: dropped the
+            <code>#F2F2F0</code> editorial bg for the homepage&apos;s
+            <code>bg-background</code> + <code>AuroraBlur</code> shader idiom,
+            switched headline to a <code>clamp(2.25rem,6vw,5.5rem)</code> three-line
+            triplet with a <code>font-serif</code> italic accent on the last
+            line (matching MarketingHero&apos;s &ldquo;belongs to you.&rdquo;
+            moment), and removed the now-redundant <code>dark</code> wrapper
+            (default theme already is dark). The hero is locked at this look
+            in memory. Bento tiles got a creative pass: stronger tier-tinted
+            gradients (60% → 80% opacity), spring hover-lift, tier-color
+            <code>--tile-glow</code> shadow on hover, and a conic ribbon
+            border that breathes on hover.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-12">
+          <header>
+            <time datetime="2026-05-12">2026-05-12</time>
             <span class="log-tag" data-tag="fix">fix</span>
           </header>
           <h3>Unify dashboard query keys + respect Demo admin toggle</h3>
