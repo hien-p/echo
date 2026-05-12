@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/shell";
+import { DashboardHero } from "./DashboardHero";
 import {
   BentoDashboardClient,
   CrossFormDashboardClient,
@@ -15,24 +16,22 @@ export const runtime = "edge";
 
 export default function DashboardPage() {
   return (
-    <AppShell
-      kicker="Overview"
-      title="Dashboard"
-      subtitle="Bento overview · cross-form triage queue · jump into any form to decrypt or tag."
-      width="wide"
-    >
-      <div className="flex flex-col gap-8">
-        <BentoDashboardClient />
-        <section
-          id="triage"
-          className="flex flex-col gap-3 border-t border-border pt-8"
-        >
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Triage queue
-          </h2>
-          <CrossFormDashboardClient />
-        </section>
-      </div>
-    </AppShell>
+    <>
+      <DashboardHero />
+      <AppShell width="wide" className="-mt-12 sm:-mt-16">
+        <div id="bento" className="flex flex-col gap-8 scroll-mt-24">
+          <BentoDashboardClient />
+          <section
+            id="triage"
+            className="flex flex-col gap-3 border-t border-border pt-8"
+          >
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Triage queue
+            </h2>
+            <CrossFormDashboardClient />
+          </section>
+        </div>
+      </AppShell>
+    </>
   );
 }

@@ -26,9 +26,9 @@ export default async function FormAdminPage({
   params: Promise<Params>;
 }) {
   const { id } = await params;
-  // No section wrapper — FormAdminClient ships its own composition
-  // (SynexHero full-bleed editorial hero + BentoAdmin overview +
-  // FormAdminInner detail panel). NavPill auto-shows on this route
-  // and the SynexHero's pt-24 clears it.
-  return <FormAdmin formId={id} />;
+  return (
+    <section className="flex flex-col gap-md max-w-[960px] mx-auto p-md pt-24 w-full">
+      <FormAdmin formId={id} />
+    </section>
+  );
 }

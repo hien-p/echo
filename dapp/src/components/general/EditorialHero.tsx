@@ -1,47 +1,45 @@
 "use client";
 
 import { motion } from "motion/react";
-import Link from "next/link";
+import type { ReactNode } from "react";
 import { StoneReveal } from "@/components/marketing/StoneReveal";
-import { TIER_META } from "@/components/shell/TierChip";
 
 /**
- * Synex-style editorial hero for /forms/[id]/admin.
+ * Synex-style editorial hero — generic, content-agnostic.
  *
- * Composition (port of the Synex spec, adapted for FormAdmin):
+ * Composition (port of the Synex spec):
  *   - warm paper background (#F2F2F0)
  *   - soft radial halo gradient at top center
- *   - eyebrow label "Form admin · <tier>"
- *   - two-line H1: ghost line ("Decrypt, triage,") + solid line
- *     ("steward your responses.") in display type
- *   - subhead description (form's own description)
- *   - photoreal stones (left + right) with mossy hover reveal
- *   - dashboard preview rising centered between stones (here: a small
- *     "view live form" card peeking up from the bottom edge)
- *   - bottom dark fade for contrast under the scroll indicator
- *   - scroll-to-explore label
+ *   - optional eyebrow label
+ *   - two-line H1: ghost line + solid line
+ *   - optional subhead paragraph
+ *   - optional inline pill below H1 (counts / tags / status)
+ *   - two photoreal stones at bottom corners with mossy hover reveal
+ *   - optional centered CTA card rising between the stones
+ *   - bottom dark fade + scroll indicator with spinning star
  *
- * Sits ABOVE the existing FormAdmin body inside /forms/[id]/admin/page.tsx.
- * The dark fade at the bottom transitions visually into the BentoAdmin
- * tiles below.
+ * Consumed by /dashboard (admin overview hero). Pass per-page copy
+ * via props; the visual treatment stays constant.
  */
-export function SynexHero({
-  title,
+export function EditorialHero({
+  eyebrow,
+  ghostLine,
+  solidLine,
   description,
-  privacyTier,
-  formId,
-  submissionCount,
-  status,
+  pill,
+  cta,
+  minHeight = "min(100vh, 720px)",
 }: {
-  title: string;
+  eyebrow?: string;
+  ghostLine: string;
+  solidLine: string;
   description?: string;
-  privacyTier: number;
-  formId: string;
-  submissionCount: number;
-  status: string;
+  /** Inline pill below H1 — e.g. "7 forms · 32 submissions". */
+  pill?: ReactNode;
+  /** Optional centered card rising between the stones (CTA, status). */
+  cta?: ReactNode;
+  minHeight?: string;
 }) {
-  const tierMeta = TIER_META[privacyTier] ?? TIER_META[0];
-
   return (
     <section
       className="relative -mx-4 overflow-hidden sm:-mx-8 lg:-mx-12"
@@ -49,7 +47,7 @@ export function SynexHero({
         backgroundColor: "#F2F2F0",
         color: "#05050C",
         fontFamily: "var(--font-display)",
-        minHeight: "min(100vh, 720px)",
+        minHeight,
       }}
     >
       {/* Soft halo gradient at top center */}
@@ -64,18 +62,18 @@ export function SynexHero({
 
       {/* Text content — centered column, top-anchored */}
       <div className="relative z-[3] flex flex-col items-center px-6 pt-24 text-center sm:pt-28 md:pt-36">
-        {/* Eyebrow */}
-        <motion.span
-          initial={{ opacity: 0, y: 16, filter: "blur(8px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
-          className="mb-3 text-xs font-medium sm:text-[13px] md:text-sm"
-          style={{ color: "rgba(0,0,0,0.50)" }}
-        >
-          Form admin · {tierMeta.label} · {status}
-        </motion.span>
+        {eyebrow && (
+          <motion.span
+            initial={{ opacity: 0, y: 16, filter: "blur(8px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
+            className="mb-3 text-xs font-medium sm:text-[13px] md:text-sm"
+            style={{ color: "rgba(0,0,0,0.50)" }}
+          >
+            {eyebrow}
+          </motion.span>
+        )}
 
-        {/* Headline — two lines, ghost + solid */}
         <h1
           className="font-medium"
           style={{
@@ -91,7 +89,7 @@ export function SynexHero({
             className="block text-[34px] sm:text-[44px] md:text-[56px] lg:text-[68px]"
             style={{ color: "rgba(0,0,0,0.20)" }}
           >
-            Decrypt, triage,
+            {ghostLine}
           </motion.span>
           <motion.span
             initial={{ opacity: 0, y: 24, filter: "blur(12px)" }}
@@ -100,27 +98,22 @@ export function SynexHero({
             className="block text-[34px] sm:text-[44px] md:text-[56px] lg:text-[68px]"
             style={{ color: "#05050C" }}
           >
-            steward your responses.
+            {solidLine}
           </motion.span>
         </h1>
 
-        {/* Form title pill (since the user landed on this admin for a
-            specific form, surface its title editorially below the H1) */}
-        <motion.div
-          initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          transition={{ duration: 0.7, delay: 0.45, ease: "easeOut" }}
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-black/5 px-4 py-1.5 text-sm font-medium"
-          style={{ color: "rgba(0,0,0,0.65)" }}
-        >
-          <span>{title}</span>
-          <span style={{ color: "rgba(0,0,0,0.30)" }}>·</span>
-          <span style={{ color: "rgba(0,0,0,0.40)" }}>
-            {submissionCount} submission{submissionCount === 1 ? "" : "s"}
-          </span>
-        </motion.div>
+        {pill && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.7, delay: 0.45, ease: "easeOut" }}
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-black/5 px-4 py-1.5 text-sm font-medium"
+            style={{ color: "rgba(0,0,0,0.65)" }}
+          >
+            {pill}
+          </motion.div>
+        )}
 
-        {/* Subhead */}
         {description && (
           <motion.p
             initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
@@ -134,7 +127,7 @@ export function SynexHero({
         )}
       </div>
 
-      {/* Stones — anchored bottom-corners with mossy hover reveal */}
+      {/* Stones */}
       <StoneReveal
         side="left"
         zBase={1}
@@ -150,35 +143,20 @@ export function SynexHero({
         grassSrc="https://qclay.design/lovable/synex/stone-g-right.png"
       />
 
-      {/* "View live form" card — sits between the stones (analogue of
-          Synex's product Dashboard.png screenshot rising centrally). */}
-      <motion.div
-        initial={{ opacity: 0, y: 80, filter: "blur(8px)" }}
-        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-        transition={{ duration: 1, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="absolute bottom-0 left-0 right-0 z-[3] flex justify-center px-6"
-        style={{ pointerEvents: "none" }}
-      >
-        <Link
-          href={`/forms/${formId}`}
-          className="pointer-events-auto mb-12 inline-flex items-center gap-3 rounded-2xl bg-white px-5 py-3 text-sm font-medium shadow-xl"
-          style={{
-            color: "#05050C",
-            boxShadow:
-              "0 -8px 80px rgba(0,0,0,0.12), 0 40px 120px rgba(0,0,0,0.10)",
-          }}
+      {/* Optional CTA card rising centered between stones */}
+      {cta && (
+        <motion.div
+          initial={{ opacity: 0, y: 80, filter: "blur(8px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 1, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="absolute bottom-0 left-0 right-0 z-[3] flex justify-center px-6"
+          style={{ pointerEvents: "none" }}
         >
-          <span
-            className="inline-flex h-2 w-2 rounded-full"
-            style={{ backgroundColor: "#16a34a" }}
-            aria-hidden="true"
-          />
-          View live respondent form
-          <span aria-hidden="true">→</span>
-        </Link>
-      </motion.div>
+          <div className="pointer-events-auto mb-12">{cta}</div>
+        </motion.div>
+      )}
 
-      {/* Bottom dark fade — contrast for the scroll indicator */}
+      {/* Bottom dark fade */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute bottom-0 left-0 right-0 z-[6]"
@@ -189,7 +167,7 @@ export function SynexHero({
         }}
       />
 
-      {/* Scroll indicator — bottom center */}
+      {/* Scroll indicator */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, y: [0, -4, 0] }}
@@ -213,7 +191,7 @@ export function SynexHero({
             className="text-sm font-medium"
             style={{ letterSpacing: "-0.28px", color: "#FFF" }}
           >
-            Scroll for admin tools
+            Scroll to dashboard
           </span>
         </div>
       </motion.div>

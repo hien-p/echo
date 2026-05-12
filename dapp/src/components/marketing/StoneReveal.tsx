@@ -11,8 +11,8 @@ import { useEffect, useRef, useState } from "react";
  * through a soft circle that follows the cursor; on leave, the circle
  * springs back to radius 0.
  *
- * Mounted twice in SynexHero (left + right corners of the admin
- * /forms/[id]/admin landing). Assets sourced from qclay.design's
+ * Mounted twice in EditorialHero (left + right corners of the
+ * /dashboard onboarding hero). Assets sourced from qclay.design's
  * hosted PNGs — for the Walrus Sessions hackathon submission we lean
  * on hosted public design assets rather than redistributing the
  * binaries in the repo.
