@@ -12,6 +12,8 @@ export { SectionHeader } from "./SectionHeader";
 export { Kicker } from "./Kicker";
 export { MotionTile } from "./MotionTile";
 export { TierChip, TIER_META } from "./TierChip";
+export { SectionCorners } from "./SectionCorners";
+export { SkipToContent } from "./SkipToContent";
 export {
   EASE_OUT,
   EASE_IN_OUT,
