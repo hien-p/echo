@@ -7,13 +7,20 @@ export const metadata: Metadata = {
   description: "Conversational analytics over Echo submissions via Memwal.",
 };
 
-export default function InsightsPage() {
+export default async function InsightsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string | string[] }>;
+}) {
+  const { q } = await searchParams;
+  const initialQuestion = Array.isArray(q) ? q[0] : q;
+
   // No kicker/title/subtitle — InsightsConsole ships its own hero
   // chat-prompt panel (Kraft-style), so the AppShell header would
   // be redundant chrome. Width=wide lets the console hero breathe.
   return (
     <AppShell width="wide">
-      <InsightsConsole />
+      <InsightsConsole initialQuestion={initialQuestion} />
     </AppShell>
   );
 }

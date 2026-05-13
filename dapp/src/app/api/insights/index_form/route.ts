@@ -28,6 +28,11 @@ interface IndexRequest {
    *  flattened text per submission so callers can use it as a direct-
    *  context fallback when the Memwal relayer is sick. */
   dryRun?: boolean;
+  /** When true, return a `text/event-stream` ReadableStream emitting
+   *  per-submission progress events instead of a single JSON response.
+   *  Mutually exclusive with dryRun (dryRun's primary consumer is the
+   *  query route's fallback, which doesn't need progress). */
+  stream?: boolean;
 }
 
 interface OnChainForm {
@@ -45,6 +50,10 @@ interface SubmissionMadeEvent {
   submitter: string;
   schema_version: string;
   anonymous: boolean;
+  /** Set by jsonRpcQueryEvents from the envelope's timestampMs — used
+   *  to bake a ts: tag into each indexed memory text so the query
+   *  route's scope chip can hard-filter by date. */
+  timestampMs?: string;
 }
 
 /**
@@ -193,7 +202,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       indexed: 0,
       skipped: 0,
+      deduped: 0,
+      events: 0,
       indexerSource,
+      tier,
     });
   }
 
@@ -377,6 +389,36 @@ export async function POST(request: Request) {
   }
 
   // 8. Per-submission: walrus → (decrypt) → flatten → remember.
+  //
+  // Two output shapes depending on `body.stream`:
+  //   - false (default): collect everything and return JSON at the end.
+  //   - true: return an SSE stream emitting per-submission progress
+  //           events, then a final {event:"done"} carrying the summary.
+  // The actual work is identical; only the reporting differs.
+
+  if (body.stream && !body.dryRun) {
+    return new Response(
+      buildIndexingStream({
+        matching,
+        suiClient,
+        memwal,
+        sealCtx,
+        alreadyIndexed,
+        namespace,
+        walrusNetwork: WALRUS_NETWORK,
+        indexerSource,
+        tier,
+      }),
+      {
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache, no-transform",
+          connection: "keep-alive",
+        },
+      },
+    );
+  }
+
   let indexed = 0;
   let skipped = 0;
   let deduped = 0;
@@ -427,6 +469,7 @@ export async function POST(request: Request) {
         e.submission_id,
         e.submitter,
         submitterName,
+        e.timestampMs,
       );
       if (!text) {
         skipped++;
@@ -453,11 +496,174 @@ export async function POST(request: Request) {
     indexed,
     skipped,
     deduped,
+    events: matching.length,
     namespace,
     indexerSource,
     tier,
     errors: errors.slice(0, 5),
     ...(body.dryRun ? { texts } : {}),
+  });
+}
+
+/**
+ * Stream-mode per-submission loop. Emits SSE `progress` events as each
+ * submission moves through fetch_walrus → decrypt → embed, then a final
+ * `done` event with the summary. Errors per-submission are non-fatal
+ * (mirror the JSON path) and surface in the `done` summary's errors[].
+ */
+function buildIndexingStream(args: {
+  matching: SubmissionMadeEvent[];
+  suiClient: import("@mysten/sui/grpc").SuiGrpcClient;
+  memwal: import("@mysten-incubation/memwal").MemWal;
+  sealCtx: {
+    seal: import("@mysten/seal").SealClient;
+    sessionKey: import("@mysten/seal").SessionKey;
+    txBytes: Uint8Array;
+  } | null;
+  alreadyIndexed: Set<string>;
+  namespace: string;
+  walrusNetwork: "testnet" | "mainnet";
+  indexerSource: "demo" | "memwal";
+  tier: number;
+}): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (obj: Record<string, unknown>) => {
+        try {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(obj)}\n\n`),
+          );
+        } catch {
+          /* controller closed — client disconnected */
+        }
+      };
+
+      const total = args.matching.length;
+      let indexed = 0;
+      let skipped = 0;
+      let deduped = 0;
+      const errors: string[] = [];
+
+      send({
+        event: "progress",
+        stage: "query_events",
+        current: total,
+        total,
+        message: `Found ${total} submission${total === 1 ? "" : "s"} on chain`,
+      });
+
+      for (let i = 0; i < args.matching.length; i++) {
+        const e = args.matching[i];
+        const shortId = e.submission_id.slice(0, 10).toLowerCase();
+        if (args.alreadyIndexed.has(shortId)) {
+          deduped++;
+          send({
+            event: "progress",
+            stage: "embed",
+            current: i + 1,
+            total,
+            message: `Skipped ${shortId} (already indexed)`,
+          });
+          continue;
+        }
+
+        try {
+          send({
+            event: "progress",
+            stage: "fetch_walrus",
+            current: i + 1,
+            total,
+            message: `Fetching Walrus blob ${i + 1}/${total}`,
+          });
+
+          const subResp = await args.suiClient.getObject({
+            objectId: e.submission_id,
+            include: { json: true },
+          });
+          const sub = subResp.object.json as { payload_blob_id: string } | null;
+          if (!sub?.payload_blob_id) {
+            skipped++;
+            continue;
+          }
+          const bytes = await readBytesViaAggregator(
+            sub.payload_blob_id,
+            args.walrusNetwork,
+          );
+
+          send({
+            event: "progress",
+            stage: "decrypt",
+            current: i + 1,
+            total,
+            message: `Decrypting ${i + 1}/${total}`,
+          });
+
+          let plaintext: Uint8Array;
+          if (args.sealCtx) {
+            plaintext = await args.sealCtx.seal.decrypt({
+              data: bytes,
+              sessionKey: args.sealCtx.sessionKey,
+              txBytes: args.sealCtx.txBytes,
+            });
+          } else {
+            plaintext = bytes;
+          }
+
+          const payload = JSON.parse(new TextDecoder().decode(plaintext)) as {
+            answers: Record<string, { kind: string; value: unknown }>;
+          };
+          const submitterName = await lookupSuinsName(e.submitter);
+          const text = flattenAnswersToText(
+            payload.answers,
+            e.submission_id,
+            e.submitter,
+            submitterName,
+            e.timestampMs,
+          );
+          if (!text) {
+            skipped++;
+            continue;
+          }
+
+          send({
+            event: "progress",
+            stage: "embed",
+            current: i + 1,
+            total,
+            message: `Indexing ${i + 1}/${total} to Memwal`,
+          });
+
+          await args.memwal.remember(text, args.namespace);
+          indexed++;
+        } catch (err) {
+          errors.push(
+            `${e.submission_id.slice(0, 10)}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          skipped++;
+        }
+      }
+
+      send({
+        event: "done",
+        stage: "done",
+        indexed,
+        skipped,
+        deduped,
+        events: total,
+        namespace: args.namespace,
+        indexerSource: args.indexerSource,
+        tier: args.tier,
+        errors: errors.slice(0, 5),
+      });
+      controller.close();
+    },
+    cancel() {
+      /* client disconnected — best-effort cleanup; in-flight awaits will
+         throw but each iteration handles its own try/catch */
+    },
   });
 }
 
@@ -510,19 +716,24 @@ function flattenAnswersToText(
   submissionId: string,
   submitter?: string,
   submitterName?: string | null,
+  timestampMs?: string | number,
 ): string {
-  // Header includes submission id + submitter handle so the LLM cites
-  // submissions by human names when SuiNS is registered: e.g.
-  //   [submission 0xabc… from alice.sui]
-  // anonymous submissions stay opaque.
+  // Header includes submission id + optional ts: epoch ms + submitter
+  // handle. Query route parses the ts: tag for scope-chip filtering;
+  // memories indexed before this change have no ts: tag and bypass
+  // the filter (treated as always-in-window for backward compat).
   const isAnon = !submitter || submitter === "0x0";
   const handle = isAnon
     ? "anonymous"
     : submitterName
       ? `${submitterName}.sui`
       : `${submitter.slice(0, 10)}…`;
+  const tsTag =
+    timestampMs != null && timestampMs !== ""
+      ? ` ts:${String(timestampMs)}`
+      : "";
   const parts: string[] = [
-    `[submission ${submissionId.slice(0, 10)} from ${handle}]`,
+    `[submission ${submissionId.slice(0, 10)}${tsTag} from ${handle}]`,
   ];
   for (const [fieldId, ans] of Object.entries(answers)) {
     const v = ans.value;
@@ -624,9 +835,21 @@ async function jsonRpcQueryEvents(
     }),
   });
   const data = (await resp.json()) as {
-    result?: { data?: Array<{ parsedJson?: SubmissionMadeEvent }> };
+    result?: {
+      data?: Array<{
+        parsedJson?: SubmissionMadeEvent;
+        timestampMs?: string;
+      }>;
+    };
   };
   return (data.result?.data ?? [])
-    .map((e) => e.parsedJson)
+    .map((e) =>
+      e.parsedJson
+        ? ({
+            ...e.parsedJson,
+            timestampMs: e.timestampMs,
+          } as SubmissionMadeEvent)
+        : undefined,
+    )
     .filter((p): p is SubmissionMadeEvent => !!p);
 }

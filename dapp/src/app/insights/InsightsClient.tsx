@@ -2,7 +2,9 @@
 
 import dynamic from "next/dynamic";
 
-export const InsightsConsole = dynamic(
+export const InsightsConsole = dynamic<{
+  initialQuestion?: string;
+}>(
   () =>
     import("@/components/general/InsightsConsole").then((mod) => ({
       default: mod.InsightsConsole,
