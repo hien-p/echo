@@ -37,6 +37,14 @@ import {
   type WebhookPayload,
 } from "@/lib/echo/webhooks";
 import { SuiNSName } from "./SuiNSName";
+import {
+  TriageViewSwitcher,
+  KanbanView,
+  HeatmapView,
+  ContributorsView,
+  InsightsView,
+  type TriageView,
+} from "./TriageViews";
 
 interface OwnedCap {
   objectId: string;
@@ -472,6 +480,9 @@ export const CrossFormDashboard = () => {
   const [submitterFilter, setSubmitterFilter] = useState<
     "all" | "named" | "anonymous"
   >("all");
+  // Multi-view triage — Table / Kanban / Heatmap / Contributors / Insights.
+  // Default Table preserves the existing operator workflow.
+  const [view, setView] = useState<TriageView>("table");
 
   // Status state — persisted per submission. We mirror localStorage into
   // a React Map so the UI updates synchronously when the user changes a
@@ -1010,9 +1021,16 @@ export const CrossFormDashboard = () => {
             ))}
           </div>
 
-          {/* Submissions table — one row per submission. Status pill
-              cycles through STATUSES on click; click row to open in
-              per-form admin. */}
+          {/* Multi-view triage switcher — Table / Kanban / Heatmap /
+              Contributors / Insights. The same `visible` array feeds
+              every view; only the presenter changes. Confirmed via
+              user mockup preview on 2026-05-13. */}
+          <TriageViewSwitcher
+            current={view}
+            onChange={setView}
+            total={visible.length}
+          />
+
           {submissionsQuery.isLoading ? (
             <p className="text-sm text-muted-foreground py-6 text-center border border-dashed rounded">
               Loading submissions across {formCards.length} form
@@ -1024,6 +1042,24 @@ export const CrossFormDashboard = () => {
                 ? "No submissions yet on any of your forms."
                 : "Nothing matches the current filters."}
             </p>
+          ) : view === "kanban" ? (
+            <KanbanView
+              submissions={visible}
+              statusMap={statusMap}
+              cycleStatus={(id) => {
+                const cur = statusMap[id] ?? "new";
+                const idx = STATUSES.findIndex((s) => s.value === cur);
+                const next = STATUSES[(idx + 1) % STATUSES.length];
+                setRowStatus(id, next.value);
+              }}
+              statuses={STATUSES as unknown as { value: string; label: string; chip: string }[]}
+            />
+          ) : view === "heatmap" ? (
+            <HeatmapView submissions={visible} />
+          ) : view === "contributors" ? (
+            <ContributorsView submissions={visible} />
+          ) : view === "insights" ? (
+            <InsightsView submissionCount={visible.length} />
           ) : (
             <ul className="flex flex-col divide-y border rounded">
               {visible.map((r) => {
