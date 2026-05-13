@@ -103,9 +103,13 @@ export function SuiNSName({
 }
 
 /**
- * Address enrichment — fetched lazily on first hover. Shows balance,
- * owned-objects count, and the latest transaction digest with an
- * explorer link. Cached for 5 minutes per address.
+ * Address enrichment — fetched lazily on first hover. Shows balance
+ * and owned-objects count. Cached for 5 minutes per address.
+ *
+ * Transaction listing isn't on the dapp-kit gRPC surface (no
+ * listTransactions equivalent), so the popover deliberately stops at
+ * balance + objects — both fit the "what does this address hold" read
+ * the row gives the user, without a JSON-RPC fallback dependency.
  */
 function EnrichmentPopover({ address }: { address: string }) {
   const dAppKit = useDAppKit();
@@ -117,43 +121,26 @@ function EnrichmentPopover({ address }: { address: string }) {
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const [balance, owned, txs] = await Promise.all([
+      const [balance, owned] = await Promise.all([
         client
-          .getBalance({ address, coinType: "0x2::sui::SUI" })
+          .getBalance({ owner: address, coinType: "0x2::sui::SUI" })
           .catch(() => null),
         client
           .listOwnedObjects({ owner: address, limit: 1, include: {} })
           .catch(() => null),
-        client
-          .listTransactions({
-            filter: { FromOrToAddress: { addr: address } },
-            limit: 5,
-            descending: true,
-          })
-          .catch(() => null),
       ]);
       const totalSui = balance
-        ? Number((balance as unknown as { totalBalance?: string }).totalBalance ?? 0) / 1e9
+        ? Number(
+            (balance as unknown as { totalBalance?: string }).totalBalance ?? 0,
+          ) / 1e9
         : null;
       const ownedCount =
         (owned as unknown as { objects?: unknown[] })?.objects?.length ?? null;
-      const txDigests = ((txs as unknown as {
-        transactions?: Array<{ digest?: string; effects?: { timestampMs?: string } }>;
-      })?.transactions ?? []).map((t) => ({
-        digest: t.digest ?? "",
-        ts: t.effects?.timestampMs
-          ? Number(t.effects.timestampMs)
-          : null,
-      }));
-      return { totalSui, ownedCount, txDigests };
+      return { totalSui, ownedCount };
     },
   });
 
   const data = enrich.data;
-  const lastTx = data?.txDigests?.[0];
-  const lastTxAge = lastTx?.ts
-    ? formatRelative(Date.now() - lastTx.ts)
-    : null;
 
   return (
     <motion.div
@@ -189,25 +176,10 @@ function EnrichmentPopover({ address }: { address: string }) {
           Enrichment unavailable.
         </p>
       ) : (
-        <dl className="mt-2 grid grid-cols-3 gap-2 text-center">
+        <dl className="mt-2 grid grid-cols-2 gap-2 text-center">
           <Stat label="SUI" value={data.totalSui?.toFixed(2) ?? "—"} />
           <Stat label="Objects" value={data.ownedCount ?? "—"} />
-          <Stat
-            label="Last tx"
-            value={lastTxAge ?? (data.txDigests.length > 0 ? "–" : "0")}
-          />
         </dl>
-      )}
-      {lastTx?.digest && (
-        <Link
-          href={`https://suiexplorer.com/txblock/${lastTx.digest}?network=testnet`}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
-        >
-          {lastTx.digest.slice(0, 14)}…
-          <ExternalLink size={9} />
-        </Link>
       )}
     </motion.div>
   );
@@ -224,15 +196,4 @@ function Stat({ label, value }: { label: string; value: string | number }) {
       </dd>
     </div>
   );
-}
-
-function formatRelative(ms: number): string {
-  if (ms < 60_000) return "now";
-  const m = Math.round(ms / 60_000);
-  if (m < 60) return `${m}m`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.round(h / 24);
-  if (d < 30) return `${d}d`;
-  return `${Math.round(d / 30)}mo`;
 }
