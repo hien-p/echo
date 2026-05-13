@@ -304,7 +304,7 @@ const faqs = [
   },
   {
     q: "What about anonymous submissions?",
-    a: "Toggle ‘submit anonymously’ on the review screen. Your wallet signs a one-time deterministic message, we hash the signature into a 32-byte nullifier, only the hash hits the chain. One anonymous submission per wallet per form — Sybil-resistant without doxxing.",
+    a: "Two modes. Walletless: the browser generates an ephemeral Ed25519 keypair, signs one submission, discards it — the tx envelope itself traces to an address that has never existed before. Wallet + anonymous toggle: your wallet signs a deterministic per-form message; SHA-256 of the signature is a 32-byte commitment, and the submission object records @0x0 in place of your address. Both enforce one-submission-per-wallet-per-form. Walletless adds transaction-envelope unlinkability; wallet mode is anonymous on the submission object but the tx is still attributable on chain — pick the one matching your threat model.",
   },
   {
     q: "Where do uploaded images and videos go?",
