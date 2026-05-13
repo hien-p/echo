@@ -112,31 +112,47 @@ const STATUS_LABELS: Record<number, string> = {
   3: "archived",
 };
 
+// MemWal brutalist status chips — bright accent border on tinted soft fill,
+// 2px stroke + 2px offset shadow so the pill reads as a tactile block.
+// Same hex used in the KPI tone palette so the manage zone reads as one
+// system.
 const STATUSES = [
   {
     value: "new",
     label: "New",
-    chip: "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/60",
+    chip:
+      "border-2 border-[#E8FF75]/70 bg-[#E8FF75]/15 text-[#E8FF75] " +
+      "shadow-[2px_2px_0_0_rgba(232,255,117,0.45)] " +
+      "dark:border-[#E8FF75]/70 dark:bg-[#E8FF75]/12 dark:text-[#E8FF75]",
   },
   {
     value: "triaging",
     label: "Triaging",
-    chip: "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60",
+    chip:
+      "border-2 border-[#CAB1FF]/70 bg-[#CAB1FF]/15 text-[#CAB1FF] " +
+      "shadow-[2px_2px_0_0_rgba(202,177,255,0.45)] " +
+      "dark:border-[#CAB1FF]/70 dark:bg-[#CAB1FF]/12 dark:text-[#CAB1FF]",
   },
   {
     value: "replied",
     label: "Replied",
-    chip: "bg-violet-100 text-violet-900 border-violet-300 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900/60",
+    chip:
+      "border-2 border-sky-400/70 bg-sky-400/15 text-sky-300 " +
+      "shadow-[2px_2px_0_0_rgba(56,189,248,0.4)]",
   },
   {
     value: "resolved",
     label: "Resolved",
-    chip: "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60",
+    chip:
+      "border-2 border-emerald-400/70 bg-emerald-400/15 text-emerald-300 " +
+      "shadow-[2px_2px_0_0_rgba(52,211,153,0.4)]",
   },
   {
     value: "archived",
     label: "Archived",
-    chip: "bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900/60 dark:text-zinc-300 dark:border-zinc-700",
+    chip:
+      "border-2 border-zinc-500/60 bg-zinc-500/10 text-zinc-400 " +
+      "shadow-[2px_2px_0_0_rgba(113,113,122,0.35)]",
   },
 ] as const;
 type Status = (typeof STATUSES)[number]["value"];
@@ -847,21 +863,21 @@ export const CrossFormDashboard = () => {
               placeholder="Search submissions, addresses, blob ids…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="border rounded px-2 py-1 w-[200px] sm:w-[260px]"
+              className="rounded-md border-2 border-foreground/15 bg-background/60 px-3 py-1.5 w-[200px] sm:w-[280px] text-sm transition focus:border-[#CAB1FF] focus:outline-none focus:shadow-[2px_2px_0_0_rgba(202,177,255,0.45)]"
             />
           <button
             type="button"
             onClick={() => exportCsv(visible)}
             disabled={visible.length === 0}
             className={cn(
-              "border rounded px-2 py-1 inline-flex items-center gap-1",
+              "rounded-md border-2 px-2.5 py-1.5 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide transition",
               visible.length > 0
-                ? "hover:bg-accent"
-                : "opacity-60 cursor-not-allowed",
+                ? "border-[#E8FF75]/70 bg-[#E8FF75]/10 text-[#E8FF75] hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_rgba(232,255,117,0.5)]"
+                : "border-foreground/10 text-muted-foreground opacity-60 cursor-not-allowed",
             )}
             title="Export visible submissions as CSV"
           >
-            <Download size={11} /> CSV ({visible.length})
+            <Download size={12} /> CSV ({visible.length})
           </button>
           {!demoMode && (
             <button
@@ -919,12 +935,17 @@ export const CrossFormDashboard = () => {
         )}
       </div>
 
-      {/* Sidebar (forms) + main (submissions). Stacks on mobile. */}
+      {/* Sidebar (forms) + main (submissions). Stacks on mobile.
+          Both panes get the MemWal brutalist frame so the manage zone
+          reads as one tactile surface, not two floating lists. */}
       <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4">
         {/* Forms sidebar — grouped by privacy tier. Click any to scope
             the right pane to that form; click again or "All forms" to
             clear. The active row has a filled background. */}
-        <aside className="flex flex-col gap-3 lg:border-r lg:pr-4 lg:max-h-[80vh] lg:overflow-auto">
+        <aside
+          className="flex flex-col gap-3 rounded-2xl border-2 border-[#E8FF75]/40 bg-card/40 p-4 backdrop-blur lg:max-h-[80vh] lg:overflow-auto"
+          style={{ boxShadow: "4px 4px 0 0 rgba(232, 255, 117, 0.20)" }}
+        >
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
               Forms
@@ -940,10 +961,10 @@ export const CrossFormDashboard = () => {
             type="button"
             onClick={() => setFormFilter("all")}
             className={cn(
-              "text-left text-sm rounded px-2 py-1.5 -mx-1 flex items-center justify-between gap-2 transition",
+              "text-left text-sm rounded-md border-2 px-2.5 py-1.5 flex items-center justify-between gap-2 transition",
               formFilter === "all"
-                ? "bg-accent font-medium"
-                : "hover:bg-accent/60",
+                ? "border-[#E8FF75] bg-[#E8FF75]/15 font-semibold text-[#E8FF75] shadow-[2px_2px_0_0_rgba(232,255,117,0.4)]"
+                : "border-transparent hover:border-[#E8FF75]/40 hover:bg-[#E8FF75]/5",
             )}
           >
             <span>All forms</span>
@@ -969,17 +990,69 @@ export const CrossFormDashboard = () => {
                   const isActive = formFilter === f.id;
                   const k = f.onChain.threshold_n ?? 0;
                   const n = f.onChain.threshold_m ?? 0;
+                  // Per-tier accent — each privacy tier gets its own MemWal
+                  // brand color so the active state telegraphs "what kind
+                  // of form" without re-reading the section header.
+                  const tierAccent = (() => {
+                    switch (tier) {
+                      case 0:
+                        return {
+                          border: "#E8FF75",
+                          bg: "rgba(232,255,117,0.15)",
+                          text: "#E8FF75",
+                          shadow: "rgba(232,255,117,0.4)",
+                        };
+                      case 1:
+                        return {
+                          border: "#FB7185",
+                          bg: "rgba(251,113,133,0.15)",
+                          text: "#FB7185",
+                          shadow: "rgba(251,113,133,0.35)",
+                        };
+                      case 2:
+                        return {
+                          border: "#CAB1FF",
+                          bg: "rgba(202,177,255,0.18)",
+                          text: "#CAB1FF",
+                          shadow: "rgba(202,177,255,0.4)",
+                        };
+                      case 3:
+                        return {
+                          border: "#34D399",
+                          bg: "rgba(52,211,153,0.15)",
+                          text: "#34D399",
+                          shadow: "rgba(52,211,153,0.35)",
+                        };
+                      default:
+                        return {
+                          border: "#A1A1AA",
+                          bg: "rgba(161,161,170,0.15)",
+                          text: "#D4D4D8",
+                          shadow: "rgba(161,161,170,0.3)",
+                        };
+                    }
+                  })();
                   return (
                     <button
                       key={f.id}
                       type="button"
                       onClick={() => setFormFilter(isActive ? "all" : f.id)}
                       className={cn(
-                        "text-left text-sm rounded px-2 py-1.5 -mx-1 flex items-center justify-between gap-2 transition",
+                        "text-left text-sm rounded-md border-2 px-2.5 py-1.5 flex items-center justify-between gap-2 transition",
                         isActive
-                          ? "bg-accent font-medium"
-                          : "hover:bg-accent/60",
+                          ? "font-semibold"
+                          : "border-transparent hover:bg-foreground/[0.04]",
                       )}
+                      style={
+                        isActive
+                          ? {
+                              borderColor: tierAccent.border,
+                              background: tierAccent.bg,
+                              color: tierAccent.text,
+                              boxShadow: `2px 2px 0 0 ${tierAccent.shadow}`,
+                            }
+                          : undefined
+                      }
                       title={f.id}
                     >
                       <span className="truncate flex-1 min-w-0">
@@ -1002,8 +1075,13 @@ export const CrossFormDashboard = () => {
         </aside>
 
         {/* Main pane: form detail (when scoped) + filter chips +
-            submissions table. */}
-        <main className="flex flex-col gap-3 min-w-0">
+            submissions table. Brutalist violet frame mirrors the
+            yellow sidebar — together they tell the eye "this is the
+            manage workbench." */}
+        <main
+          className="flex flex-col gap-3 min-w-0 rounded-2xl border-2 border-[#CAB1FF]/40 bg-card/40 p-4 backdrop-blur sm:p-5"
+          style={{ boxShadow: "4px 4px 0 0 rgba(202, 177, 255, 0.22)" }}
+        >
           {selectedForm && (
             <FormDetailPanel
               form={selectedForm}
@@ -1019,7 +1097,8 @@ export const CrossFormDashboard = () => {
           )}
 
           {/* Submitter pill row — small, only meaningful filters here.
-              Status filtering happens via the metric strip above. */}
+              Status filtering happens via the metric strip above.
+              Active state uses MemWal violet block with hard offset. */}
           <div className="flex items-center gap-1.5 flex-wrap text-xs">
             <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mr-1">
               Submitter:
@@ -1030,10 +1109,10 @@ export const CrossFormDashboard = () => {
                 type="button"
                 onClick={() => setSubmitterFilter(opt)}
                 className={cn(
-                  "rounded-full border px-2 py-0.5 capitalize",
+                  "rounded-md border-2 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide capitalize transition",
                   submitterFilter === opt
-                    ? "bg-foreground text-background border-foreground"
-                    : "text-muted-foreground hover:bg-accent",
+                    ? "border-[#CAB1FF] bg-[#CAB1FF]/15 text-[#CAB1FF] shadow-[2px_2px_0_0_rgba(202,177,255,0.5)]"
+                    : "border-foreground/15 text-muted-foreground hover:border-[#CAB1FF]/60 hover:text-[#CAB1FF]",
                 )}
               >
                 {opt === "all" ? "any" : opt}
@@ -1081,15 +1160,31 @@ export const CrossFormDashboard = () => {
           ) : view === "insights" ? (
             <InsightsView submissionCount={visible.length} />
           ) : (
-            <ul className="flex flex-col divide-y border rounded">
+            <ul className="flex flex-col gap-1.5 rounded-xl border-2 border-foreground/10 bg-background/40 p-1.5">
               {visible.map((r) => {
                 const status = statusMap[r.submissionId] ?? "new";
                 const statusDef =
                   STATUSES.find((s) => s.value === status) ?? STATUSES[0];
+                // Per-tier left stripe — visually buckets rows by privacy
+                // tier without forcing a column for it. Matches the
+                // sidebar's tier-accent system above.
+                const tierStripe =
+                  r.formTier === 0
+                    ? "#E8FF75"
+                    : r.formTier === 1
+                      ? "#FB7185"
+                      : r.formTier === 2
+                        ? "#CAB1FF"
+                        : r.formTier === 3
+                          ? "#34D399"
+                          : "#A1A1AA";
                 return (
                   <li
                     key={r.submissionId}
-                    className="px-3 py-2 flex items-center gap-3 hover:bg-accent/30 text-sm"
+                    className="group relative flex items-center gap-3 rounded-md border border-transparent bg-card/30 py-2 pl-4 pr-3 text-sm transition hover:-translate-x-px hover:border-[#CAB1FF]/40 hover:bg-card/60"
+                    style={{
+                      boxShadow: `inset 3px 0 0 0 ${tierStripe}`,
+                    }}
                   >
                     <button
                       type="button"
@@ -1102,7 +1197,7 @@ export const CrossFormDashboard = () => {
                       }}
                       title={`Status: ${statusDef.label} · click to cycle`}
                       className={cn(
-                        "rounded-full border px-2 py-0.5 text-xs uppercase tracking-wide shrink-0 w-[78px] text-center",
+                        "rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] shrink-0 w-[82px] text-center transition hover:-translate-y-0.5",
                         statusDef.chip,
                       )}
                     >
@@ -1111,7 +1206,7 @@ export const CrossFormDashboard = () => {
                     {!selectedForm && (
                       <Link
                         href={`/forms/${r.formId}/admin`}
-                        className="text-xs underline text-muted-foreground truncate max-w-[180px] shrink-0 hidden sm:inline"
+                        className="text-xs font-medium text-foreground/80 hover:text-[#CAB1FF] truncate max-w-[180px] shrink-0 hidden sm:inline decoration-[#CAB1FF]/60 underline-offset-4 hover:underline"
                         title={r.formTitle}
                       >
                         {r.formTitle}
@@ -1136,7 +1231,7 @@ export const CrossFormDashboard = () => {
                     </span>
                     <Link
                       href={`/forms/${r.formId}/admin`}
-                      className="text-xs underline shrink-0"
+                      className="text-base font-bold shrink-0 text-foreground/40 transition group-hover:translate-x-0.5 group-hover:text-[#CAB1FF]"
                       aria-label="open in admin"
                     >
                       →
