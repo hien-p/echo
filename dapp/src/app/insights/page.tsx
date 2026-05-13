@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { AppShell } from "@/components/shell";
 import { InsightsConsole } from "./InsightsClient";
 
+// next-on-pages requires every server-rendered route to opt into the
+// edge runtime. build-walrus.sh strips this line for the static export.
+export const runtime = "edge";
+
 export const metadata: Metadata = {
   title: "Insights · Echo",
   description: "Conversational analytics over Echo submissions via Memwal.",
