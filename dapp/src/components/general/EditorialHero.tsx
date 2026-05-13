@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import type { ReactNode } from "react";
 import AuroraBlur from "@/components/react-bits/aurora-blur";
+import StaggeredText from "@/components/react-bits/staggered-text";
 
 /**
  * Editorial hero, aligned with the homepage's aesthetic so /dashboard
@@ -103,43 +104,53 @@ export function EditorialHero({
           </motion.span>
         )}
 
+        {/* Headline triplet — each line is a react-bits StaggeredText so
+            the words rise + un-blur individually. The lines previously
+            sat too close ("text dinh hoi gan"); bumped line-height
+            1.02 → 1.12 and added explicit per-line top margin so the
+            ghost/solid/accent lines breathe. */}
         <h1
-          className="font-medium text-foreground"
-          style={{ letterSpacing: "-0.02em", lineHeight: 1.02 }}
+          className="flex flex-col font-medium text-foreground"
+          style={{ letterSpacing: "-0.02em", lineHeight: 1.12 }}
         >
-          <motion.span
-            initial={{ opacity: 0, y: 28, filter: "blur(12px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          <StaggeredText
+            as="span"
+            text={ghostLine}
+            segmentBy="words"
+            direction="bottom"
+            blur
+            duration={0.8}
+            delay={70}
+            staggerDirection="forward"
             className="block text-[clamp(2.25rem,6vw,5.5rem)] text-foreground/35"
-          >
-            {ghostLine}
-          </motion.span>
-          <motion.span
-            initial={{ opacity: 0, y: 28, filter: "blur(12px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{
-              duration: 0.8,
-              delay: 0.32,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-            className="block text-[clamp(2.25rem,6vw,5.5rem)]"
-          >
-            {solidLine}
-          </motion.span>
+          />
+          <StaggeredText
+            as="span"
+            text={solidLine}
+            segmentBy="words"
+            direction="bottom"
+            blur
+            duration={0.8}
+            delay={70}
+            staggerDirection="forward"
+            className="mt-2 block text-[clamp(2.25rem,6vw,5.5rem)] sm:mt-3"
+          />
           {accentLine && (
-            <motion.span
-              initial={{ opacity: 0, y: 28, filter: "blur(12px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              transition={{
-                duration: 0.8,
-                delay: 0.44,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              className="block text-[clamp(2.25rem,6vw,5.5rem)]"
-            >
-              <em className="font-serif text-foreground/85">{accentLine}</em>
-            </motion.span>
+            <span className="mt-2 block text-[clamp(2.25rem,6vw,5.5rem)] sm:mt-3">
+              <em className="font-serif text-foreground/85">
+                <StaggeredText
+                  as="span"
+                  text={accentLine}
+                  segmentBy="words"
+                  direction="bottom"
+                  blur
+                  duration={0.85}
+                  delay={80}
+                  staggerDirection="forward"
+                  className="inline"
+                />
+              </em>
+            </span>
           )}
         </h1>
 

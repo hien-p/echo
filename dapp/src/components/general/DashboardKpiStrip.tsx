@@ -23,6 +23,11 @@ import type { FormMetadata } from "@/lib/echo";
 import { CountUp } from "./CountUp";
 import { useDemoAdminMode } from "./DemoAdminToggle";
 import { queryEventsByFormId } from "./CrossFormDashboard";
+import { AreaChart } from "@/components/charts/area-chart";
+import { Area } from "@/components/charts/area";
+import { Grid } from "@/components/charts/grid";
+import { XAxis } from "@/components/charts/x-axis";
+import { ChartTooltip } from "@/components/charts/tooltip";
 
 /**
  * Dashboard KPI strip — replaces the three competing overview zones
@@ -639,28 +644,14 @@ function Submissions30dChart({
   counts: number[];
   total: number;
 }) {
-  const max = Math.max(1, ...counts);
-  const w = 800;
-  const h = 120;
-  const stepX = w / Math.max(1, counts.length - 1);
-
-  // Build smooth area path
-  const points = counts.map((v, i) => {
-    const x = i * stepX;
-    const y = h - (v / max) * (h - 8) - 4;
-    return [x, y] as const;
-  });
-  const pathD = points
-    .map(([x, y], i) => (i === 0 ? `M${x},${y}` : `L${x},${y}`))
-    .join(" ");
-  const areaD = `${pathD} L${w},${h} L0,${h} Z`;
-
+  // Convert daily counts → bklit data shape: { date, count }[]
   const today = new Date();
-  const labelDate = (offsetDays: number) => {
+  const data = counts.map((count, i) => {
     const d = new Date(today);
-    d.setDate(d.getDate() - offsetDays);
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  };
+    d.setDate(d.getDate() - (counts.length - 1 - i));
+    d.setHours(0, 0, 0, 0);
+    return { date: d, count };
+  });
 
   return (
     <motion.div
@@ -675,7 +666,7 @@ function Submissions30dChart({
         className="pointer-events-none absolute -inset-px rounded-2xl opacity-60"
         style={{
           background:
-            "conic-gradient(from 0deg, transparent 0deg, #5B8DEF55 60deg, transparent 120deg, transparent 240deg, #A78BFA44 300deg, transparent 360deg)",
+            "conic-gradient(from 0deg, transparent 0deg, var(--chart-line-primary, #5B8DEF)55 60deg, transparent 120deg, transparent 240deg, #A78BFA44 300deg, transparent 360deg)",
           mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
           WebkitMask:
             "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
@@ -705,52 +696,26 @@ function Submissions30dChart({
           <span className="text-base text-muted-foreground">total</span>
         </div>
       </div>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        className="relative h-32 w-full"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="Daily submissions for the last 30 days"
-      >
-        <defs>
-          <linearGradient id="kpi-area-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#5B8DEF" stopOpacity="0.55" />
-            <stop offset="60%" stopColor="#5B8DEF" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#5B8DEF" stopOpacity="0" />
-          </linearGradient>
-          <filter id="kpi-line-glow" x="-10%" y="-30%" width="120%" height="160%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        <motion.path
-          d={areaD}
-          fill="url(#kpi-area-fill)"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-        />
-        <motion.path
-          d={pathD}
-          fill="none"
-          stroke="#7BA9F7"
-          strokeWidth={1.75}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          filter="url(#kpi-line-glow)"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 1.4, delay: 0.35, ease: "easeInOut" }}
-        />
-      </svg>
-      <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-        <span>{labelDate(29)}</span>
-        <span>{labelDate(20)}</span>
-        <span>{labelDate(10)}</span>
-        <span>Today</span>
+      {/* bklit AreaChart — themed via --chart-line-primary, --chart-grid,
+          --chart-foreground-muted (defined in globals.css). Visx-backed
+          with motion-driven path animation + cursor-tracked tooltip. */}
+      <div className="relative">
+        <AreaChart
+          data={data}
+          xDataKey="date"
+          aspectRatio="4 / 1"
+          margin={{ top: 16, right: 16, bottom: 28, left: 16 }}
+          animationDuration={1200}
+        >
+          <Grid horizontal={false} vertical={false} />
+          <Area
+            dataKey="count"
+            stroke="var(--chart-line-primary)"
+            strokeWidth={1.75}
+          />
+          <XAxis numTicks={4} />
+          <ChartTooltip />
+        </AreaChart>
       </div>
     </motion.div>
   );

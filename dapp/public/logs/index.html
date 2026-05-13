@@ -164,6 +164,74 @@
             <time datetime="2026-05-13">2026-05-13</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
+          <h3>bklit charts — visx-backed AreaChart + staggered hero text</h3>
+          <p>
+            Wired the <a href="https://ui.bklit.com/docs/components">bklit UI</a>
+            chart registry. <code>npx shadcn add</code> pulled in 13 files
+            (chart-context, grid, x-axis, tooltip family, area-chart, area)
+            plus visx (<code>@visx/shape</code>, <code>curve</code>,
+            <code>scale</code>, <code>gradient</code>, <code>responsive</code>,
+            <code>event</code>, <code>grid</code>), <code>d3-array</code>,
+            <code>react-use-measure</code>. Themed via CSS custom properties
+            in <code>globals.css</code> — <code>--chart-background</code> /
+            <code>--chart-foreground</code> / <code>--chart-line-primary</code>
+            (#5B8DEF) / <code>--chart-grid</code> / <code>--chart-crosshair</code>
+            with light + dark overrides. Fixed a typo where the auto-installer
+            wrote <code>var(----chart-X)</code> (4 dashes) in the @theme inline
+            block. Replaced the hand-rolled SVG path on the KPI strip&apos;s
+            30-day submissions chart with a real <code>&lt;AreaChart&gt;</code>
+            — proper visx scaling, motion-driven path animation, cursor-tracked
+            tooltip with crosshair, themed axis labels. Also wired
+            <code>react-bits StaggeredText</code> on the editorial hero so
+            each word in &ldquo;Zero gas to submit.&rdquo; / &ldquo;Sealed
+            end-to-end.&rdquo; / <em>and yours alone.</em> rises + un-blurs
+            individually. Bumped headline line-height 1.02 → 1.12 with
+            explicit per-line top margin so the three lines breathe.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Insights gets structured — themes, citations, form-aware Suggest, empty-state CTAs</h3>
+          <p>
+            The Insights page used to dead-end on
+            <em>&ldquo;Memwal returned no matches for namespace
+            form-98146a…&rdquo;</em> — no form context, no next step, no
+            answer structure. Reworked four layers in one slice:
+            (1)&nbsp;<code>/api/insights/query</code> now resolves the
+            <strong>form title</strong> from Walrus metadata and returns a
+            <code>recommendation</code> enum
+            (<code>submit_to_populate</code> ·
+            <code>decrypt_failed</code> · <code>wait_for_memwal</code> ·
+            <code>region_blocked</code>) alongside an
+            <strong>on-chain event count</strong>;
+            (2)&nbsp;the model call switched from
+            <code>generateText</code> to <code>generateObject</code> with
+            a Zod schema, returning prose <em>plus</em>
+            <strong>themes</strong> (label · count · sentiment) and
+            <strong>citations</strong> (verbatim quotes keyed by
+            submission id); (3)&nbsp;new
+            <code>/api/insights/suggest</code> route samples a form&rsquo;s
+            memories and prompts gpt-4o-mini for <strong>3 form-aware
+            questions</strong> shown above the hardcoded prompts under a
+            &ldquo;For this form&rdquo; header; (4)&nbsp;new
+            <code>InsightAnswer</code> component renders three variants —
+            empty-state card with form title + &ldquo;Open form admin&rdquo;
+            + copy-link CTAs, structured answer with clickable
+            <code>[0xabc…]</code> citation chips that scroll to the matching
+            row, plain fallback for legacy responses. Hero copy is
+            untouched.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
           <h3>Triage multi-view — Table · Kanban · Heatmap · Contributors · Insights</h3>
           <p>
             The flat 32-row triage list was &ldquo;rối quá&rdquo; — every row
