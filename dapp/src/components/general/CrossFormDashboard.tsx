@@ -45,6 +45,7 @@ import {
   InsightsView,
   type TriageView,
 } from "./TriageViews";
+import { SavedViews, type SavedView } from "./SavedViews";
 
 interface OwnedCap {
   objectId: string;
@@ -822,14 +823,32 @@ export const CrossFormDashboard = () => {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 text-xs flex-wrap">
-          <input
-            type="text"
-            placeholder="Search submissions, addresses, blob ids…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="border rounded px-2 py-1 w-[200px] sm:w-[260px]"
+        <div className="flex w-full flex-col gap-3">
+          <SavedViews
+            ownerAddress={ownerAddress}
+            current={{
+              searchTerm,
+              statusFilter,
+              formFilter,
+              submitterFilter,
+            }}
+            onApply={(f) => {
+              setSearchTerm(f.searchTerm);
+              setStatusFilter(f.statusFilter as Status | "all");
+              setFormFilter(f.formFilter);
+              setSubmitterFilter(
+                f.submitterFilter as "all" | "named" | "anonymous",
+              );
+            }}
           />
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <input
+              type="text"
+              placeholder="Search submissions, addresses, blob ids…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border rounded px-2 py-1 w-[200px] sm:w-[260px]"
+            />
           <button
             type="button"
             onClick={() => exportCsv(visible)}
@@ -854,6 +873,7 @@ export const CrossFormDashboard = () => {
               Lock
             </button>
           )}
+          </div>
         </div>
       </div>
 

@@ -164,6 +164,316 @@
             <time datetime="2026-05-13">2026-05-13</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
+          <h3>Sui-stack-crm CMS port wave 1 — Trust chip, Saved views, SuiNS enrichment</h3>
+          <p>
+            Compared
+            <a href="https://github.com/abhinavg6/sui-stack-crm">sui-stack-crm</a>
+            against Echo&apos;s dashboard and ported three CMS-grade
+            patterns. (1) <strong>Trust chip</strong> in the NavPill — a
+            persistent <em>E2E · Seal · Walrus · Sui</em> badge with hover
+            popover that explains what each layer guarantees and what it
+            does NOT promise; adapted from the &ldquo;trust badge in the
+            title bar&rdquo; idiom. (2) <strong>Saved views</strong> above
+            the triage queue — name + persist a filter combo (search +
+            status + form + submitter) to localStorage scoped per wallet,
+            one-click apply; sui-stack-crm flagged this as their single
+            biggest day-to-day usability gap. (3) <strong>SuiNS
+            enrichment popover</strong> — every wallet handle on the page
+            now reveals SUI balance, owned-objects count, and last-tx age
+            on hover, with a Sui explorer link; adapted from their
+            &ldquo;address as a first-class column type&rdquo; pattern.
+            Wave 2 (member management, versions drawer, storage extension)
+            blocked on Move package upgrades — current published package
+            doesn&apos;t expose add_member / extend_blob entrypoints.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Insights slice 7 — Reasoning panel narrates the synthesis</h3>
+          <p>
+            New <code>Reasoning</code> component — API-compatible with
+            <a href="https://nexus-ui.dev/docs/components/reasoning">nexus-ui/reasoning</a>
+            (<code>Reasoning</code>, <code>ReasoningTrigger</code>,
+            <code>ReasoningContent</code>) so callers can later swap to
+            the upstream via <code>npx shadcn add @nexus-ui/reasoning</code>
+            without touching call sites. Built in-repo using lucide
+            (<code>Brain</code>, <code>ChevronDown</code>) and motion
+            instead of pulling in <code>@hugeicons</code>,
+            <code>streamdown</code>, and <code>tw-shimmer</code> for one
+            cosmetic widget. CSS-keyframe shimmer inlined via
+            <code>styled-jsx</code>. Honest framing: the upstream wires
+            actual model reasoning channels (Claude extended thinking,
+            DeepSeek R1) — Echo&rsquo;s <code>streamObject</code> pipeline
+            doesn&rsquo;t expose one, so the panel narrates
+            <em>synthesis progress</em> derived from streamingPartial
+            deltas (&ldquo;Drafting prose answer…&rdquo;,
+            &ldquo;Theme: Onboarding friction (4, mixed)&rdquo;,
+            &ldquo;Confidence: medium&rdquo;, &ldquo;Cited
+            0xabc12345&rdquo;). Labelled &ldquo;Working notes&rdquo;
+            collapsed, &ldquo;Echo is reasoning…&rdquo; with shimmer
+            while streaming. Auto-opens during stream, collapses ~1.2s
+            after <code>done</code>. Wired into InsightsConsole above
+            the streaming InsightAnswer; resets per fresh ask via a
+            <code>reasoningSnapshot</code> ref so the dedupe set
+            doesn&rsquo;t carry state between questions.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Insights slice 6 — Compare side-by-side closes the wishlist</h3>
+          <p>
+            Last brainstorm item. New
+            <code>Compare</code> toggle pill in the action row (only
+            shown when the user owns 2+ forms). Toggling on reveals a
+            secondary <code>vs &lt;Form B&gt;</code> picker. Asking with
+            both forms selected calls a
+            <code>runComparisonQuery</code> helper twice in parallel
+            via <code>Promise.all</code> — bypasses the streaming
+            <code>queryMutation</code> for compare runs because two
+            concurrent <code>streamingPartial</code> writes would
+            clobber each other (compare trades token streaming for
+            parallelism). Both results land as thread entries tagged
+            with a shared <code>pairId</code>. The thread renderer
+            walks the array and groups consecutive entries with
+            matching <code>pairId</code> into a
+            <code>lg:grid-cols-2</code> row — desktop sees the two
+            answers side-by-side, mobile stacks vertically. Pin /
+            counter-arg / citation-sheet still work on either pane.
+            All 9 wishlist items now landed (Slack/Discord remains
+            skipped — external integration with no SDK in repo).
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Insights slice 5 — token streaming via streamObject</h3>
+          <p>
+            Wired actual token streaming for the answer.
+            <code>/api/insights/query</code> accepts <code>stream: true</code>
+            and switches from <code>generateObject</code> to AI SDK
+            <code>streamObject</code>, wrapping its
+            <code>partialObjectStream</code> in a
+            <code>text/event-stream</code> ReadableStream that emits
+            <code>partial</code> events (each is the cumulative object
+            snapshot) followed by a <code>done</code> event with full
+            metadata + memories. Single primary model only — the
+            fallback chain stays in the non-stream branch, with the
+            client retrying without <code>stream</code> on stream
+            errors. Client adds a <code>streamingPartial</code> state
+            populated from the SSE reader and renders a transient
+            <code>InsightAnswer</code> card below the thread while the
+            mutation is pending, tagged with a small &ldquo;Streaming&rdquo;
+            chip in the corner. On done, the streaming card vanishes and
+            the finalised entry appears in the thread. The cumulative
+            object pattern means citation chips, themes, gaps, etc.
+            don&rsquo;t flicker — they just pop into place as the model
+            commits each field. <strong>Compare side-by-side</strong>
+            stays deferred — cross-form synthesis (slice 4) already
+            covers ask-one-question-across-N-forms with merged citations;
+            a literal 2-column UI is polish, not new capability.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Insights deep links render and prefill the prompt</h3>
+          <p>
+            Fixed <code>/insights?q=...</code> so App Router reads the async
+            query string server-side and passes it into the client console as
+            the initial question. Deep links from dashboard preset cards now
+            open the Insights page without the blank internal-error screen and
+            keep the selected prompt ready to run.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Insights slice 4 — quote · auto-tag · pin · timestamps · cross-form · thread</h3>
+          <p>
+            Six more from the wishlist.
+            <strong>(1) Headline quote</strong>: Zod schema gained
+            <code>headlineQuote: {text, submissionId} | null</code> — a
+            verbatim pull-quote shown as a serif italic block above the
+            prose answer, &ldquo;voice of the user&rdquo; style.
+            <strong>(2) Auto-tag</strong>:
+            <code>submissionTags: {submissionId, tags[]}[]</code> in the
+            schema; tags render as small pills next to each citation id
+            and become a free pivot dimension.
+            <strong>(3) Pin to localStorage</strong>: new
+            <code>Pin insight</code> button on every answer card writes
+            <code>{formId, question, excerpt, themes}</code> to
+            <code>localStorage</code> keyed by owner address. Pinned row
+            of up to 6 cards appears above the hero; click to expand back
+            into the answer slot, hover to unpin. No backend pin storage
+            yet — Bento dashboard wiring is the follow-up.
+            <strong>(4) Timestamp grounding</strong>:
+            <code>flattenAnswersToText</code> now bakes
+            <code>ts:&lt;epochMs&gt;</code> into every indexed memory
+            header (from the Sui event envelope&rsquo;s
+            <code>timestampMs</code>). The query route hard-filters
+            memories whose ts falls outside the scope window — so the
+            Scope chip is now an honest filter for newly indexed forms,
+            with backward-compat fallthrough for older memories without
+            timestamps.
+            <strong>(5) Cross-form synthesis</strong>: new
+            <code>(All my forms)</code> choice in the form picker. Query
+            route accepts <code>formIds: string[]</code>, fans out the
+            two-pass recall across every namespace, dedupes by parsed
+            <code>[submission 0x…]</code> id (since Memwal blob_ids are
+            per-namespace), and runs a single LLM call over the merged
+            context. Composite title reads &ldquo;3 forms (Form A,
+            Form B…)&rdquo;.
+            <strong>(6) Conversation thread</strong>: every successful
+            query now appends to a <code>thread</code> array; the page
+            renders the full stack of Q&amp;A cards instead of wiping
+            each previous answer. Counter-argument and pin work on the
+            most recent (counter) or any (pin) entry. A &ldquo;Clear
+            thread&rdquo; affordance appears once 2+ answers exist.
+            <strong>(Deferred):</strong> streamObject token streaming,
+            side-by-side compare, Slack/Discord digest — each needs a
+            focused session.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Insights slice 3 — citation deep-view · personas · scope chip · build unblocked</h3>
+          <p>
+            Continuing the brainstorm.
+            <strong>(1) Citation deep-view sheet</strong>: query route now
+            ships full memory texts alongside the structured response —
+            clicking a citation row opens a slide-in panel from the right
+            with the entire submission, the cited excerpt highlighted in
+            amber. Esc / backdrop / X-button to close, background scroll
+            locked while open. New <code>CitationSheet</code> component.
+            <strong>(2) Persona inference</strong>: Zod schema gained a
+            <code>personas: {name, count, characteristic,
+            sentimentSlant}[]</code> field (max 4). Renders as a 2-column
+            grid in the answer card between Themes and Citations, each
+            persona card sentiment-dotted. Threaded into the Markdown
+            export too.
+            <strong>(3) Scope chip</strong>: new
+            <code>All&nbsp;time · 30 days · 7 days</code> selector in the
+            action row. The choice ships as <code>scope</code> to
+            <code>/api/insights/query</code> and feeds a soft prompt hint
+            (&ldquo;Focus on the most recent submissions…&rdquo;).
+            Honest caveat: this biases the model but doesn&rsquo;t hard-
+            filter the memory set since timestamps aren&rsquo;t yet
+            embedded in indexed text — strict grounding is a follow-up.
+            <strong>(4) Build pipeline unblocked</strong>: replaced 3
+            dynamic <code>require(&quot;react-dom&quot;)</code> calls in
+            the chart components with proper top-level
+            <code>createPortal</code> imports, installed
+            <code>@types/d3-array</code>, and tagged the visx
+            <code>CurveFactory = any</code> with an
+            eslint-disable-next-line. <code>pnpm build</code> goes green
+            again.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Walrus + Seal mascot PNG replaces generic blobs</h3>
+          <p>
+            Replaced the dashboard hero&apos;s abstract side blobs with a
+            transparent Walrus mascot PNG, brighter cinematic color, and a
+            Seal-style encryption stamp. The artwork now reads as an actual
+            Walrus-native product moment instead of generic background shapes.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>
+            Insights slice 2 — streaming indexer · auto-snapshots · history ·
+            counter-view · export · cleanup
+          </h3>
+          <p>
+            Eight features in one pass on <code>/insights</code> off the back of
+            the brainstorm. <strong>(1) Action row cleanup</strong>: killed the
+            disabled paperclip / lightbulb / mic buttons, replaced with a single
+            Re-index circle that spins while indexing.
+            <strong>(2) SSE streaming indexer</strong>:
+            <code>/api/insights/index_form</code> accepts
+            <code>stream:&nbsp;true</code> and returns a
+            <code>text/event-stream</code> emitting per-submission
+            <code>progress</code> events through fetch_walrus → decrypt → embed,
+            then a <code>done</code> summary; the
+            <code>indexMutation</code> consumes it with a
+            <code>ReadableStream</code> reader and renders a live progress bar
+            with submission counts via the new
+            <code>IndexingProgress</code> component — replaces the single
+            &ldquo;Indexing…&rdquo; pulse with real forward motion.
+            <strong>(3) Auto-snapshot cards</strong>: when a form has been
+            indexed, <code>useQueries</code> fires three parallel queries (top
+            themes / sentiment / top requests) and renders them as small cards
+            below the input; clicking a card expands it into the main answer
+            slot without re-firing. <strong>(4) History dropdown</strong>:
+            <code>Clock</code> chip pops the last 10 Q&amp;As from
+            <code>localStorage</code> keyed by owner address; clicking restores
+            form + question. <strong>(5) Counter-arguments</strong>: &ldquo;Show
+            opposing view&rdquo; button on every answer card fires a second
+            query prefixed with a dissenting-view instruction, rendered as an
+            amber-tinted secondary card.
+            <strong>(6) Confidence + gaps + outlier</strong>: Zod schema in
+            <code>/api/insights/query</code> now demands a
+            <code>confidence</code> badge (high · medium · low), up to 3
+            <code>gaps</code> (what the data doesn&rsquo;t cover), and an
+            optional <code>outlier</code> submission with a one-line &ldquo;what
+            makes it unusual&rdquo;; each renders in <code>InsightAnswer</code>.
+            <strong>(7) Export to Markdown</strong>: one-click clipboard copy of
+            the entire answer + themes + citations + gaps as a formatted MD doc.
+            <strong>(8) Deferred</strong>: streamObject token streaming — ROI
+            lower than the rest given how much auto-snapshots already close the
+            &ldquo;blank state&rdquo; gap.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Dashboard hero contrast in light and dark themes</h3>
+          <p>
+            Rebalanced the dashboard hero so decorative Walrus blobs sit behind
+            the headline instead of covering it. Added theme-aware aurora
+            palettes, readability overlays, and pill colors so the white and
+            black themes keep clear text contrast.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
           <h3>bklit charts — visx-backed AreaChart + staggered hero text</h3>
           <p>
             Wired the <a href="https://ui.bklit.com/docs/components">bklit UI</a>
@@ -362,6 +672,13 @@
             shader chunk is shared with the marketing hero).
           </p>
         </article>
+
+        <article class="log-card" data-date="2026-05-12">
+          <header>
+            <time datetime="2026-05-12">2026-05-12</time>
+            <span class="log-tag" data-tag="feat">feat</span>
+          </header>
+          <h3>Dashboard audit — one overview and a dark operator console</h3>
           <p>
             Deep-audit pass exposed three competing overviews
             (LivePreviewCard + SwissBentoOverview + BentoDashboard hero) all

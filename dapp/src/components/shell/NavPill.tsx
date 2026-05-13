@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { ConnectWalletMenu } from "@/components/general/ConnectWalletMenu";
 import { DemoAdminToggle } from "@/components/general/DemoAdminToggle";
 import { ThemeToggle } from "./ThemeToggle";
+import { TrustChip } from "./TrustChip";
 import { headerEnter } from "./motionPresets";
 
 /**
@@ -81,6 +82,8 @@ export function NavPill() {
             lets visitors browse encrypted showcase forms without
             connecting a real wallet (server-side demo decrypt). */}
         <div className="flex items-center gap-2 rounded-2xl bg-foreground/90 px-2 py-1.5 text-background shadow-lg backdrop-blur">
+          <TrustChip />
+          <span className="h-5 w-px bg-background/15" aria-hidden="true" />
           <ThemeToggle className="text-background/70 hover:bg-background/10 hover:text-background" />
           <span className="h-5 w-px bg-background/15" aria-hidden="true" />
           <DemoAdminToggle />
