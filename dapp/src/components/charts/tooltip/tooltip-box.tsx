@@ -3,6 +3,7 @@
 import { motion, useSpring } from "motion/react";
 import type { RefObject } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 // Spring config for smooth tooltip movement
@@ -67,7 +68,7 @@ export function TooltipBox({
   const targetX = shouldFlipX ? x - offset - tw : x + offset;
   const targetY = Math.max(
     offset,
-    Math.min(y - th / 2, containerHeight - th - offset)
+    Math.min(y - th / 2, containerHeight - th - offset),
   );
 
   if (leftOverride === undefined) {
@@ -96,7 +97,7 @@ export function TooltipBox({
     const tx = flip ? x - offset - w2 : x + offset;
     const ty = Math.max(
       offset,
-      Math.min(y - h2 / 2, containerHeight - h2 - offset)
+      Math.min(y - h2 / 2, containerHeight - h2 - offset),
     );
     if (leftOverride === undefined) {
       animatedLeft.set(tx);
@@ -137,8 +138,6 @@ export function TooltipBox({
     return null;
   }
 
-  const { createPortal } = require("react-dom") as typeof import("react-dom");
-
   if (!visible) {
     return null;
   }
@@ -164,7 +163,7 @@ export function TooltipBox({
         {children}
       </motion.div>
     </motion.div>,
-    container
+    container,
   );
 }
 

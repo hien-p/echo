@@ -4,7 +4,10 @@ import { curveMonotoneX } from "@visx/curve";
 import { AreaClosed, LinePath } from "@visx/shape";
 
 // CurveFactory type - simplified version compatible with visx
-// biome-ignore lint/suspicious/noExplicitAny: d3 curve factory type
+// d3 curve factories have an internal type that the visx public API
+// doesn't re-export; we accept any here because the curve is treated
+// as an opaque value passed straight through to visx.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type CurveFactory = any;
 
 import { motion, useMotionTemplate, useSpring } from "motion/react";
@@ -76,12 +79,12 @@ export function Area({
   const uniqueId = useId();
   const gradientId = useMemo(
     () => `area-gradient-${dataKey}-${Math.random().toString(36).slice(2, 9)}`,
-    [dataKey]
+    [dataKey],
   );
   const strokeGradientId = useMemo(
     () =>
       `area-stroke-gradient-${dataKey}-${Math.random().toString(36).slice(2, 9)}`,
-    [dataKey]
+    [dataKey],
   );
   const edgeMaskId = `area-edge-mask-${dataKey}-${uniqueId}`;
   const edgeGradientId = `${edgeMaskId}-gradient`;
@@ -94,7 +97,7 @@ export function Area({
       const value = d[dataKey];
       return typeof value === "number" ? (yScale(value) ?? 0) : 0;
     },
-    [dataKey, yScale]
+    [dataKey, yScale],
   );
 
   /** Polyline chord lengths along data order (no DOM); used for highlight dash math */
@@ -146,7 +149,7 @@ export function Area({
       }
       return chordMetrics.total;
     },
-    [data, xScale, xAccessor, chordMetrics]
+    [data, xScale, xAccessor, chordMetrics],
   );
 
   // Calculate segment bounds for highlight from either selection or hover
