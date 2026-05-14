@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
-import { AppShell } from "@/components/shell";
-import { InsightsConsole } from "./InsightsClient";
+import { EchoInsightsRedesign } from "./EchoInsightsRedesign";
 
-// next-on-pages requires every server-rendered route to opt into the
-// edge runtime. build-walrus.sh strips this line for the static export.
 export const runtime = "edge";
 
 export const metadata: Metadata = {
@@ -11,6 +8,12 @@ export const metadata: Metadata = {
   description: "Conversational analytics over Echo submissions via Memwal.",
 };
 
+/**
+ * /insights — Echo redesign per `~/Downloads/web_memwal/insights.jsx`.
+ * Wraps the existing real-RAG InsightsConsole in the Frame×MemWal×Sui
+ * shell (hero with magazine prompt, side-rail index status, template
+ * band) without breaking the working chat pipeline.
+ */
 export default async function InsightsPage({
   searchParams,
 }: {
@@ -18,13 +21,5 @@ export default async function InsightsPage({
 }) {
   const { q } = await searchParams;
   const initialQuestion = Array.isArray(q) ? q[0] : q;
-
-  // No kicker/title/subtitle — InsightsConsole ships its own hero
-  // chat-prompt panel (Kraft-style), so the AppShell header would
-  // be redundant chrome. Width=wide lets the console hero breathe.
-  return (
-    <AppShell width="wide">
-      <InsightsConsole initialQuestion={initialQuestion} />
-    </AppShell>
-  );
+  return <EchoInsightsRedesign initialQuestion={initialQuestion} />;
 }
