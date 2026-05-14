@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Unlock,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { clientConfig } from "@/config/clientConfig";
 import {
   PrivacyTier,
@@ -381,6 +382,17 @@ export function DashboardKpiStrip() {
           delta={metrics.delta24h}
           loading={isLoading}
           href="#triage"
+          progress={
+            metrics.subs24h + Math.max(metrics.subs24h - metrics.delta24h, 0) > 0
+              ? metrics.subs24h /
+                Math.max(
+                  metrics.subs24h,
+                  metrics.subs24h - metrics.delta24h,
+                  5,
+                )
+              : 0
+          }
+          progressLabel="vs previous 24h"
         />
         <KpiTile
           delay={0.05}
@@ -388,9 +400,11 @@ export function DashboardKpiStrip() {
           label="Open forms"
           value={metrics.openForms}
           loading={isLoading}
-          tone="info"
+          tone="violet"
           href="/forms"
           subline={`of ${forms.length} total`}
+          progress={forms.length ? metrics.openForms / forms.length : 0}
+          progressLabel="open ratio"
         />
         <KpiTile
           delay={0.1}
@@ -400,8 +414,10 @@ export function DashboardKpiStrip() {
           decimals={2}
           suffix=" SUI"
           loading={bountyQuery.isLoading}
-          tone="warning"
+          tone="yellow"
           subline={`${metrics.pools} pool${metrics.pools === 1 ? "" : "s"}`}
+          progress={metrics.pools > 0 ? Math.min(1, metrics.tvlSui / 100) : 0}
+          progressLabel="pool fill"
         />
         <KpiTile
           delay={0.15}
@@ -409,13 +425,19 @@ export function DashboardKpiStrip() {
           label="Awaiting decrypt"
           value={metrics.awaitingDecrypt}
           loading={approvalsQuery.isLoading}
-          tone={metrics.awaitingDecrypt > 0 ? "danger" : "success"}
+          tone={metrics.awaitingDecrypt > 0 ? "rose" : "emerald"}
           subline={
             metrics.awaitingDecrypt > 0
               ? "m-of-N shares pending"
               : "all forms unlocked"
           }
           href="#triage"
+          progress={
+            forms.length
+              ? (forms.length - metrics.awaitingDecrypt) / forms.length
+              : 1
+          }
+          progressLabel="decrypted"
         />
       </div>
 
@@ -432,6 +454,8 @@ export function DashboardKpiStrip() {
 // KPI tile
 // ──────────────────────────────────────────────────────────────────────
 
+type KpiTone = "violet" | "yellow" | "rose" | "emerald";
+
 function KpiTile({
   icon,
   label,
@@ -440,10 +464,12 @@ function KpiTile({
   decimals = 0,
   suffix = "",
   subline,
-  tone = "default",
+  tone = "violet",
   loading = false,
   href,
   delay = 0,
+  progress,
+  progressLabel,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -452,28 +478,31 @@ function KpiTile({
   decimals?: number;
   suffix?: string;
   subline?: string;
-  tone?: "default" | "info" | "warning" | "danger" | "success";
+  tone?: KpiTone;
   loading?: boolean;
   href?: string;
   delay?: number;
+  /** 0–1 normalized; renders the striped progress strip (Medicare layer 3). */
+  progress?: number;
+  /** Tiny right-aligned caption next to the stripe (e.g. "vs previous 24h"). */
+  progressLabel?: string;
 }) {
-  const toneIconCls = {
-    default: "text-foreground/60",
-    info: "text-blue-400",
-    warning: "text-amber-400",
-    danger: "text-rose-400",
-    success: "text-emerald-400",
-  }[tone];
-
-  // Tone-matched accent hex for the cursor spotlight + shimmer gradient.
-  // Keeps each tile's color identity instead of a generic white glow.
-  const accentHex = {
-    default: "#5B8DEF",
-    info: "#60A5FA",
-    warning: "#FBBF24",
-    danger: "#FB7185",
-    success: "#34D399",
-  }[tone];
+  // MemWal palette: violet + yellow are brand-primary; rose + emerald keep
+  // semantic alarm/ok signals legible. Icon class + cursor-spotlight hex
+  // both pull from the same tone map so each tile owns its accent.
+  const toneIconCls: Record<KpiTone, string> = {
+    violet: "text-[#CAB1FF]",
+    yellow: "text-[#E8FF75]",
+    rose: "text-rose-400",
+    emerald: "text-emerald-400",
+  };
+  const accentHexMap: Record<KpiTone, string> = {
+    violet: "#CAB1FF",
+    yellow: "#E8FF75",
+    rose: "#FB7185",
+    emerald: "#34D399",
+  };
+  const accentHex = accentHexMap[tone];
 
   // Cursor-tracked spotlight — radial gradient mask follows the mouse.
   const cardRef = useRef<HTMLDivElement>(null);
@@ -506,7 +535,16 @@ function KpiTile({
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative flex h-full flex-col gap-5 overflow-hidden rounded-2xl border border-border bg-card/60 p-6 backdrop-blur transition hover:border-foreground/20 hover:bg-card/80"
+      data-mw-tone={tone}
+      className="mw-kpi group relative flex h-full flex-col gap-5 overflow-hidden rounded-2xl border-2 bg-card/70 p-6 backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:bg-card/85"
+      style={{
+        borderColor: `${accentHex}55`,
+        boxShadow: `0 0 0 0 ${accentHex}00`,
+      }}
+      whileHover={{
+        boxShadow: `4px 4px 0 0 ${accentHex}`,
+        borderColor: accentHex,
+      }}
     >
       {/* Cursor-tracked spotlight */}
       <motion.div
@@ -534,9 +572,14 @@ function KpiTile({
           {label}
         </span>
         <span
-          className={toneIconCls}
+          className={cn(
+            "inline-flex h-7 w-7 items-center justify-center rounded-md border-2",
+            toneIconCls[tone],
+          )}
           style={{
-            filter: `drop-shadow(0 0 10px ${accentHex}66)`,
+            borderColor: `${accentHex}80`,
+            background: `${accentHex}1a`,
+            boxShadow: `2px 2px 0 0 ${accentHex}40`,
           }}
         >
           {icon}
@@ -556,11 +599,18 @@ function KpiTile({
         )}
         {delta !== undefined && delta !== 0 && !loading && (
           <span
-            className={`inline-flex items-center gap-0.5 rounded-md px-2 py-0.5 text-xs font-medium tabular-nums ${
+            className={cn(
+              "inline-flex items-center gap-0.5 rounded-md border-2 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums",
               delta > 0
-                ? "bg-emerald-500/15 text-emerald-400"
-                : "bg-rose-500/15 text-rose-400"
-            }`}
+                ? "border-emerald-500/70 bg-emerald-500/15 text-emerald-300"
+                : "border-rose-500/70 bg-rose-500/15 text-rose-300",
+            )}
+            style={{
+              boxShadow:
+                delta > 0
+                  ? "2px 2px 0 0 rgba(52,211,153,0.4)"
+                  : "2px 2px 0 0 rgba(251,113,133,0.4)",
+            }}
           >
             {delta > 0 ? (
               <ArrowUpRight size={11} />
@@ -571,9 +621,40 @@ function KpiTile({
           </span>
         )}
       </div>
-      <span className="relative text-sm text-muted-foreground">
-        {subline ?? "vs previous 24h"}
-      </span>
+      {/* Layer 3 — Medicare's striped progress strip, MemWal-tinted. */}
+      <div className="relative flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">
+          {subline ?? "vs previous 24h"}
+        </span>
+        {!loading && (
+          <div
+            className="relative h-2 w-full overflow-hidden rounded-full border"
+            style={{
+              borderColor: `${accentHex}66`,
+              background: "var(--mw-accent-track)",
+            }}
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round((progress ?? 0) * 100)}
+            aria-label={progressLabel ?? "progress"}
+          >
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{
+                width: `${Math.max(0, Math.min(1, progress ?? 0)) * 100}%`,
+              }}
+              transition={{
+                duration: 0.9,
+                delay: delay + 0.2,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+              className="mw-kpi-stripe mw-kpi-stripe-anim h-full"
+              style={{ ["--mw-accent" as string]: accentHex }}
+            />
+          </div>
+        )}
+      </div>
     </motion.div>
   );
 

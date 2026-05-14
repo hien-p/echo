@@ -182,6 +182,21 @@
   --chart-marker-foreground: oklch(0.3 0.01 260);
   --chart-ring-background: oklch(0.9 0.005 260 / 0.25);
   --chart-label: oklch(0.45 0.01 260);
+
+  /* ──────── MemWal accent tokens (scoped to brutalist surfaces) ─────────
+   * Source: MemWal Design System / colors_and_type.css. Used inside
+   * the dashboard manage zone (KPI strip, triage card, donut bento).
+   * Tokens are surface-tinted so they read on both light + dark themes;
+   * components opt in via `data-mw="violet"` etc. or className utilities.
+   */
+  --mw-violet:        #CAB1FF;
+  --mw-yellow:        #E8FF75;
+  --mw-violet-soft:   rgba(202, 177, 255, 0.30);
+  --mw-yellow-soft:   rgba(232, 255, 117, 0.45);
+  --mw-violet-track:  rgba(202, 177, 255, 0.18);
+  --mw-yellow-track:  rgba(232, 255, 117, 0.20);
+  --mw-gradient-brand: linear-gradient(135deg, #CAB1FF, #E8FF75);
+  --mw-ink:           #000000;
 }
 
 .dark {
@@ -227,6 +242,56 @@
   --chart-marker-foreground: oklch(0.9 0 0);
   --chart-ring-background: oklch(0.35 0.01 260 / 0.25);
   --chart-label: oklch(0.75 0.01 260);
+
+  /* Dark-mode MemWal: same brand hues; soft tracks pop more on ink. */
+  --mw-violet-soft:   rgba(202, 177, 255, 0.20);
+  --mw-yellow-soft:   rgba(232, 255, 117, 0.22);
+  --mw-violet-track:  rgba(202, 177, 255, 0.12);
+  --mw-yellow-track:  rgba(232, 255, 117, 0.14);
+}
+
+/* ──────── MemWal brutalist KPI card ────────
+ * One opt-in class for the dashboard manage zone. Pairs with the
+ * data-mw-tone attribute (violet | yellow | rose | emerald) so each
+ * tile picks its own accent without inline style sprawl.
+ */
+.mw-kpi {
+  --mw-accent: var(--mw-violet);
+  --mw-accent-soft: var(--mw-violet-soft);
+  --mw-accent-track: var(--mw-violet-track);
+}
+.mw-kpi[data-mw-tone="yellow"] {
+  --mw-accent: var(--mw-yellow);
+  --mw-accent-soft: var(--mw-yellow-soft);
+  --mw-accent-track: var(--mw-yellow-track);
+}
+.mw-kpi[data-mw-tone="rose"] {
+  --mw-accent: #FB7185;
+  --mw-accent-soft: rgba(251, 113, 133, 0.22);
+  --mw-accent-track: rgba(251, 113, 133, 0.14);
+}
+.mw-kpi[data-mw-tone="emerald"] {
+  --mw-accent: #34D399;
+  --mw-accent-soft: rgba(52, 211, 153, 0.22);
+  --mw-accent-track: rgba(52, 211, 153, 0.14);
+}
+
+.mw-kpi-stripe {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--mw-accent) 0,
+    var(--mw-accent) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+@keyframes mw-stripe-drift {
+  from { background-position: 0 0; }
+  to   { background-position: 24px 0; }
+}
+.mw-kpi-stripe-anim {
+  animation: mw-stripe-drift 6s linear infinite;
 }
 
 @layer base {
