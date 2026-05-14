@@ -35,6 +35,7 @@ import { clientConfig } from "@/config/clientConfig";
 import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 import { WalrusMascot } from "@/components/general/FrameForms";
 import { useDemoAdminMode } from "@/components/general/DemoAdminToggle";
+import { queryEventsByFormId } from "@/components/general/CrossFormDashboard";
 import { InsightsConsole } from "./InsightsClient";
 
 // ─────────────────────────────────────────────────────────────────
@@ -118,10 +119,87 @@ function useInsightsData() {
   });
 
   const forms = useMemo(() => formsQuery.data ?? [], [formsQuery.data]);
-  const totalDocs = forms.reduce(
+  const formIdsKey = forms.map((f) => f.id).join(",");
+
+  // Real submissions — same TanStack key as dashboard so the cache is
+  // shared across surfaces. Used to power the "Recent submissions" rail
+  // card so the insights page reads as data-rich on first paint.
+  const submissionsQuery = useQuery({
+    queryKey: ["echo", "dashboard-submissions", formIdsKey],
+    queryFn: async () => {
+      if (forms.length === 0) return [] as Array<{
+        formId: string;
+        formTitle: string;
+        formTier: number;
+        submissionId: string;
+        submitter: string;
+        anonymous: boolean;
+        submittedAtMs: number;
+        encrypted: boolean;
+      }>;
+      const eventType = `${packageId}::submission::SubmissionMade`;
+      const fullnodeUrl = clientConfig.SUI_FULLNODE_URL;
+      const perForm = await Promise.all(
+        forms.map(async (form) => {
+          const events = await queryEventsByFormId(
+            fullnodeUrl,
+            eventType,
+            form.id,
+          );
+          if (events.length === 0) return [];
+          const subObjs = await suiClient.getObjects({
+            objectIds: events.map((e) => e.submission_id),
+            include: { json: true },
+          });
+          const tsById = new Map<string, number>();
+          for (const obj of subObjs.objects as unknown as Array<{
+            objectId: string;
+            json?: { submitted_ms?: string };
+          }>) {
+            if (obj.json?.submitted_ms)
+              tsById.set(obj.objectId, Number(obj.json.submitted_ms));
+          }
+          return events.map((e) => ({
+            formId: form.id,
+            formTitle: form.title,
+            formTier: form.onChain.privacy_tier,
+            submissionId: e.submission_id,
+            submitter: e.submitter,
+            anonymous: e.anonymous,
+            submittedAtMs: tsById.get(e.submission_id) ?? Date.now(),
+            encrypted: form.onChain.privacy_tier !== 0,
+          }));
+        }),
+      );
+      return perForm
+        .flat()
+        .sort((a, b) => b.submittedAtMs - a.submittedAtMs);
+    },
+    enabled: forms.length > 0,
+    staleTime: 15_000,
+  });
+
+  const submissions = useMemo(
+    () => submissionsQuery.data ?? [],
+    [submissionsQuery.data],
+  );
+
+  const totalDocs = submissions.length || forms.reduce(
     (a, f) => a + Number(f.onChain.submission_count ?? 0),
     0,
   );
+
+  const topForms = useMemo(() => {
+    return [...forms]
+      .map((f) => ({
+        id: f.id,
+        title: f.title,
+        tier: f.onChain.privacy_tier,
+        subs: submissions.filter((s) => s.formId === f.id).length || Number(f.onChain.submission_count ?? 0),
+      }))
+      .sort((a, b) => b.subs - a.subs)
+      .slice(0, 5);
+  }, [forms, submissions]);
 
   return {
     ownerAddress: ownerAddress ?? null,
@@ -130,7 +208,25 @@ function useInsightsData() {
     avgLatency: "2.3s",
     lastSync: "live",
     status: forms.length > 0 ? ("live" as const) : ("offline" as const),
+    submissions,
+    topForms,
   };
+}
+
+const TIER_COLORS = ["#0A0A0A", "#4DA2FF", "#A06EE9", "#6CD3D6", "#E8A540"];
+const TIER_NAMES = ["Public", "Admin", "Threshold", "Time-lock", "Cond."];
+
+function humanAgo(ms: number): string {
+  if (ms < 0) return "now";
+  if (ms < 60_000) return `${Math.max(1, Math.floor(ms / 1000))}s`;
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
+  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
+  return `${Math.floor(ms / 86_400_000)}d`;
+}
+
+function shortAddr(a: string): string {
+  if (!a || !a.startsWith("0x")) return a;
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -583,6 +679,286 @@ function Metric({
   );
 }
 
+function RecentSubmissionsCard({
+  submissions,
+}: {
+  submissions: ReturnType<typeof useInsightsData>["submissions"];
+}) {
+  const rows = submissions.slice(0, 6);
+  return (
+    <div className="echo-card" style={{ padding: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <MonoLabel>recent submissions</MonoLabel>
+        <MonoLabel size={9} color="var(--echo-mut-2)">
+          {submissions.length} total
+        </MonoLabel>
+      </div>
+      {rows.length === 0 ? (
+        <MonoLabel size={10} color="var(--echo-mut)">
+          No submissions yet — ask a form a question above to start collecting.
+        </MonoLabel>
+      ) : (
+        <ul
+          style={{
+            listStyle: "none",
+            margin: 0,
+            padding: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          {rows.map((s, idx) => {
+            const now = Date.now();
+            const ago = humanAgo(now - s.submittedAtMs);
+            const tierColor = TIER_COLORS[s.formTier] ?? "#0A0A0A";
+            const tierName = TIER_NAMES[s.formTier] ?? "Public";
+            return (
+              <motion.li
+                key={s.submissionId}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.04, duration: 0.35 }}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "8px minmax(0, 1fr) auto",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  paddingBottom: idx === rows.length - 1 ? 0 : 10,
+                  borderBottom:
+                    idx === rows.length - 1
+                      ? "none"
+                      : "1px solid var(--echo-rail-2)",
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 999,
+                    background: tierColor,
+                    boxShadow: `0 0 0 3px ${tierColor}26`,
+                    marginTop: 4,
+                  }}
+                />
+                <div style={{ minWidth: 0 }}>
+                  <Link
+                    href={`/forms/${s.formId}/admin`}
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: "var(--echo-ink)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      display: "block",
+                    }}
+                  >
+                    {s.formTitle}
+                  </Link>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginTop: 2,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: "JetBrains Mono, monospace",
+                        fontSize: 10,
+                        color: "var(--echo-mut)",
+                        letterSpacing: 0,
+                      }}
+                    >
+                      {s.anonymous ? (
+                        <em
+                          style={{
+                            fontFamily:
+                              "Instrument Serif, Georgia, serif",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          anonymous
+                        </em>
+                      ) : (
+                        shortAddr(s.submitter)
+                      )}
+                    </span>
+                    <span style={{ color: "#D6D6D6" }}>·</span>
+                    <MonoLabel size={9} color="var(--echo-mut)">
+                      {tierName}
+                    </MonoLabel>
+                    {s.encrypted && (
+                      <>
+                        <span style={{ color: "#D6D6D6" }}>·</span>
+                        <MonoLabel size={9} color="var(--echo-warn)">
+                          enc
+                        </MonoLabel>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: "var(--echo-ink)",
+                    fontVariantNumeric: "tabular-nums",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {ago}
+                </span>
+              </motion.li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function TopFormsCard({
+  topForms,
+}: {
+  topForms: ReturnType<typeof useInsightsData>["topForms"];
+}) {
+  const max = Math.max(1, ...topForms.map((f) => f.subs));
+  return (
+    <div className="echo-card" style={{ padding: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <MonoLabel>top forms · by subs</MonoLabel>
+        <Link
+          href="/forms"
+          style={{
+            fontFamily: "JetBrains Mono, monospace",
+            fontSize: 10,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: "var(--echo-mut)",
+            fontWeight: 500,
+          }}
+        >
+          all ↗
+        </Link>
+      </div>
+      {topForms.length === 0 ? (
+        <MonoLabel size={10} color="var(--echo-mut)">
+          Connect a wallet to surface forms.
+        </MonoLabel>
+      ) : (
+        <ul
+          style={{
+            listStyle: "none",
+            margin: 0,
+            padding: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          {topForms.map((f, idx) => {
+            const color = TIER_COLORS[f.tier] ?? "#0A0A0A";
+            const pct = (f.subs / max) * 100;
+            return (
+              <li
+                key={f.id}
+                style={{ display: "flex", flexDirection: "column", gap: 6 }}
+              >
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "8px 1fr auto",
+                    gap: 10,
+                    alignItems: "center",
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 999,
+                      background: color,
+                      boxShadow: `0 0 0 3px ${color}26`,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 500,
+                      color: "var(--echo-ink)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {f.title}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "JetBrains Mono, monospace",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "var(--echo-ink)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {f.subs}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    height: 3,
+                    background: "var(--echo-rail-2)",
+                    borderRadius: 999,
+                    overflow: "hidden",
+                    marginLeft: 18,
+                  }}
+                >
+                  <motion.span
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pct}%` }}
+                    transition={{
+                      duration: 0.7,
+                      delay: idx * 0.06,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    style={{
+                      display: "block",
+                      height: "100%",
+                      background: color,
+                      borderRadius: 999,
+                    }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function RagSection({ initialQuestion }: { initialQuestion?: string }) {
   const data = useInsightsData();
   return (
@@ -619,6 +995,8 @@ function RagSection({ initialQuestion }: { initialQuestion?: string }) {
             avgLatency={data.avgLatency}
             status={data.status}
           />
+          <RecentSubmissionsCard submissions={data.submissions} />
+          <TopFormsCard topForms={data.topForms} />
         </aside>
       </div>
     </section>

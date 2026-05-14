@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FormViewer } from "./FormViewerClient";
+import { EchoFormViewerShell } from "./EchoFormViewerShell";
 
 export const runtime = "edge";
 
@@ -29,9 +29,5 @@ export default async function FormPage({
   params: Promise<Params>;
 }) {
   const { id } = await params;
-  return (
-    <section className="flex flex-col gap-md max-w-[768px] mx-auto p-md w-full">
-      <FormViewer formId={id} />
-    </section>
-  );
+  return <EchoFormViewerShell formId={id} />;
 }
