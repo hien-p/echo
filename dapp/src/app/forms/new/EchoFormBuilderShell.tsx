@@ -42,12 +42,12 @@ import {
 import { buildCreateFormTx } from "@/lib/echo/tx";
 import { executeSponsored } from "@/lib/echo/sponsor";
 import { uploadJsonViaPublisher } from "@/lib/echo/walrus";
-import { resolveAddressToName, shortAddress } from "@/lib/echo/suins";
 import {
   BrutalistButton,
   SuiDroplet,
   WalrusMascot,
 } from "@/components/general/FrameForms";
+import { EchoNavRail } from "@/components/general/EchoNavRail";
 
 // ────────────────────────────────────────────────────────────────────
 // Constants — palette / tiers / AI prompts / publish steps
@@ -305,94 +305,6 @@ function RailHead({ label, hint }: { label: string; hint?: string }) {
         </Mono>
       )}
     </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────
-// NavRail — top brand bar (echo · forms on sui · nav · wallet pill)
-// ────────────────────────────────────────────────────────────────────
-
-function NavRail({
-  walletAddr,
-  onDisconnect,
-  onConnect,
-}: {
-  walletAddr?: string;
-  onDisconnect: () => void;
-  onConnect: () => void;
-}) {
-  const [suiName, setSuiName] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    if (!walletAddr) {
-      setSuiName(null);
-      return;
-    }
-    void resolveAddressToName(walletAddr).then((name) => {
-      if (!cancelled) setSuiName(name);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [walletAddr]);
-
-  const network = clientConfig.SUI_NETWORK;
-  const short = walletAddr ? shortAddress(walletAddr) : null;
-  const handle = suiName ? `${suiName}.sui` : walletAddr ? short : null;
-
-  return (
-    <header className="bld-navrail">
-      <div className="echo-container bld-navrail__inner">
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Link href="/dashboard" className="bld-brand">
-            <span className="bld-brand__mark" aria-hidden="true" />
-            <span className="bld-brand__word">echo</span>
-            <span className="bld-brand__tag">forms on sui</span>
-          </Link>
-          <nav className="bld-nav-links">
-            <Link href="/forms" className="is-active">
-              forms
-            </Link>
-            <Link href="/dashboard">dashboard</Link>
-            <Link href="/insights">insights</Link>
-            <Link href="/reputation">reputation</Link>
-            <Link href="/docs">docs ↗</Link>
-          </nav>
-        </div>
-        <div className="bld-nav-right">
-          <span className="bld-testnet-pill">
-            <span className="bld-testnet-pill__dot" />
-            {network}
-          </span>
-          {walletAddr ? (
-            <button
-              type="button"
-              className="bld-wallet-pill bld-wallet-pill--btn"
-              onClick={onDisconnect}
-              title="click to disconnect"
-            >
-              <span className="bld-wallet-pill__aurora" aria-hidden="true" />
-              <span>{handle}</span>
-              {suiName && (
-                <span className="bld-wallet-pill__addr">· {short}</span>
-              )}
-              <span className="bld-wallet-pill__chev">↪</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="bld-wallet-pill bld-wallet-pill--btn"
-              onClick={onConnect}
-              title="connect a wallet"
-            >
-              <span className="bld-wallet-pill__aurora" aria-hidden="true" />
-              <span>connect wallet</span>
-              <span className="bld-wallet-pill__chev">→</span>
-            </button>
-          )}
-        </div>
-      </div>
-    </header>
   );
 }
 
@@ -1562,13 +1474,7 @@ export function EchoFormBuilderShell() {
 
   return (
     <div className="echo-builder">
-      <NavRail
-        walletAddr={currentAccount?.address}
-        onDisconnect={() => {
-          void dAppKit.disconnectWallet();
-        }}
-        onConnect={() => router.push("/")}
-      />
+      <EchoNavRail active="forms" />
       <BuilderTopbar
         dirty={dirty}
         publishing={publishing}

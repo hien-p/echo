@@ -34,6 +34,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { clientConfig } from "@/config/clientConfig";
 import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 import { WalrusMascot } from "@/components/general/FrameForms";
+import { EchoNavRail } from "@/components/general/EchoNavRail";
 import { useDemoAdminMode } from "@/components/general/DemoAdminToggle";
 import { queryEventsByFormId } from "@/components/general/CrossFormDashboard";
 import { EchoAnswerThread } from "./EchoAnswerThread";
@@ -1262,7 +1263,8 @@ export function EchoInsightsRedesign({
     router.replace(`/insights?q=${encodeURIComponent(q)}`);
   };
   return (
-    <div className="echo-dashboard">
+    <div className="echo-dashboard echo-builder">
+      <EchoNavRail active="insights" />
       <HeroShelf
         formsIndexed={data.formsIndexed}
         documents={data.documents}

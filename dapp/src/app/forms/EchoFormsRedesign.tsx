@@ -27,6 +27,7 @@ import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { clientConfig } from "@/config/clientConfig";
 import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 import { WalrusMascot } from "@/components/general/FrameForms";
+import { EchoNavRail } from "@/components/general/EchoNavRail";
 import { queryEventsByFormId } from "@/components/general/CrossFormDashboard";
 import { useDemoAdminMode } from "@/components/general/DemoAdminToggle";
 
@@ -1542,7 +1543,8 @@ export function EchoFormsRedesign() {
       : FALLBACK;
   return (
     <Ctx.Provider value={data}>
-      <div className="echo-dashboard">
+      <div className="echo-dashboard echo-builder">
+        <EchoNavRail active="forms" />
         <HeroShelf />
         <KpiStrip />
         <FormsList />
