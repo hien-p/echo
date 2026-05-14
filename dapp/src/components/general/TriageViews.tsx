@@ -82,7 +82,9 @@ export function TriageViewSwitcher({
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="inline-flex items-center gap-1 rounded-full border border-border bg-card/40 p-1 backdrop-blur">
+      {/* Frame outline rail wrapping the toggle — no card chrome, square
+          rail, inverse plate slides under the active option. */}
+      <div className="inline-flex items-center overflow-hidden rounded-sm border border-foreground/30">
         {VIEWS.map((v) => {
           const Icon = v.icon;
           const active = current === v.id;
@@ -92,29 +94,29 @@ export function TriageViewSwitcher({
               type="button"
               onClick={() => onChange(v.id)}
               className={cn(
-                "relative inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                "relative inline-flex items-center gap-1.5 px-3.5 py-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] transition-colors",
                 active
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "text-background"
+                  : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
               )}
               aria-pressed={active}
             >
               {active && (
                 <motion.span
                   layoutId="triage-view-pill"
-                  className="absolute inset-0 rounded-full bg-foreground/10"
+                  className="absolute inset-0 bg-foreground"
                   transition={{ type: "spring", stiffness: 380, damping: 32 }}
                 />
               )}
               <span className="relative inline-flex items-center gap-1.5">
-                <Icon size={14} strokeWidth={1.75} />
+                <Icon size={12} strokeWidth={1.75} />
                 {v.label}
               </span>
             </button>
           );
         })}
       </div>
-      <span className="text-xs text-muted-foreground tabular-nums">
+      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground tabular-nums">
         {total} submission{total === 1 ? "" : "s"} in scope
       </span>
     </div>
@@ -122,16 +124,8 @@ export function TriageViewSwitcher({
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Identicon — gradient circle generated deterministically from address
+// Identicon — Frame monochrome variant (single initial, hairline disc).
 // ──────────────────────────────────────────────────────────────────
-
-function identityHash(addr: string): { hue: number; hue2: number } {
-  let h = 0;
-  for (let i = 0; i < addr.length; i++) {
-    h = (h * 31 + addr.charCodeAt(i)) >>> 0;
-  }
-  return { hue: h % 360, hue2: (h >> 8) % 360 };
-}
 
 export function Identicon({
   address,
@@ -146,31 +140,36 @@ export function Identicon({
     return (
       <span
         aria-hidden="true"
-        className="inline-flex shrink-0 items-center justify-center rounded-full border border-dashed border-foreground/30 text-foreground/40"
+        className="inline-flex shrink-0 items-center justify-center rounded-full border border-dashed border-foreground/30 font-mono text-foreground/45"
         style={{
           width: size,
           height: size,
-          fontSize: size * 0.55,
-          fontFamily: "var(--font-serif, serif)",
-          fontStyle: "italic",
+          fontSize: size * 0.46,
         }}
       >
         ?
       </span>
     );
   }
-  const { hue, hue2 } = identityHash(address);
+  // Frame identicon — single mono initial on a hairline outlined disc.
+  // The previous version generated saturated conic-gradient HSL discs
+  // which clashed with the near-monochrome architectural palette.
+  // Initial is derived from the address bytes so it's deterministic but
+  // value-bearing (vs an opaque hash circle).
+  const initial = (address.replace(/^0x/, "")[0] ?? "0").toUpperCase();
   return (
     <span
       aria-hidden="true"
-      className="inline-block shrink-0 rounded-full"
+      className="inline-flex shrink-0 items-center justify-center rounded-full border border-foreground/25 bg-background font-mono font-medium text-foreground/70"
       style={{
         width: size,
         height: size,
-        background: `conic-gradient(from 90deg at 50% 50%, hsl(${hue} 70% 60%), hsl(${hue2} 70% 55%), hsl(${hue} 70% 60%))`,
-        boxShadow: `0 0 0 1px hsl(${hue} 60% 35% / 0.4)`,
+        fontSize: size * 0.42,
+        letterSpacing: 0,
       }}
-    />
+    >
+      {initial}
+    </span>
   );
 }
 
@@ -202,7 +201,7 @@ export function smartTime(iso: string): { day: string; hms: string } {
   return { day, hms };
 }
 
-const TIER_HEX = ["#34D399", "#60A5FA", "#A78BFA", "#FBBF24", "#FB7185"];
+const TIER_HEX = ["#0A0A0A", "#2F6BFF", "#8A8A85", "#B5781A", "#B53334"];
 
 // ──────────────────────────────────────────────────────────────────
 // KANBAN — submissions grouped by status as columns
@@ -230,35 +229,40 @@ export function KanbanView({
   }, [submissions, statusMap, statuses]);
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
       {statuses.map((s, sIdx) => {
         const items = grouped[s.value] ?? [];
         return (
           <div
             key={s.value}
-            className="flex flex-col gap-2 rounded-xl border border-border bg-card/40 p-3"
+            className="flex flex-col gap-3 rounded-sm border border-foreground/15 bg-card/40 p-3"
           >
-            <div className="flex items-center justify-between gap-2">
+            {/* Frame column header — mono uppercase tracked label, inverse
+                plate for NEW (matches the table row badge surface). Count
+                stays mono tabular. */}
+            <div className="flex items-center justify-between gap-2 px-1 pt-1">
               <span
                 className={cn(
-                  "rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide",
+                  "rounded-full border font-mono",
+                  "px-3 py-[5px] text-[10px] font-medium uppercase tracking-[0.16em]",
                   s.chip,
                 )}
               >
                 {s.label}
               </span>
-              <span className="text-xs font-medium tabular-nums text-muted-foreground">
+              <span className="font-mono text-[10px] font-medium tabular-nums tracking-[0.06em] text-muted-foreground">
                 {items.length}
               </span>
             </div>
             <ul className="flex flex-col gap-2">
               {items.length === 0 ? (
-                <li className="rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-xs text-muted-foreground">
+                <li className="flex h-20 items-center justify-center rounded-sm border border-dashed border-foreground/15 bg-background/50 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/70">
                   Empty
                 </li>
               ) : (
                 items.map((r, idx) => {
                   const t = smartTime(r.submittedAt);
+                  const tierColor = TIER_HEX[r.formTier] ?? "#64748B";
                   return (
                     <motion.li
                       key={r.submissionId}
@@ -272,22 +276,23 @@ export function KanbanView({
                       <button
                         type="button"
                         onClick={() => cycleStatus(r.submissionId)}
-                        className="group flex w-full flex-col gap-2 rounded-lg border border-border/60 bg-card p-2.5 text-left transition hover:border-foreground/30 hover:bg-card/90"
+                        className="group relative flex w-full flex-col gap-2 rounded-sm border border-foreground/15 bg-background p-3 text-left transition hover:border-foreground/40 hover:bg-foreground/[0.035]"
                         title="Click to cycle status"
                         style={{
                           borderLeftWidth: 3,
-                          borderLeftColor: TIER_HEX[r.formTier] ?? "#64748B",
+                          borderLeftColor: tierColor,
                         }}
                       >
+                        {/* Top row: identicon + handle + lock */}
                         <div className="flex items-center gap-2">
                           <Identicon
                             address={r.submitter}
                             anonymous={r.anonymous}
-                            size={20}
+                            size={22}
                           />
-                          <span className="truncate text-xs font-medium text-foreground">
+                          <span className="truncate text-sm font-semibold text-foreground">
                             {r.anonymous ? (
-                              <em className="text-muted-foreground">
+                              <em className="font-serif font-normal text-muted-foreground">
                                 anonymous
                               </em>
                             ) : (
@@ -296,30 +301,42 @@ export function KanbanView({
                           </span>
                           {r.encrypted && (
                             <Lock
-                              size={11}
-                              className="ml-auto text-amber-400/80"
+                              size={12}
+                              strokeWidth={2}
+                              className="ml-auto shrink-0 text-[#B5781A]"
                               aria-label="encrypted"
                             />
                           )}
                         </div>
+                        {/* Form title */}
                         <Link
                           href={`/forms/${r.formId}/admin`}
-                          className="truncate text-[11px] text-muted-foreground hover:text-foreground"
+                          className="truncate text-[12.5px] leading-snug text-foreground/75 hover:text-foreground hover:underline"
                           onClick={(e) => e.stopPropagation()}
                           title={r.formTitle}
                         >
                           {r.formTitle}
                         </Link>
-                        <div className="flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
-                          <span>
-                            {t.day} {t.hms}
+                        {/* Bottom row: timestamp + tier dot + arrow */}
+                        <div className="flex items-center justify-between gap-2 pt-0.5 font-mono text-[10px] tabular-nums tracking-[0.06em] uppercase text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span
+                              aria-hidden="true"
+                              className="inline-block h-1.5 w-1.5 rounded-full"
+                              style={{ backgroundColor: tierColor }}
+                            />
+                            <span className="font-medium text-foreground/85">
+                              {t.day}
+                            </span>
+                            <span>{t.hms}</span>
                           </span>
                           <Link
                             href={`/forms/${r.formId}/admin`}
                             onClick={(e) => e.stopPropagation()}
-                            className="opacity-0 transition group-hover:opacity-100"
+                            className="text-foreground/40 opacity-0 transition group-hover:translate-x-0.5 group-hover:text-foreground group-hover:opacity-100"
+                            aria-label="open in form admin"
                           >
-                            <ArrowUpRight size={12} />
+                            <ArrowUpRight size={13} />
                           </Link>
                         </div>
                       </button>
@@ -353,9 +370,7 @@ export function HeatmapView({
     start.setHours(0, 0, 0, 0);
     while (start.getDay() !== 0) start.setDate(start.getDate() - 1);
 
-    const totalCells = Math.ceil(
-      (now.getTime() - start.getTime()) / day,
-    );
+    const totalCells = Math.ceil((now.getTime() - start.getTime()) / day);
     const counts = new Array(totalCells + 1).fill(0) as number[];
     for (const s of submissions) {
       const t = Date.parse(s.submittedAt);
@@ -394,18 +409,21 @@ export function HeatmapView({
     };
   }, [submissions]);
 
+  // Frame palette: blueprint blue #2F6BFF for active cells, hairline
+  // border for empty cells so the grid stays visible in light theme.
+  // Empty fill is transparent so the border outline does the lifting.
   const intensity = (n: number) => {
-    if (n === 0) return "rgba(255,255,255,0.06)";
+    if (n === 0) return "transparent";
     const t = Math.min(1, n / max);
-    const alpha = 0.18 + t * 0.7;
-    return `rgba(91,141,239,${alpha.toFixed(3)})`;
+    const alpha = 0.22 + t * 0.78;
+    return `rgba(47,107,255,${alpha.toFixed(3)})`;
   };
 
   return (
-    <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card/40 p-5">
+    <div className="flex flex-col gap-5 rounded-sm border border-foreground/15 bg-card/40 p-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Activity heatmap · last 52 weeks
           </span>
           <span className="text-sm text-muted-foreground">
@@ -424,25 +442,30 @@ export function HeatmapView({
           />
         </div>
       </div>
-      <div className="overflow-x-auto">
+      {/* Single fade-in on the grid container — was 371 per-cell motion
+          divs which racked up framer-motion registrations and stalled
+          first paint. Cells are pure inline-styled divs now. */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        className="overflow-x-auto"
+      >
         <div className="inline-flex gap-[3px] pr-2">
           {weeks.map((week, wIdx) => (
             <div key={wIdx} className="flex flex-col gap-[3px]">
               {week.map((cell, dIdx) => (
-                <motion.div
+                <div
                   key={dIdx}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{
-                    duration: 0.25,
-                    delay: 0.0008 * (wIdx * 7 + dIdx),
-                  }}
                   title={`${cell.date.toLocaleDateString(undefined, {
                     weekday: "short",
                     month: "short",
                     day: "numeric",
                   })} · ${cell.count} submission${cell.count === 1 ? "" : "s"}`}
-                  className="rounded-[3px]"
+                  className={cn(
+                    "rounded-[2px]",
+                    cell.count === 0 && "border border-foreground/10",
+                  )}
                   style={{
                     width: 11,
                     height: 11,
@@ -453,15 +476,21 @@ export function HeatmapView({
             </div>
           ))}
         </div>
-      </div>
-      <div className="flex items-center justify-end gap-2 text-[11px] text-muted-foreground">
+      </motion.div>
+      <div className="flex items-center justify-end gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
         <span>Less</span>
         {[0, 0.25, 0.5, 0.75, 1].map((t) => (
           <span
             key={t}
-            className="h-3 w-3 rounded-[3px]"
+            className={cn(
+              "h-3 w-3 rounded-[2px]",
+              t === 0 && "border border-foreground/15",
+            )}
             style={{
-              background: t === 0 ? "rgba(255,255,255,0.06)" : `rgba(91,141,239,${(0.18 + t * 0.7).toFixed(3)})`,
+              background:
+                t === 0
+                  ? "transparent"
+                  : `rgba(47,107,255,${(0.22 + t * 0.78).toFixed(3)})`,
             }}
           />
         ))}
@@ -481,15 +510,19 @@ function Stat({
   sub?: string;
 }) {
   return (
-    <div className="flex flex-col">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+    <div className="flex flex-col gap-0.5">
+      <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
         {label}
       </span>
       <div className="flex items-baseline gap-1.5">
-        <span className="text-2xl font-medium tabular-nums tracking-tight text-foreground">
+        <span className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
           {value}
         </span>
-        {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
+        {sub && (
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+            {sub}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -507,7 +540,12 @@ export function ContributorsView({
   const { rows, total, anonCount, namedCount } = useMemo(() => {
     const map = new Map<
       string,
-      { address: string; count: number; tiers: Record<number, number>; anon: boolean }
+      {
+        address: string;
+        count: number;
+        tiers: Record<number, number>;
+        anon: boolean;
+      }
     >();
     let anonCount = 0;
     let namedCount = 0;
@@ -544,10 +582,10 @@ export function ContributorsView({
   const max = Math.max(1, ...rows.map((r) => r.count));
 
   return (
-    <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card/40 p-5">
+    <div className="flex flex-col gap-5 rounded-sm border border-foreground/15 bg-card/40 p-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Top contributors
           </span>
           <span className="text-sm text-muted-foreground">
@@ -562,8 +600,8 @@ export function ContributorsView({
       </div>
       <ul className="flex flex-col gap-3">
         {rows.length === 0 ? (
-          <li className="rounded-lg border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
-            No contributors yet.
+          <li className="rounded-sm border border-dashed border-foreground/20 px-4 py-6 text-center font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            No contributors yet
           </li>
         ) : (
           rows.map((r, idx) => {
@@ -582,35 +620,44 @@ export function ContributorsView({
                     />
                     <span className="truncate font-medium text-foreground">
                       {r.anon ? (
-                        <em className="text-muted-foreground">anonymous</em>
+                        <em className="font-serif font-normal text-muted-foreground">
+                          anonymous
+                        </em>
                       ) : (
                         <SuiNSName address={r.address} />
                       )}
                     </span>
+                    {/* Tier ticks — kept as monochrome bars using
+                        foreground opacity to encode count share. Tier
+                        identity itself is conveyed by the cell tooltip;
+                        Frame palette stays neutral. */}
                     <div className="hidden items-center gap-1 sm:flex">
                       {tierEntries.map(({ tier, n }) => (
                         <span
                           key={tier}
                           title={`${n} on tier ${tier}`}
-                          className="inline-block h-1.5 w-3 rounded-sm"
+                          className="inline-block h-1.5 w-3 rounded-[2px] bg-foreground"
                           style={{
-                            background: TIER_HEX[tier] ?? "#64748B",
-                            opacity: 0.5 + (n / r.count) * 0.5,
+                            opacity: 0.25 + (n / r.count) * 0.45,
                           }}
                         />
                       ))}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 text-sm">
-                    <span className="font-medium tabular-nums text-foreground">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-mono text-sm font-medium tabular-nums text-foreground">
                       {r.count}
                     </span>
-                    <span className="text-xs tabular-nums text-muted-foreground">
+                    <span className="font-mono text-[10px] tabular-nums uppercase tracking-[0.06em] text-muted-foreground">
                       {Math.round((r.count / total) * 100)}%
                     </span>
                   </div>
                 </div>
-                <div className="relative h-2 w-full overflow-hidden rounded-full bg-foreground/5">
+                {/* Frame bar — flat monochrome fill, square-ish corners.
+                    Blueprint blue could go on the top spot but feels
+                    loud; foreground at 80% opacity reads as clean ink
+                    on paper. */}
+                <div className="relative h-1.5 w-full overflow-hidden rounded-[2px] bg-foreground/[0.06]">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${pct}%` }}
@@ -619,12 +666,10 @@ export function ContributorsView({
                       delay: 0.05 * idx,
                       ease: [0.22, 1, 0.36, 1],
                     }}
-                    className="absolute inset-y-0 left-0 rounded-full"
-                    style={{
-                      background: r.anon
-                        ? "linear-gradient(90deg, #64748B, #94A3B8)"
-                        : `linear-gradient(90deg, hsl(${identityHash(r.address).hue} 70% 55%), hsl(${identityHash(r.address).hue2} 70% 60%))`,
-                    }}
+                    className={cn(
+                      "absolute inset-y-0 left-0 rounded-[2px]",
+                      r.anon ? "bg-foreground/35" : "bg-foreground/80",
+                    )}
                   />
                 </div>
               </li>
@@ -640,54 +685,49 @@ export function ContributorsView({
 // INSIGHTS — preset prompt cards that deep-link to /insights
 // ──────────────────────────────────────────────────────────────────
 
+// Frame: no per-card accent colors. Each card is a hairline-outlined
+// plate. The blueprint blue accent only appears on the "Ask Insights"
+// chevron of the focused card, mirroring how Frame uses --accent sparingly.
 const INSIGHT_PROMPTS = [
   {
     title: "Top complaints this week",
     prompt: "What are the top 3 complaints across all submissions this week?",
-    accent: "#FB7185",
   },
   {
     title: "Most-asked feature",
     prompt:
       "Which feature requests appear most often? Group similar requests together.",
-    accent: "#A78BFA",
   },
   {
     title: "Sentiment trend",
     prompt:
       "How has the sentiment of submissions trended over the past 30 days?",
-    accent: "#34D399",
   },
   {
     title: "Anonymous vs named patterns",
     prompt:
       "What patterns differ between anonymous and named submissions? Are anonymous ones more critical?",
-    accent: "#60A5FA",
   },
 ];
 
-export function InsightsView({
-  submissionCount,
-}: {
-  submissionCount: number;
-}) {
+export function InsightsView({ submissionCount }: { submissionCount: number }) {
   return (
-    <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card/40 p-5">
+    <div className="flex flex-col gap-5 rounded-sm border border-foreground/15 bg-card/40 p-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Memwal RAG · ask your forms
           </span>
           <span className="text-sm text-muted-foreground">
-            Pick a preset to open <em className="font-serif">Insights</em>{" "}
-            with a query already drafted.
+            Pick a preset to open <em className="font-serif">Insights</em> with
+            a query already drafted.
           </span>
         </div>
         <Link
           href="/insights"
-          className="inline-flex items-center gap-1.5 rounded-full border border-foreground/20 bg-foreground/5 px-4 py-1.5 text-sm font-medium text-foreground transition hover:bg-foreground/10"
+          className="inline-flex items-center gap-1.5 rounded-sm border border-foreground/40 px-3.5 py-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground transition hover:bg-foreground hover:text-background"
         >
-          Open Insights <ArrowUpRight size={14} />
+          Open Insights <ArrowUpRight size={12} />
         </Link>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -700,34 +740,25 @@ export function InsightsView({
           >
             <Link
               href={`/insights?q=${encodeURIComponent(p.prompt)}`}
-              className="group relative flex h-full flex-col gap-2 overflow-hidden rounded-xl border border-border bg-card/60 p-4 transition hover:border-foreground/20 hover:bg-card/80"
-              style={{ "--accent": p.accent } as React.CSSProperties}
+              className="group relative flex h-full flex-col gap-2 rounded-sm border border-foreground/15 bg-background/60 p-4 transition hover:border-foreground/40 hover:bg-background"
             >
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-30 blur-2xl transition group-hover:opacity-60"
-                style={{ background: p.accent }}
-              />
               <span className="text-base font-medium text-foreground">
                 {p.title}
               </span>
               <span className="text-sm text-muted-foreground">
                 &ldquo;{p.prompt}&rdquo;
               </span>
-              <span
-                className="mt-1 inline-flex items-center gap-1 text-xs font-medium"
-                style={{ color: p.accent }}
-              >
-                Ask Insights <ArrowUpRight size={12} />
+              <span className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/55 transition group-hover:text-[#2F6BFF] dark:group-hover:text-[#6B95FF]">
+                Ask Insights <ArrowUpRight size={10} />
               </span>
             </Link>
           </motion.div>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-        {submissionCount} submission{submissionCount === 1 ? "" : "s"} in
-        scope. Insights uses Memwal RAG over decrypted snippets — public
-        tier only by default; encrypted forms require a Seal session key.
+      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+        {submissionCount} submission{submissionCount === 1 ? "" : "s"} in scope
+        · Memwal RAG over decrypted snippets · public tier by default ·
+        encrypted forms need Seal session key
       </p>
     </div>
   );

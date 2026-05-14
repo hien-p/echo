@@ -189,7 +189,7 @@ export function BentoDashboard() {
 
   if (!ownerAddress) {
     return (
-      <div className="grid grid-cols-1 gap-4 rounded-2xl border border-border bg-card/30 p-8 sm:grid-cols-12">
+      <div className="grid grid-cols-1 gap-4 rounded-sm border border-border bg-card/30 p-8 sm:grid-cols-12">
         <div className="flex flex-col gap-4 sm:col-span-7">
           <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
             Sample dashboard
@@ -222,7 +222,7 @@ export function BentoDashboard() {
           <div
             key={i}
             className={cn(
-              "col-span-1 h-40 animate-pulse rounded-2xl bg-muted/40 sm:col-span-12",
+              "col-span-1 h-40 animate-pulse rounded-sm bg-muted/40 sm:col-span-12",
               cols === 8 && "sm:col-span-8 sm:row-span-2 sm:h-[336px]",
               cols === 4 && i > 0 && "sm:col-span-4",
             )}
@@ -234,7 +234,7 @@ export function BentoDashboard() {
 
   if (forms.length === 0) {
     return (
-      <div className="flex flex-col gap-6 rounded-2xl border-2 border-dashed border-border bg-muted/20 p-12 text-center">
+      <div className="flex flex-col gap-6 rounded-sm border-2 border-dashed border-border bg-muted/20 p-12 text-center">
         <Sparkles
           size={28}
           className="mx-auto text-muted-foreground"
@@ -328,7 +328,7 @@ export function BentoDashboard() {
             <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
               Privacy tier mix
             </span>
-            <Lock size={20} strokeWidth={1.75} className="text-violet-400" />
+            <Lock size={20} strokeWidth={1.75} className="text-foreground/65" />
           </div>
           <div className="flex items-center gap-5">
             <TierDonut
@@ -359,7 +359,7 @@ export function BentoDashboard() {
             <FileEdit
               size={20}
               strokeWidth={1.75}
-              className="text-emerald-400"
+              className="text-foreground/65"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -435,7 +435,7 @@ export function BentoDashboard() {
             <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
               Memwal RAG
             </span>
-            <Brain size={20} strokeWidth={1.75} className="text-amber-400" />
+            <Brain size={20} strokeWidth={1.75} className="text-foreground/65" />
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-2xl font-medium tracking-tight text-foreground">
@@ -469,7 +469,7 @@ export function BentoDashboard() {
             <ShieldCheck
               size={20}
               strokeWidth={1.75}
-              className="text-rose-400"
+              className="text-foreground/65"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -498,7 +498,7 @@ export function BentoDashboard() {
             <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
               Stack
             </span>
-            <Zap size={20} strokeWidth={1.75} className="text-cyan-400" />
+            <Zap size={20} strokeWidth={1.75} className="text-foreground/65" />
           </div>
           <div className="flex flex-wrap gap-2">
             {["Sui", "Walrus", "Seal", "Memwal", "Enoki"].map((s) => (
@@ -543,65 +543,37 @@ function BentoTile({
   /** Tier-matched shadow color for the hover lift. */
   glow?: string;
 }) {
+  // Frame Tile — hairline rail + paper surface. The tier gradient + conic
+  // ribbon + tinted shadow are dropped in favor of a single foreground-
+  // weighted lift on hover. The `gradient` and `glow` props are kept on
+  // the type so callers don't need rewiring, but they're intentionally
+  // ignored: Frame keeps every tile visually identical so the eye lands
+  // on numbers, not surfaces.
+  void gradient;
+  void glow;
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-50px" }}
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -3 }}
       transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-border bg-card transition-colors duration-300 hover:border-foreground/30",
+        "group relative overflow-hidden rounded-sm border border-foreground/15 bg-card transition-colors duration-300 hover:border-foreground/40",
         className,
       )}
-      style={
-        {
-          "--tile-glow": glow,
-        } as React.CSSProperties
-      }
     >
-      {/* Tier-tinted gradient bg — bumped opacity so the color reads */}
-      {gradient && (
-        <div
-          className={cn(
-            "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-80 transition-opacity duration-300 group-hover:opacity-100",
-            gradient,
-          )}
-          aria-hidden="true"
-        />
-      )}
-      {/* Conic ribbon along the border — breathes on hover */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-        style={{
-          background:
-            "conic-gradient(from 180deg at 50% 50%, transparent 0deg, var(--tile-glow) 60deg, transparent 120deg, transparent 240deg, var(--tile-glow) 300deg, transparent 360deg)",
-          mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          WebkitMask:
-            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          maskComposite: "exclude",
-          WebkitMaskComposite: "xor",
-          padding: 1,
-        }}
-      />
-      {/* Tier-tinted glow shadow that lifts the tile off the page on hover */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-        style={{ boxShadow: `0 24px 60px -16px var(--tile-glow)` }}
-      />
       <div className="relative z-10 flex h-full flex-col">{children}</div>
     </motion.div>
   );
 }
 
 const tierLabels = [
-  { label: "Public", color: "text-emerald-400" },
-  { label: "Admin", color: "text-blue-400" },
-  { label: "M-of-N", color: "text-violet-400" },
-  { label: "Time", color: "text-amber-400" },
-  { label: "Cond", color: "text-rose-400" },
+  { label: "Public", color: "text-foreground/65" },
+  { label: "Admin", color: "text-foreground/65" },
+  { label: "M-of-N", color: "text-foreground/65" },
+  { label: "Time", color: "text-foreground/65" },
+  { label: "Cond", color: "text-foreground/65" },
 ];
 
 

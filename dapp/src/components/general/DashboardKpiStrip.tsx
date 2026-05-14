@@ -20,6 +20,7 @@ import {
   listApprovals,
 } from "@/lib/echo";
 import type { FormMetadata } from "@/lib/echo";
+import { cn } from "@/lib/utils";
 import { CountUp } from "./CountUp";
 import { useDemoAdminMode } from "./DemoAdminToggle";
 import { queryEventsByFormId } from "./CrossFormDashboard";
@@ -361,7 +362,7 @@ export function DashboardKpiStrip() {
 
   if (!ownerAddress) {
     return (
-      <div className="rounded-2xl border border-border bg-card/40 p-8 text-center">
+      <div className="rounded-sm border border-foreground/15 bg-card/40 p-8 text-center">
         <p className="text-base text-muted-foreground">
           Connect a wallet, or toggle <span className="font-medium">Demo admin</span> in the nav to load live operator metrics.
         </p>
@@ -457,23 +458,22 @@ function KpiTile({
   href?: string;
   delay?: number;
 }) {
+  // Frame mode — neutral icon ink across all tones; the value itself
+  // carries the signal via KpiNumber + delta chip. Saturated tones were
+  // adding noise to four tiles always-on; reserve color for hover hints
+  // and the up/down delta chip.
   const toneIconCls = {
     default: "text-foreground/60",
-    info: "text-blue-400",
-    warning: "text-amber-400",
-    danger: "text-rose-400",
-    success: "text-emerald-400",
+    info: "text-foreground/65",
+    warning: "text-foreground/65",
+    danger: "text-foreground/65",
+    success: "text-foreground/65",
   }[tone];
 
-  // Tone-matched accent hex for the cursor spotlight + shimmer gradient.
-  // Keeps each tile's color identity instead of a generic white glow.
-  const accentHex = {
-    default: "#5B8DEF",
-    info: "#60A5FA",
-    warning: "#FBBF24",
-    danger: "#FB7185",
-    success: "#34D399",
-  }[tone];
+  // Single blueprint-blue spotlight on hover for every tile. Per-tone
+  // saturated halos felt like a stock-trading dashboard; Frame keeps the
+  // accent reserved for one moment.
+  const accentHex = "#2F6BFF";
 
   // Cursor-tracked spotlight — radial gradient mask follows the mouse.
   const cardRef = useRef<HTMLDivElement>(null);
@@ -506,41 +506,20 @@ function KpiTile({
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative flex h-full flex-col gap-5 overflow-hidden rounded-2xl border border-border bg-card/60 p-6 backdrop-blur transition hover:border-foreground/20 hover:bg-card/80"
+      className="group relative flex h-full flex-col gap-5 overflow-hidden rounded-sm border border-foreground/15 bg-card/60 p-6 backdrop-blur transition hover:border-foreground/35"
     >
-      {/* Cursor-tracked spotlight */}
+      {/* Cursor-tracked spotlight — blueprint blue, single hover moment */}
       <motion.div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         style={{ background: spotlight }}
       />
-      {/* Subtle inner gradient border on hover (conic ribbon) */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-        style={{
-          background: `conic-gradient(from 220deg at 50% 50%, transparent 0deg, ${accentHex}66 90deg, transparent 180deg)`,
-          mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          WebkitMask:
-            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          maskComposite: "exclude",
-          WebkitMaskComposite: "xor",
-          padding: 1,
-        }}
-      />
 
       <div className="relative flex items-start justify-between gap-3">
-        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
           {label}
         </span>
-        <span
-          className={toneIconCls}
-          style={{
-            filter: `drop-shadow(0 0 10px ${accentHex}66)`,
-          }}
-        >
-          {icon}
-        </span>
+        <span className={toneIconCls}>{icon}</span>
       </div>
       <div className="relative flex items-baseline gap-2.5">
         {loading ? (
@@ -556,11 +535,12 @@ function KpiTile({
         )}
         {delta !== undefined && delta !== 0 && !loading && (
           <span
-            className={`inline-flex items-center gap-0.5 rounded-md px-2 py-0.5 text-xs font-medium tabular-nums ${
+            className={cn(
+              "inline-flex items-center gap-0.5 rounded-sm px-2 py-0.5 font-mono text-[10px] font-medium tabular-nums tracking-[0.06em]",
               delta > 0
-                ? "bg-emerald-500/15 text-emerald-400"
-                : "bg-rose-500/15 text-rose-400"
-            }`}
+                ? "bg-emerald-600/10 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
+                : "bg-rose-600/10 text-rose-700 dark:bg-rose-400/10 dark:text-rose-300",
+            )}
           >
             {delta > 0 ? (
               <ArrowUpRight size={11} />
@@ -571,7 +551,7 @@ function KpiTile({
           </span>
         )}
       </div>
-      <span className="relative text-sm text-muted-foreground">
+      <span className="relative font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
         {subline ?? "vs previous 24h"}
       </span>
     </motion.div>
@@ -658,28 +638,11 @@ function Submissions30dChart({
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
-      className="relative flex flex-col gap-5 overflow-hidden rounded-2xl border border-border bg-card/60 p-6 backdrop-blur sm:p-7"
+      className="relative flex flex-col gap-5 overflow-hidden rounded-sm border border-foreground/15 bg-card/60 p-6 backdrop-blur sm:p-7"
     >
-      {/* Slow rotating conic-gradient ribbon along the border */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -inset-px rounded-2xl opacity-60"
-        style={{
-          background:
-            "conic-gradient(from 0deg, transparent 0deg, var(--chart-line-primary, #5B8DEF)55 60deg, transparent 120deg, transparent 240deg, #A78BFA44 300deg, transparent 360deg)",
-          mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          WebkitMask:
-            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          maskComposite: "exclude",
-          WebkitMaskComposite: "xor",
-          padding: 1,
-          animation: "kpi-conic 14s linear infinite",
-        }}
-      />
-
       <div className="relative flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Submissions · last 30 days
           </span>
           <span className="text-sm text-muted-foreground">

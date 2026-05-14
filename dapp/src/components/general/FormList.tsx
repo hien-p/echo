@@ -126,51 +126,56 @@ export const FormList = () => {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       {demoMode && (
-        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 inline-flex items-start gap-2">
-          <Sparkles size={12} className="mt-0.5 shrink-0" />
-          <span>
+        <p className="inline-flex items-start gap-2 rounded-sm border border-foreground/40 bg-background px-3 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/85">
+          <Sparkles size={11} className="mt-0.5 shrink-0" />
+          <span className="normal-case tracking-normal text-sm font-normal text-muted-foreground">
             Showing forms owned by the demo address (
-            <code>
+            <code className="font-mono text-foreground">
               {demoAddress.slice(0, 10)}…{demoAddress.slice(-4)}
             </code>
             ). Server-side decrypt is enabled for these.
           </span>
         </p>
       )}
-      <ul className="flex flex-col gap-2">
+      <ul className="flex flex-col divide-y divide-foreground/10 border-y border-foreground/15">
         {forms.map((f) => (
           <li
             key={f.id}
-            className="border rounded p-3 flex flex-col gap-1 bg-card"
+            className="group flex flex-col gap-1.5 px-3 py-3 transition-colors hover:bg-foreground/[0.035]"
           >
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <Link
                 href={`/forms/${f.id}/admin`}
-                className="font-medium hover:underline"
+                className="text-base font-medium text-foreground hover:underline"
               >
                 {f.title}
               </Link>
-              <span className="text-xs text-muted-foreground">
+              <code className="font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
                 {f.id.slice(0, 10)}…
-              </span>
+              </code>
             </div>
-            <div className="flex gap-2 text-xs text-muted-foreground items-center flex-wrap">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
               <span>{TIER_LABELS[f.onChain.privacy_tier] ?? "?"}</span>
-              <span>·</span>
+              <span aria-hidden>·</span>
               <span>{STATUS_LABELS[f.onChain.status] ?? "?"}</span>
-              <span>·</span>
-              <span>{f.onChain.submission_count} submissions</span>
-              <span>·</span>
-              <span>
+              <span aria-hidden>·</span>
+              <span className="tabular-nums">
+                {f.onChain.submission_count} submissions
+              </span>
+              <span aria-hidden>·</span>
+              <span className="normal-case tracking-normal">
                 by <SuiNSName address={f.onChain.owner} />
               </span>
               {f.onChain.privacy_tier === 3 && f.onChain.unlock_ms && (
                 <TimeLockBadge unlockMs={Number(f.onChain.unlock_ms)} />
               )}
-              <span className="ml-auto">
-                <Link className="underline" href={`/forms/${f.id}`}>
+              <span className="ml-auto normal-case tracking-normal">
+                <Link
+                  className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground/55 hover:text-foreground hover:underline"
+                  href={`/forms/${f.id}`}
+                >
                   public link →
                 </Link>
               </span>

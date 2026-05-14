@@ -112,31 +112,45 @@ const STATUS_LABELS: Record<number, string> = {
   3: "archived",
 };
 
+// Frame status chips — near-monochrome with inverse-plate for the active
+// "NEW" badge, hairline outline + restrained semantic tints for the rest.
+// The shape itself (uppercase mono tracked 0.16em) is applied in the row
+// markup, so each entry here only owns the surface treatment.
 const STATUSES = [
   {
     value: "new",
     label: "New",
-    chip: "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/60",
+    chip:
+      "bg-foreground text-background border-transparent " +
+      "dark:bg-foreground dark:text-background",
   },
   {
     value: "triaging",
     label: "Triaging",
-    chip: "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60",
+    chip:
+      "bg-transparent text-foreground border-foreground/70 " +
+      "dark:border-foreground/60",
   },
   {
     value: "replied",
     label: "Replied",
-    chip: "bg-violet-100 text-violet-900 border-violet-300 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900/60",
+    chip:
+      "bg-muted/60 text-foreground border-transparent " +
+      "dark:bg-muted/30",
   },
   {
     value: "resolved",
     label: "Resolved",
-    chip: "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60",
+    chip:
+      "bg-emerald-600/10 text-emerald-700 border-transparent " +
+      "dark:bg-emerald-400/10 dark:text-emerald-300",
   },
   {
     value: "archived",
     label: "Archived",
-    chip: "bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900/60 dark:text-zinc-300 dark:border-zinc-700",
+    chip:
+      "bg-transparent text-muted-foreground border-foreground/20 " +
+      "dark:border-foreground/15",
   },
 ] as const;
 type Status = (typeof STATUSES)[number]["value"];
@@ -804,24 +818,32 @@ export const CrossFormDashboard = () => {
   return (
     <div className="flex flex-col gap-4">
       {/* Compact header — title + admin chip + search + export + lock,
-          all on one row. Demo address pill replaces the verbose banner. */}
-      <div className="flex items-center justify-between gap-2 flex-wrap border-b pb-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-xl font-semibold tracking-tight">Triage</h1>
-          {!demoMode && (
-            <span className="inline-flex items-center gap-1 text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900">
-              <ShieldCheck size={10} /> Seal-verified
-            </span>
-          )}
-          {demoMode && (
-            <span
-              className="inline-flex items-center gap-1 text-xs uppercase tracking-wide text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60"
-              title={`Demo address ${demoAddress}`}
-            >
-              <Sparkles size={10} /> Demo · {demoAddress.slice(0, 6)}…
-              {demoAddress.slice(-4)}
-            </span>
-          )}
+          all on one row. Demo address pill replaces the verbose banner.
+          Frame styling: hairline rule, mono eyebrow, outline badges. */}
+      <div className="flex items-center justify-between gap-2 flex-wrap border-b border-foreground/15 pb-3">
+        <div className="flex flex-col gap-1.5">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            Triage queue
+          </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-3xl font-semibold tracking-tight leading-none">
+              Triage
+            </h1>
+            {!demoMode && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/40 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-emerald-700 dark:border-emerald-400/40 dark:text-emerald-300">
+                <ShieldCheck size={10} /> Seal-verified
+              </span>
+            )}
+            {demoMode && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-foreground/40 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/80"
+                title={`Demo address ${demoAddress}`}
+              >
+                <Sparkles size={10} /> Demo · {demoAddress.slice(0, 6)}…
+                {demoAddress.slice(-4)}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex w-full flex-col gap-3">
           <SavedViews
@@ -847,17 +869,17 @@ export const CrossFormDashboard = () => {
               placeholder="Search submissions, addresses, blob ids…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="border rounded px-2 py-1 w-[200px] sm:w-[260px]"
+              className="rounded-sm border border-foreground/25 bg-background px-3 py-1.5 text-sm placeholder:text-foreground/35 focus:border-foreground/60 focus:outline-none focus:ring-2 focus:ring-foreground/15 w-[200px] sm:w-[260px]"
             />
           <button
             type="button"
             onClick={() => exportCsv(visible)}
             disabled={visible.length === 0}
             className={cn(
-              "border rounded px-2 py-1 inline-flex items-center gap-1",
+              "inline-flex items-center gap-1.5 rounded-sm border border-foreground/40 px-3 py-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] transition",
               visible.length > 0
-                ? "hover:bg-accent"
-                : "opacity-60 cursor-not-allowed",
+                ? "hover:bg-foreground hover:text-background"
+                : "opacity-50 cursor-not-allowed",
             )}
             title="Export visible submissions as CSV"
           >
@@ -867,7 +889,7 @@ export const CrossFormDashboard = () => {
             <button
               type="button"
               onClick={lockOut}
-              className="text-muted-foreground hover:text-foreground underline"
+              className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground hover:text-foreground hover:underline"
               title="Re-lock dashboard for this tab"
             >
               Lock
@@ -924,14 +946,14 @@ export const CrossFormDashboard = () => {
         {/* Forms sidebar — grouped by privacy tier. Click any to scope
             the right pane to that form; click again or "All forms" to
             clear. The active row has a filled background. */}
-        <aside className="flex flex-col gap-3 lg:border-r lg:pr-4 lg:max-h-[80vh] lg:overflow-auto">
+        <aside className="flex flex-col gap-3 lg:border-r lg:border-foreground/15 lg:pr-4 lg:max-h-[80vh] lg:overflow-auto">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+            <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
               Forms
             </h2>
             <Link
               href="/forms/new"
-              className="text-xs underline text-muted-foreground hover:text-foreground"
+              className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground hover:text-foreground"
             >
               + new
             </Link>
@@ -940,26 +962,37 @@ export const CrossFormDashboard = () => {
             type="button"
             onClick={() => setFormFilter("all")}
             className={cn(
-              "text-left text-sm rounded px-2 py-1.5 -mx-1 flex items-center justify-between gap-2 transition",
+              "text-left text-sm rounded-sm px-2.5 py-1.5 -mx-1 flex items-center justify-between gap-2 transition",
               formFilter === "all"
-                ? "bg-accent font-medium"
-                : "hover:bg-accent/60",
+                ? "bg-foreground text-background font-medium"
+                : "hover:bg-foreground/5",
             )}
           >
             <span>All forms</span>
-            <span className="text-xs text-muted-foreground tabular-nums">
+            <span
+              className={cn(
+                "font-mono text-[10px] tabular-nums tracking-[0.06em]",
+                formFilter === "all"
+                  ? "text-background/70"
+                  : "text-muted-foreground",
+              )}
+            >
               {statusCounts.total}
             </span>
           </button>
-          {/* Group by tier so the sidebar tells a story. */}
+          {/* Group by tier so the sidebar tells a story. Frame: mono
+              uppercase category headers, hairline divider between tiers. */}
           {([0, 1, 2, 3, 4] as const).map((tier) => {
             const group = formCards.filter(
               (f) => f.onChain.privacy_tier === tier,
             );
             if (group.length === 0) return null;
             return (
-              <div key={tier} className="flex flex-col gap-0.5">
-                <h3 className="text-xs uppercase tracking-wider text-muted-foreground/70 font-semibold mt-1 px-1">
+              <div
+                key={tier}
+                className="flex flex-col gap-0.5 border-t border-foreground/10 pt-2"
+              >
+                <h3 className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80 mb-1 px-1">
                   {TIER_LABELS[tier]} ({group.length})
                 </h3>
                 {group.map((f) => {
@@ -975,22 +1008,36 @@ export const CrossFormDashboard = () => {
                       type="button"
                       onClick={() => setFormFilter(isActive ? "all" : f.id)}
                       className={cn(
-                        "text-left text-sm rounded px-2 py-1.5 -mx-1 flex items-center justify-between gap-2 transition",
+                        "text-left text-sm rounded-sm px-2.5 py-1.5 -mx-1 flex items-center justify-between gap-2 transition",
                         isActive
-                          ? "bg-accent font-medium"
-                          : "hover:bg-accent/60",
+                          ? "bg-foreground text-background font-medium"
+                          : "hover:bg-foreground/5",
                       )}
                       title={f.id}
                     >
                       <span className="truncate flex-1 min-w-0">
                         {f.title}
                         {tier === PrivacyTier.Threshold && k > 0 && n > 0 && (
-                          <span className="text-xs text-muted-foreground ml-1">
+                          <span
+                            className={cn(
+                              "font-mono text-[10px] ml-1 tracking-[0.06em]",
+                              isActive
+                                ? "text-background/70"
+                                : "text-muted-foreground",
+                            )}
+                          >
                             {k}/{n}
                           </span>
                         )}
                       </span>
-                      <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                      <span
+                        className={cn(
+                          "font-mono text-[10px] tabular-nums tracking-[0.06em] shrink-0",
+                          isActive
+                            ? "text-background/70"
+                            : "text-muted-foreground",
+                        )}
+                      >
                         {subCount}
                       </span>
                     </button>
@@ -1018,27 +1065,29 @@ export const CrossFormDashboard = () => {
             />
           )}
 
-          {/* Submitter pill row — small, only meaningful filters here.
-              Status filtering happens via the metric strip above. */}
-          <div className="flex items-center gap-1.5 flex-wrap text-xs">
-            <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mr-1">
-              Submitter:
+          {/* Submitter toggle — Frame inverse-plate-on-active pattern,
+              hairline outline rail wrapping the group. Labels mono uppercase. */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              Submitter
             </span>
-            {(["all", "named", "anonymous"] as const).map((opt) => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => setSubmitterFilter(opt)}
-                className={cn(
-                  "rounded-full border px-2 py-0.5 capitalize",
-                  submitterFilter === opt
-                    ? "bg-foreground text-background border-foreground"
-                    : "text-muted-foreground hover:bg-accent",
-                )}
-              >
-                {opt === "all" ? "any" : opt}
-              </button>
-            ))}
+            <div className="inline-flex items-center overflow-hidden rounded-full border border-foreground/30">
+              {(["all", "named", "anonymous"] as const).map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setSubmitterFilter(opt)}
+                  className={cn(
+                    "font-mono text-[10px] font-medium uppercase tracking-[0.16em] px-3.5 py-1.5 transition-colors",
+                    submitterFilter === opt
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+                  )}
+                >
+                  {opt === "all" ? "Any" : opt}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Multi-view triage switcher — Table / Kanban / Heatmap /
@@ -1081,7 +1130,7 @@ export const CrossFormDashboard = () => {
           ) : view === "insights" ? (
             <InsightsView submissionCount={visible.length} />
           ) : (
-            <ul className="flex flex-col divide-y border rounded">
+            <ul className="flex flex-col divide-y divide-foreground/10 border-y border-foreground/15">
               {visible.map((r) => {
                 const status = statusMap[r.submissionId] ?? "new";
                 const statusDef =
@@ -1089,7 +1138,7 @@ export const CrossFormDashboard = () => {
                 return (
                   <li
                     key={r.submissionId}
-                    className="px-3 py-2 flex items-center gap-3 hover:bg-accent/30 text-sm"
+                    className="px-3 py-2.5 flex items-center gap-3 text-sm transition-colors hover:bg-foreground/[0.035]"
                   >
                     <button
                       type="button"
@@ -1102,7 +1151,8 @@ export const CrossFormDashboard = () => {
                       }}
                       title={`Status: ${statusDef.label} · click to cycle`}
                       className={cn(
-                        "rounded-full border px-2 py-0.5 text-xs uppercase tracking-wide shrink-0 w-[78px] text-center",
+                        "shrink-0 w-[88px] rounded-full border font-mono uppercase",
+                        "px-3 py-[5px] text-[10px] font-medium tracking-[0.16em] text-center",
                         statusDef.chip,
                       )}
                     >
@@ -1186,7 +1236,9 @@ function Metric({
       >
         {value}
       </span>
-      <span className="text-xs uppercase tracking-wide">{label}</span>
+      <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em]">
+        {label}
+      </span>
     </Comp>
   );
 }

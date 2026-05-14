@@ -23,12 +23,20 @@ import { cn } from "@/lib/utils";
 // TierDonut — 5-segment donut chart
 // ──────────────────────────────────────────────────────────────────
 
+// Frame tier palette — five steps of foreground opacity instead of the
+// pastel rainbow. Tier 0 reads loudest (Public, highest volume),
+// dropping to a barely-there tint for the rarest tier. Works in both
+// light and dark themes because the values are CSS rgba on each theme
+// foreground; consumers wrap in `style={{ color: var(--foreground) }}`
+// where possible, but the absolute hex below approximates for stroke /
+// background attributes that don't honor currentColor.
+const TIER_OPACITY = [0.86, 0.66, 0.5, 0.36, 0.22];
 const TIER_HEX = [
-  "#34D399", // emerald-400
-  "#60A5FA", // blue-400
-  "#A78BFA", // violet-400
-  "#FBBF24", // amber-400
-  "#FB7185", // rose-400
+  "rgba(10,10,10,0.86)",
+  "rgba(10,10,10,0.66)",
+  "rgba(10,10,10,0.5)",
+  "rgba(10,10,10,0.36)",
+  "rgba(10,10,10,0.22)",
 ];
 
 const TIER_LABELS = ["Public", "Admin", "M-of-N", "Time", "Cond"];
@@ -63,7 +71,7 @@ export function TierDonut({
 
   return (
     <div
-      className="relative flex shrink-0 items-center justify-center"
+      className="relative flex shrink-0 items-center justify-center text-foreground"
       style={{ width: size, height: size }}
     >
       <svg
@@ -82,7 +90,9 @@ export function TierDonut({
           strokeOpacity="0.10"
           strokeWidth={thickness}
         />
-        {/* Segments */}
+        {/* Segments — currentColor lets the chart inherit `text-foreground`
+            so the same chart works in light + dark themes. Each tier
+            uses its opacity step from TIER_OPACITY. */}
         {segments.map((seg) =>
           seg.length === 0 ? null : (
             <motion.circle
@@ -91,7 +101,8 @@ export function TierDonut({
               cy={size / 2}
               r={radius}
               fill="none"
-              stroke={TIER_HEX[seg.tier]}
+              stroke="currentColor"
+              strokeOpacity={TIER_OPACITY[seg.tier]}
               strokeWidth={thickness}
               strokeLinecap="butt"
               strokeDasharray={`${seg.length} ${circumference}`}
@@ -129,13 +140,15 @@ export function TierLegend({
         <div key={label} className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span
-              className="inline-block h-2.5 w-2.5 rounded-sm"
-              style={{ backgroundColor: TIER_HEX[i] }}
+              className="inline-block h-2.5 w-2.5 rounded-[2px] bg-foreground"
+              style={{ opacity: TIER_OPACITY[i] }}
               aria-hidden="true"
             />
-            <span className="text-muted-foreground">{label}</span>
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+              {label}
+            </span>
           </div>
-          <span className="font-medium tabular-nums text-foreground">
+          <span className="font-mono text-sm font-medium tabular-nums text-foreground">
             {tierCounts[i] ?? 0}
           </span>
         </div>
@@ -171,12 +184,12 @@ export function SubmissionsBarList({
         const Content = (
           <>
             <div className="flex items-center justify-between gap-3 text-sm">
-              <div className="flex min-w-0 items-center gap-2.5">
+              <div className="flex min-w-0 items-center gap-2.5 text-foreground">
                 {Icon && (
                   <Icon
                     size={15}
                     strokeWidth={1.75}
-                    style={{ color: TIER_HEX[item.tier] }}
+                    style={{ opacity: TIER_OPACITY[item.tier] }}
                     aria-hidden="true"
                   />
                 )}
@@ -184,11 +197,11 @@ export function SubmissionsBarList({
                   {item.title}
                 </span>
               </div>
-              <span className="shrink-0 text-base font-medium tabular-nums text-foreground">
+              <span className="shrink-0 font-mono text-sm font-medium tabular-nums text-foreground">
                 {item.value.toLocaleString()}
               </span>
             </div>
-            <div className="relative h-2 w-full overflow-hidden rounded-full bg-foreground/5">
+            <div className="relative h-1.5 w-full overflow-hidden rounded-[2px] bg-foreground/[0.06]">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${pct}%` }}
@@ -197,8 +210,8 @@ export function SubmissionsBarList({
                   delay: 0.1 + idx * 0.06,
                   ease: [0.22, 1, 0.36, 1],
                 }}
-                className="absolute inset-y-0 left-0 rounded-full"
-                style={{ backgroundColor: TIER_HEX[item.tier] }}
+                className="absolute inset-y-0 left-0 rounded-[2px] bg-foreground"
+                style={{ opacity: TIER_OPACITY[item.tier] }}
               />
             </div>
           </>
@@ -372,8 +385,8 @@ export function AnimatedDelta({
             className={cn(
               "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums",
               delta > 0
-                ? "bg-emerald-500/15 text-emerald-400"
-                : "bg-rose-500/15 text-rose-400",
+                ? "bg-emerald-600/10 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
+                : "bg-rose-600/10 text-rose-700 dark:bg-rose-400/10 dark:text-rose-300",
             )}
           >
             {delta > 0 ? "▲" : "▼"} {Math.abs(delta)}
