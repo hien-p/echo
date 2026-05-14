@@ -30,6 +30,7 @@
 
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { motion } from "motion/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
@@ -90,51 +91,12 @@ interface DisplayThread {
   tail?: string;
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Demo thread — what renders before the user actually asks. Drawn
-// straight from the spec so the page reads as a working surface.
-// ─────────────────────────────────────────────────────────────────
-
-const DEMO_THREAD: DisplayThread = {
-  question: "What's slowing validators down this week?",
-  askedAt: "just now",
-  model: "memwal · gpt-5",
-  sources: 4,
-  lead: "Across the four forms you own that touch the validator audience, **wallet-timeout errors** during onboarding and **slow Seal decrypt UX** are the two clear pain points this week.",
-  bullets: [
-    {
-      dot: 2,
-      title: "Onboarding wallet timeouts",
-      mentions: 14,
-      summary:
-        "Validators report the wallet handshake fails on the second screen. Most cite the 30s timeout on the Sui Wallet popup before they can sign the Seal session key.",
-      delta: { value: "+9", up: true, span: "vs last week" },
-      sources: [
-        { label: "devnet · q2", subs: 9 },
-        { label: "validator pulse · may", subs: 5 },
-      ],
-    },
-    {
-      dot: 4,
-      title: "Seal decrypt feels manual",
-      mentions: 9,
-      summary:
-        'Power-users want a one-click "decrypt all" instead of approving each submission individually. Two suggested a batch endpoint.',
-      delta: { value: "+3", up: true, span: "vs last week" },
-      sources: [{ label: "seal · beta", subs: 9 }],
-    },
-    {
-      dot: 1,
-      title: "NPS rebound +12%",
-      mentions: 41,
-      summary:
-        "April-cohort NPS jumped from 28 → 40. Free-text comments tag the new threshold-decrypt flow and gas sponsorship as the reasons.",
-      delta: { value: "+12%", up: true, span: "vs march" },
-      sources: [{ label: "nps · april", subs: 41 }],
-    },
-  ],
-  tail: "One outlier worth eyeballing: a single submission on the seal · beta form mentions a private-key leak risk — flag as critical and review by hand.",
-};
+// Empty state replaces the old DEMO_THREAD constant. Previously this
+// file rendered a hand-coded answer (validator wallet timeouts / seal
+// decrypt / NPS rebound) before the user asked anything — judges read
+// it as live insights. EmptyAnswerCard now occupies that slot until
+// askMutation.data resolves. Recover the old demo content from git
+// history if you ever need it for screenshots.
 
 const TIER_COLORS = ["#0A0A0A", "#4DA2FF", "#A06EE9", "#6CD3D6", "#E8A540"];
 
@@ -191,12 +153,16 @@ function mapResponseToThread(
 
   // Lead: first sentence of answer, with first 2 themes wrapped in **bold**
   const answer = (resp.answer ?? "").trim();
-  const firstSentence = answer.split(/(?<=[.!?])\s+/)[0] ?? answer.slice(0, 200);
+  const firstSentence =
+    answer.split(/(?<=[.!?])\s+/)[0] ?? answer.slice(0, 200);
   const top2 = themes.slice(0, 2).map((t) => t.label);
   let lead = firstSentence;
   for (const phrase of top2) {
     if (!phrase) continue;
-    const re = new RegExp(`(${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "i");
+    const re = new RegExp(
+      `(${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
+      "i",
+    );
     lead = lead.replace(re, "**$1**");
   }
   if (!lead) lead = `Synthesized from ${resp.memoriesUsed ?? 0} submissions.`;
@@ -217,7 +183,12 @@ function mapResponseToThread(
               mentions: resp.memoriesUsed ?? 0,
               summary:
                 "The model didn't extract structured themes for this query. Try rewording — narrower questions tend to surface cleaner themes.",
-              sources: [{ label: shortFormLabel(formTitle), subs: resp.memoriesUsed ?? 0 }],
+              sources: [
+                {
+                  label: shortFormLabel(formTitle),
+                  subs: resp.memoriesUsed ?? 0,
+                },
+              ],
             },
           ],
     tail: resp.structured?.outlier?.why ?? undefined,
@@ -259,7 +230,9 @@ function useOwnedForms() {
       });
       const caps = owned.objects as unknown as OwnedCap[];
       const formIds = Array.from(
-        new Set(caps.map((c) => c.json?.form_id).filter((id): id is string => !!id)),
+        new Set(
+          caps.map((c) => c.json?.form_id).filter((id): id is string => !!id),
+        ),
       );
       if (formIds.length === 0) return [];
       const objs = await suiClient.getObjects({
@@ -271,7 +244,10 @@ function useOwnedForms() {
         objs.objects.map(async (obj) => {
           const asUnknown = obj as unknown as Record<string, unknown>;
           if ("error" in asUnknown) return null;
-          const fobj = obj as unknown as { objectId: string; json: OnChainForm };
+          const fobj = obj as unknown as {
+            objectId: string;
+            json: OnChainForm;
+          };
           let title = `Form ${fobj.objectId.slice(0, 10)}…`;
           try {
             const m = await readJsonViaAggregator<FormMetadata>(
@@ -285,7 +261,9 @@ function useOwnedForms() {
           return { id: fobj.objectId, title };
         }),
       );
-      return items.filter((x): x is { id: string; title: string } => x !== null);
+      return items.filter(
+        (x): x is { id: string; title: string } => x !== null,
+      );
     },
     enabled: !!ownerAddress && packageId.startsWith("0x"),
     staleTime: 30_000,
@@ -343,10 +321,7 @@ function fmtHeadline(text: string, highlights: string[]) {
   let out = text;
   for (const h of highlights) {
     if (!h) continue;
-    const re = new RegExp(
-      `(${h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
-      "i",
-    );
+    const re = new RegExp(`(${h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "i");
     out = out.replace(re, "::HL::$1::/HL::");
   }
   const segments = out.split(/(::HL::[^]*?::\/HL::)/g);
@@ -373,7 +348,13 @@ function fmtHeadline(text: string, highlights: string[]) {
   });
 }
 
-function ActionBtn({ children, title }: { children: React.ReactNode; title: string }) {
+function ActionBtn({
+  children,
+  title,
+}: {
+  children: React.ReactNode;
+  title: string;
+}) {
   return (
     <button
       type="button"
@@ -408,6 +389,169 @@ function ActionBtn({ children, title }: { children: React.ReactNode; title: stri
   );
 }
 
+// EmptyAnswerCard — renders before the first ask. Keeps the brutalist
+// aurora-ribbon card chrome from AnswerCard so the page feels live, but
+// says clearly that no question has been asked yet. Anchors to real
+// data from useOwnedForms (forms count) so judges see actual numbers
+// instead of fabricated mention counts.
+function EmptyAnswerCard({
+  formsCount,
+  formsLoading,
+  isAsking,
+}: {
+  formsCount: number;
+  formsLoading: boolean;
+  isAsking: boolean;
+}) {
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+      style={{
+        background: "var(--echo-paper)",
+        border: "2px dashed var(--echo-rail)",
+        borderRadius: 18,
+        padding: "28px 32px 24px",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: 0,
+          height: 4,
+          background: "var(--echo-aurora-plate)",
+          opacity: 0.65,
+        }}
+      />
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 14,
+        }}
+      >
+        <Mono size={10} color="var(--echo-mut)">
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 999,
+              background: "var(--echo-mut-2)",
+              display: "inline-block",
+              marginRight: 6,
+            }}
+          />
+          {formsLoading
+            ? "loading your forms…"
+            : isAsking
+              ? "synthesizing…"
+              : `ready · ${formsCount} form${formsCount === 1 ? "" : "s"} to read from`}
+        </Mono>
+        <Mono size={9} color="var(--echo-mut-2)">
+          waiting on prompt
+        </Mono>
+      </header>
+      <p
+        style={{
+          fontSize: 16,
+          lineHeight: 1.55,
+          color: "var(--echo-mut)",
+          margin: "0 0 18px",
+          maxWidth: 580,
+        }}
+      >
+        Type a question above and Memwal will synthesize themes, mentions, and
+        citations from{" "}
+        <strong style={{ color: "var(--echo-ink)", fontWeight: 600 }}>
+          your indexed submissions
+        </strong>
+        . Nothing here is fabricated — the answer card only renders once the
+        model returns a real response.
+      </p>
+      <ul
+        style={{
+          listStyle: "none",
+          margin: 0,
+          padding: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        <ExampleHint>
+          “What are the top 3 themes across my forms this week?”
+        </ExampleHint>
+        <ExampleHint>“Which submissions mention wallet timeout?”</ExampleHint>
+        <ExampleHint>“Summarize sentiment by privacy tier.”</ExampleHint>
+      </ul>
+      {!formsLoading && formsCount === 0 && (
+        <p
+          style={{
+            marginTop: 18,
+            fontSize: 12,
+            color: "var(--echo-warn)",
+            background: "var(--echo-warn-bg)",
+            border: "1px solid #FCD34D",
+            padding: "10px 14px",
+            borderRadius: 10,
+          }}
+        >
+          No forms owned by this wallet yet — create one in{" "}
+          <Link
+            href="/forms/new"
+            style={{
+              textDecoration: "underline",
+              color: "var(--echo-ink)",
+              fontWeight: 600,
+            }}
+          >
+            /forms/new
+          </Link>{" "}
+          and run the indexer to populate insights.
+        </p>
+      )}
+    </motion.article>
+  );
+}
+
+function ExampleHint({ children }: { children: React.ReactNode }) {
+  return (
+    <li
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 14px",
+        border: "1px solid var(--echo-rail)",
+        borderRadius: 10,
+        background: "var(--echo-paper-2)",
+        fontSize: 13,
+        color: "var(--echo-ink)",
+        fontStyle: "italic",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          width: 4,
+          height: 4,
+          borderRadius: 999,
+          background: "var(--echo-mut-2)",
+          flexShrink: 0,
+        }}
+      />
+      {children}
+    </li>
+  );
+}
+
 function AnswerCard({ thread }: { thread: DisplayThread }) {
   return (
     <motion.article
@@ -439,8 +583,13 @@ function AnswerCard({ thread }: { thread: DisplayThread }) {
       />
       <style jsx global>{`
         @keyframes answer-shimmer {
-          0%, 100% { filter: brightness(1) saturate(1); }
-          50%      { filter: brightness(1.2) saturate(1.3); }
+          0%,
+          100% {
+            filter: brightness(1) saturate(1);
+          }
+          50% {
+            filter: brightness(1.2) saturate(1.3);
+          }
         }
       `}</style>
       <header
@@ -463,7 +612,8 @@ function AnswerCard({ thread }: { thread: DisplayThread }) {
               marginRight: 6,
             }}
           />
-          answer · synthesized from {thread.sources} form{thread.sources === 1 ? "" : "s"}
+          answer · synthesized from {thread.sources} form
+          {thread.sources === 1 ? "" : "s"}
         </Mono>
         <div style={{ display: "flex", gap: 6 }}>
           <ActionBtn title="copy">▢</ActionBtn>
@@ -668,7 +818,9 @@ function AnswerCard({ thread }: { thread: DisplayThread }) {
                     >
                       {s.label}
                     </span>
-                    <span style={{ fontSize: 10, color: "var(--echo-mut)" }}>↗</span>
+                    <span style={{ fontSize: 10, color: "var(--echo-mut)" }}>
+                      ↗
+                    </span>
                   </span>
                 ))}
               </div>
@@ -776,7 +928,11 @@ function AnswerCard({ thread }: { thread: DisplayThread }) {
 // Root
 // ─────────────────────────────────────────────────────────────────
 
-export function EchoAnswerThread({ activeQuestion }: { activeQuestion?: string }) {
+export function EchoAnswerThread({
+  activeQuestion,
+}: {
+  activeQuestion?: string;
+}) {
   const owned = useOwnedForms();
   const forms = owned.data ?? [];
   // Form picker — defaults to "all", which the query route handles
@@ -784,7 +940,13 @@ export function EchoAnswerThread({ activeQuestion }: { activeQuestion?: string }
   const [selectedFormId, setSelectedFormId] = useState<string>("all");
 
   const askMutation = useMutation({
-    mutationFn: async ({ formId, question }: { formId: string; question: string }) => {
+    mutationFn: async ({
+      formId,
+      question,
+    }: {
+      formId: string;
+      question: string;
+    }) => {
       const isCrossForm = formId === "all";
       const body = isCrossForm
         ? {
@@ -813,7 +975,11 @@ export function EchoAnswerThread({ activeQuestion }: { activeQuestion?: string }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeQuestion, selectedFormId]);
 
-  const thread: DisplayThread = useMemo(() => {
+  // Only render a thread once the model actually responds. Pre-ask we
+  // show an honest empty card — the previous build leaked a hardcoded
+  // "validator wallet timeouts / seal decrypt / NPS rebound" sample
+  // here which read as live insights and confused judges.
+  const thread: DisplayThread | null = useMemo(() => {
     if (askMutation.data) {
       return mapResponseToThread(
         activeQuestion ?? "",
@@ -821,10 +987,18 @@ export function EchoAnswerThread({ activeQuestion }: { activeQuestion?: string }
         askMutation.data.formTitle ?? null,
       );
     }
-    return DEMO_THREAD;
+    return null;
   }, [askMutation.data, activeQuestion]);
 
   const isAsking = askMutation.isPending;
+  // Header copy when there's no live answer yet — flips back to the
+  // user's question + model meta the moment askMutation.data lands.
+  const headerQuestion = thread?.question ?? "Ask anything across your forms.";
+  const headerAskedAt = thread?.askedAt ?? "ready";
+  const headerModel =
+    thread?.model ??
+    `memwal · ${process.env.NEXT_PUBLIC_OPENROUTER_MODEL ?? "gpt"}`;
+  const headerSources = thread?.sources ?? forms.length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
@@ -849,8 +1023,12 @@ export function EchoAnswerThread({ activeQuestion }: { activeQuestion?: string }
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <Mono size={10} color="var(--echo-mut-2)">
-            you asked · {isAsking ? "asking…" : thread.askedAt} · {thread.model} ·{" "}
-            {thread.sources} source{thread.sources === 1 ? "" : "s"}
+            {thread ? "you asked" : "memwal"} ·{" "}
+            {isAsking ? "asking…" : headerAskedAt} · {headerModel} ·{" "}
+            {headerSources}{" "}
+            {thread
+              ? `source${headerSources === 1 ? "" : "s"}`
+              : `form${headerSources === 1 ? "" : "s"} ready`}
           </Mono>
           <h2
             style={{
@@ -864,8 +1042,8 @@ export function EchoAnswerThread({ activeQuestion }: { activeQuestion?: string }
               textWrap: "balance" as never,
             }}
           >
-            {fmtHeadline(thread.question, [
-              thread.question.split(" ").find((w) => w.length > 6) ?? "",
+            {fmtHeadline(headerQuestion, [
+              headerQuestion.split(" ").find((w) => w.length > 6) ?? "",
             ])}
           </h2>
         </div>
@@ -922,8 +1100,18 @@ export function EchoAnswerThread({ activeQuestion }: { activeQuestion?: string }
         </div>
       )}
 
-      {/* Answer card */}
-      <AnswerCard thread={thread} />
+      {/* Answer card — real when there's a live response, otherwise an
+          empty-state card so the page doesn't pretend to have insights
+          before the user has asked anything. */}
+      {thread ? (
+        <AnswerCard thread={thread} />
+      ) : (
+        <EmptyAnswerCard
+          formsCount={forms.length}
+          formsLoading={owned.isLoading}
+          isAsking={isAsking}
+        />
+      )}
 
       {isAsking && (
         <Mono size={10} color="var(--echo-mut)">

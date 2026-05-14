@@ -862,8 +862,8 @@ export const FormBuilder = () => {
                   <SuiDroplet size={10} /> Sign &amp; publish on Sui
                 </span>
                 <span className="text-sm leading-relaxed text-muted-foreground">
-                  Schema + metadata upload to Walrus, then the Form anchors
-                  blob IDs + owner cap on chain. Gas is sponsored.
+                  Schema + metadata upload to Walrus, then the Form anchors blob
+                  IDs + owner cap on chain. Gas is sponsored.
                 </span>
                 <div className="flex flex-wrap items-center gap-3 pt-1">
                   <BrutalistButton
@@ -893,8 +893,8 @@ export const FormBuilder = () => {
               {!packageDeployed && (
                 <p className="rounded-sm border border-warning/40 bg-warning/5 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-warning">
                   NEXT_PUBLIC_ECHO_PACKAGE_ID is not set yet. Deploy the Move
-                  package via <code className="font-mono">publish/</code>{" "}
-                  and add the object ID to{" "}
+                  package via <code className="font-mono">publish/</code> and
+                  add the object ID to{" "}
                   <code className="font-mono">dapp/.env</code> to enable
                   on-chain saves.
                 </p>
@@ -905,11 +905,7 @@ export const FormBuilder = () => {
                 </p>
               )}
               {status.kind === "saved" && (
-                <AuroraPlate
-                  pose="peace"
-                  intensity="soft"
-                  className="p-5"
-                >
+                <AuroraPlate pose="peace" intensity="soft" className="p-5">
                   <div className="flex max-w-[440px] flex-col gap-2">
                     <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/70">
                       <SuiDroplet size={10} /> Form created on chain

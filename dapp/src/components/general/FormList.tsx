@@ -170,7 +170,11 @@ export const FormList = () => {
       {demoMode && (
         <Reveal>
           <div className="flex items-start gap-3 rounded-sm border border-foreground/40 bg-background px-4 py-3">
-            <WalrusMascot pose="salute" size={36} className="-mt-0.5 shrink-0" />
+            <WalrusMascot
+              pose="salute"
+              size={36}
+              className="-mt-0.5 shrink-0"
+            />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/85">
                 Demo admin · server-side decrypt enabled

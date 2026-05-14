@@ -204,7 +204,10 @@ export function BentoDashboard() {
             Onchain feedback, decrypted.
           </h3>
           <p className="max-w-[460px] text-base text-muted-foreground">
-            Connect a wallet, or toggle <span className="font-medium text-foreground">Demo admin</span> in the nav to load your dashboard. Below is a preview — donut, bar list, distribution sparkline, and quick actions.
+            Connect a wallet, or toggle{" "}
+            <span className="font-medium text-foreground">Demo admin</span> in
+            the nav to load your dashboard. Below is a preview — donut, bar
+            list, distribution sparkline, and quick actions.
           </p>
         </div>
         <div className="flex items-center justify-center sm:col-span-5">
@@ -382,10 +385,16 @@ export function BentoDashboard() {
               Drag-drop · 5 templates · AI generator
             </span>
           </div>
-          <BrutalistButton aurora className="relative self-start">
+          {/* Static span that LOOKS like BrutalistButton — the click
+              target is the wrapping Link, so we can't nest a real button
+              here without breaking <a><button> nesting. */}
+          <span
+            className="relative inline-flex items-center justify-center gap-2 self-start rounded-[6px] border-2 border-foreground bg-[image:var(--ff-aurora-strong)] px-5 py-2.5 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-foreground transition-transform duration-200 group-hover:-translate-x-[1px] group-hover:-translate-y-[1px]"
+            style={{ boxShadow: "var(--ff-shadow-brut)" }}
+          >
             Open builder
             <ArrowRight size={12} strokeWidth={2.5} />
-          </BrutalistButton>
+          </span>
         </Link>
       </BentoTile>
 
@@ -448,7 +457,11 @@ export function BentoDashboard() {
             <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
               Memwal RAG
             </span>
-            <Brain size={20} strokeWidth={1.75} className="text-foreground/65" />
+            <Brain
+              size={20}
+              strokeWidth={1.75}
+              className="text-foreground/65"
+            />
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-2xl font-medium tracking-tight text-foreground">
@@ -588,7 +601,6 @@ const tierLabels = [
   { label: "Time", color: "text-foreground/65" },
   { label: "Cond", color: "text-foreground/65" },
 ];
-
 
 /**
  * Animate a number from 0 to `value` over ~800ms using easing —

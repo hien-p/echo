@@ -14,11 +14,7 @@ import {
   Unlock,
 } from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
-import {
-  PrivacyTier,
-  readJsonViaAggregator,
-  listApprovals,
-} from "@/lib/echo";
+import { PrivacyTier, readJsonViaAggregator, listApprovals } from "@/lib/echo";
 import type { FormMetadata } from "@/lib/echo";
 import { cn } from "@/lib/utils";
 import { CountUp } from "./CountUp";
@@ -205,7 +201,8 @@ export function DashboardKpiStrip() {
       );
       const flat = perForm.flat();
       flat.sort(
-        (a, b) => (Date.parse(b.submittedAt) || 0) - (Date.parse(a.submittedAt) || 0),
+        (a, b) =>
+          (Date.parse(b.submittedAt) || 0) - (Date.parse(a.submittedAt) || 0),
       );
       return flat;
     },
@@ -248,8 +245,7 @@ export function DashboardKpiStrip() {
         )
         .map((e) => e.parsedJson!.pool_id!)
         .filter(Boolean);
-      if (ownedPoolIds.length === 0)
-        return { totalMist: BigInt(0), pools: 0 };
+      if (ownedPoolIds.length === 0) return { totalMist: BigInt(0), pools: 0 };
       const pools = await suiClient.getObjects({
         objectIds: ownedPoolIds,
         include: { json: true },
@@ -698,4 +694,3 @@ function Submissions30dChart({
     </motion.div>
   );
 }
-

@@ -83,7 +83,9 @@ function useInsightsData() {
       });
       const caps = owned.objects as unknown as OwnedCap[];
       const formIds = Array.from(
-        new Set(caps.map((c) => c.json?.form_id).filter((id): id is string => !!id)),
+        new Set(
+          caps.map((c) => c.json?.form_id).filter((id): id is string => !!id),
+        ),
       );
       if (formIds.length === 0) return [];
       const formObjs = await suiClient.getObjects({
@@ -127,16 +129,17 @@ function useInsightsData() {
   const submissionsQuery = useQuery({
     queryKey: ["echo", "dashboard-submissions", formIdsKey],
     queryFn: async () => {
-      if (forms.length === 0) return [] as Array<{
-        formId: string;
-        formTitle: string;
-        formTier: number;
-        submissionId: string;
-        submitter: string;
-        anonymous: boolean;
-        submittedAtMs: number;
-        encrypted: boolean;
-      }>;
+      if (forms.length === 0)
+        return [] as Array<{
+          formId: string;
+          formTitle: string;
+          formTier: number;
+          submissionId: string;
+          submitter: string;
+          anonymous: boolean;
+          submittedAtMs: number;
+          encrypted: boolean;
+        }>;
       const eventType = `${packageId}::submission::SubmissionMade`;
       const fullnodeUrl = clientConfig.SUI_FULLNODE_URL;
       const perForm = await Promise.all(
@@ -172,9 +175,7 @@ function useInsightsData() {
           }));
         }),
       );
-      return perForm
-        .flat()
-        .sort((a, b) => b.submittedAtMs - a.submittedAtMs);
+      return perForm.flat().sort((a, b) => b.submittedAtMs - a.submittedAtMs);
     },
     enabled: forms.length > 0,
     staleTime: 15_000,
@@ -190,10 +191,9 @@ function useInsightsData() {
   // cache or partial response from a transition can still slip a
   // bare-shaped entry into `forms`. Use optional chaining everywhere
   // that reads .onChain so a malformed row never throws.
-  const totalDocs = submissions.length || forms.reduce(
-    (a, f) => a + Number(f.onChain?.submission_count ?? 0),
-    0,
-  );
+  const totalDocs =
+    submissions.length ||
+    forms.reduce((a, f) => a + Number(f.onChain?.submission_count ?? 0), 0);
 
   const topForms = useMemo(() => {
     return [...forms]
@@ -270,7 +270,8 @@ function BrutalistInk({
   size?: "sm" | "md" | "lg";
   aurora?: boolean;
 }) {
-  const pads = size === "sm" ? "8px 14px" : size === "lg" ? "16px 24px" : "12px 18px";
+  const pads =
+    size === "sm" ? "8px 14px" : size === "lg" ? "16px 24px" : "12px 18px";
   const fontSize = size === "sm" ? 11 : size === "lg" ? 13 : 12;
   const style = {
     padding: pads,
@@ -323,7 +324,10 @@ function HeroShelf({
   const [phIndex, setPhIndex] = useState(0);
   const [prompt, setPrompt] = useState("");
   useEffect(() => {
-    const t = setInterval(() => setPhIndex((i) => (i + 1) % SUGGESTIONS.length), 4200);
+    const t = setInterval(
+      () => setPhIndex((i) => (i + 1) % SUGGESTIONS.length),
+      4200,
+    );
     return () => clearInterval(t);
   }, []);
   const handleAsk = (e?: React.FormEvent) => {
@@ -557,7 +561,9 @@ function HeroShelf({
           </div>
           <style jsx>{`
             @keyframes dot-pulse {
-              0%, 80%, 100% {
+              0%,
+              80%,
+              100% {
                 opacity: 0.35;
                 transform: scale(0.85);
               }
@@ -608,7 +614,8 @@ function IndexStatusCard({
               status === "live"
                 ? "var(--echo-success-bg)"
                 : "var(--echo-rail-2)",
-            color: status === "live" ? "var(--echo-success)" : "var(--echo-mut)",
+            color:
+              status === "live" ? "var(--echo-success)" : "var(--echo-mut)",
           }}
         >
           {status}
@@ -791,8 +798,7 @@ function RecentSubmissionsCard({
                       {s.anonymous ? (
                         <em
                           style={{
-                            fontFamily:
-                              "Instrument Serif, Georgia, serif",
+                            fontFamily: "Instrument Serif, Georgia, serif",
                             fontStyle: "italic",
                           }}
                         >
@@ -970,7 +976,10 @@ function TopFormsCard({
 function RagSection({ initialQuestion }: { initialQuestion?: string }) {
   const data = useInsightsData();
   return (
-    <section className="echo-section" style={{ background: "var(--echo-paper)" }}>
+    <section
+      className="echo-section"
+      style={{ background: "var(--echo-paper)" }}
+    >
       <div
         className="echo-container"
         style={{
@@ -1038,7 +1047,10 @@ function TemplatesBand({ onAsk }: { onAsk: (q: string) => void }) {
     },
   ];
   return (
-    <section className="echo-section" style={{ background: "var(--echo-paper-2)" }}>
+    <section
+      className="echo-section"
+      style={{ background: "var(--echo-paper-2)" }}
+    >
       <div className="echo-container" style={{ paddingBlock: "40px 48px" }}>
         <div style={{ marginBottom: 20 }}>
           <MonoLabel>templates · one-tap prompts</MonoLabel>
@@ -1140,7 +1152,10 @@ function TemplatesBand({ onAsk }: { onAsk: (q: string) => void }) {
 
 function FooterRail() {
   return (
-    <footer className="echo-section" style={{ background: "var(--echo-paper)" }}>
+    <footer
+      className="echo-section"
+      style={{ background: "var(--echo-paper)" }}
+    >
       <div
         className="echo-container"
         style={{

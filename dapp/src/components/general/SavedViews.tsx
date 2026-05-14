@@ -165,9 +165,7 @@ export function SavedViews({
                     : "border-border bg-card/40 text-muted-foreground hover:border-foreground/30 hover:text-foreground",
                 )}
               >
-                {active && (
-                  <BookmarkCheck size={11} strokeWidth={2.25} />
-                )}
+                {active && <BookmarkCheck size={11} strokeWidth={2.25} />}
                 {v.name}
               </button>
               <button

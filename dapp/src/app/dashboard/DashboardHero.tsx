@@ -107,9 +107,7 @@ export function DashboardHero() {
     <>
       <span>0 forms yet</span>
       <span style={{ color: "rgba(0,0,0,0.30)" }}>·</span>
-      <span style={{ color: "rgba(0,0,0,0.40)" }}>
-        create your first below
-      </span>
+      <span style={{ color: "rgba(0,0,0,0.40)" }}>create your first below</span>
     </>
   ) : (
     <>
@@ -164,4 +162,3 @@ export function DashboardHero() {
     />
   );
 }
-

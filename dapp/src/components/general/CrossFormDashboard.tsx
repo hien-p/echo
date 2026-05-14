@@ -135,8 +135,7 @@ const STATUSES = [
     value: "replied",
     label: "Replied",
     chip:
-      "bg-muted/60 text-foreground border-transparent " +
-      "dark:bg-muted/30",
+      "bg-muted/60 text-foreground border-transparent " + "dark:bg-muted/30",
   },
   {
     value: "resolved",
@@ -871,30 +870,30 @@ export const CrossFormDashboard = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="rounded-sm border border-foreground/25 bg-background px-3 py-1.5 text-sm placeholder:text-foreground/35 focus:border-foreground/60 focus:outline-none focus:ring-2 focus:ring-foreground/15 w-[200px] sm:w-[260px]"
             />
-          <button
-            type="button"
-            onClick={() => exportCsv(visible)}
-            disabled={visible.length === 0}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-sm border border-foreground/40 px-3 py-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] transition",
-              visible.length > 0
-                ? "hover:bg-foreground hover:text-background"
-                : "opacity-50 cursor-not-allowed",
-            )}
-            title="Export visible submissions as CSV"
-          >
-            <Download size={11} /> CSV ({visible.length})
-          </button>
-          {!demoMode && (
             <button
               type="button"
-              onClick={lockOut}
-              className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground hover:text-foreground hover:underline"
-              title="Re-lock dashboard for this tab"
+              onClick={() => exportCsv(visible)}
+              disabled={visible.length === 0}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-sm border border-foreground/40 px-3 py-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] transition",
+                visible.length > 0
+                  ? "hover:bg-foreground hover:text-background"
+                  : "opacity-50 cursor-not-allowed",
+              )}
+              title="Export visible submissions as CSV"
             >
-              Lock
+              <Download size={11} /> CSV ({visible.length})
             </button>
-          )}
+            {!demoMode && (
+              <button
+                type="button"
+                onClick={lockOut}
+                className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground hover:text-foreground hover:underline"
+                title="Re-lock dashboard for this tab"
+              >
+                Lock
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1121,7 +1120,13 @@ export const CrossFormDashboard = () => {
                 const next = STATUSES[(idx + 1) % STATUSES.length];
                 setRowStatus(id, next.value);
               }}
-              statuses={STATUSES as unknown as { value: string; label: string; chip: string }[]}
+              statuses={
+                STATUSES as unknown as {
+                  value: string;
+                  label: string;
+                  chip: string;
+                }[]
+              }
             />
           ) : view === "heatmap" ? (
             <HeatmapView submissions={visible} />

@@ -159,32 +159,144 @@
         Tag values: feat | fix | chore | docs | refactor
       -->
 
+        <article class="log-card" data-date="2026-05-14">
+          <header>
+            <time datetime="2026-05-14">2026-05-14</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Dashboard route stops crashing in the edge sandbox</h3>
+          <p>
+            Removed the forced edge runtime from <code>/dashboard</code>. The
+            page uses dynamic client dashboard widgets and shell components that
+            render correctly on the standard App Router runtime, avoiding the
+            blank 500 page in local development. The dashboard hero now imports
+            privacy tier constants from the lightweight types module instead of
+            the Echo SDK barrel, so server rendering no longer tries to load
+            Walrus WASM. The dashboard hero headline also renders as plain
+            visible text instead of waiting for an intersection-triggered word
+            animation.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-14">
+          <header>
+            <time datetime="2026-05-14">2026-05-14</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Homepage hero stays visible without waiting on animation</h3>
+          <p>
+            Removed hidden initial motion states from the marketing header and
+            hero copy. The page now server-renders the navigation, headline,
+            body copy, CTAs, and scroll hint visibly even if client animation or
+            hydration is delayed.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-14">
+          <header>
+            <time datetime="2026-05-14">2026-05-14</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Capabilities section returns to a stable paper layout</h3>
+          <p>
+            Reworked the homepage services anchor onto a light Frame-style paper
+            surface with black text, smaller display type, and fixed row
+            columns. This keeps <code>#services</code> readable at narrow
+            viewport sizes instead of looking like raw dark-mode text.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-14">
+          <header>
+            <time datetime="2026-05-14">2026-05-14</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Marketing page removes noisy privacy cards</h3>
+          <p>
+            Removed the heavy privacy-tier bento block that was sitting below
+            the capabilities section and rendering as oversized blurred cards.
+            The homepage now moves from the readable capabilities list directly
+            into real example forms, and the custom cursor trail is gone so the
+            page stays calm and easier to scan. Two service blurbs also stop
+            leaking literal HTML quote entities.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-14">
+          <header>
+            <time datetime="2026-05-14">2026-05-14</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Dashboard charts and triage queue adopt Frame styling</h3>
+          <p>
+            Rethemed the dashboard overview and triage queue against the Frame
+            design system: restrained paper-and-ink cards, blueprint chart
+            accents, hairline rails, and calmer status chips. The triage table,
+            filters, form sidebar, and view switcher now read as one operator
+            surface instead of mixed default controls.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Capabilities section no longer stacks into vertical text</h3>
+          <p>
+            Reworked the marketing capabilities block so the headline reads
+            horizontally with natural wrapping, and the service menu now uses
+            stable rows with numbers, titles, summaries, and explanatory copy.
+            Removed the split-character animation that made the section look
+            broken at high zoom or narrow widths.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-13">
+          <header>
+            <time datetime="2026-05-13">2026-05-13</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Insights answers now read like a scan-ready report</h3>
+          <p>
+            Reworked the Insights page once an answer exists: the prompt
+            composer now collapses below the fixed nav instead of drifting under
+            it, and answers render with metrics, a top finding, readout, quote,
+            sentiment, themes, citations, and actions. Citation chips and
+            paragraphs now scan more cleanly for demo review.
+          </p>
+        </article>
+
         <article class="log-card" data-date="2026-05-13">
           <header>
             <time datetime="2026-05-13">2026-05-13</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
-          <h3>Sui-stack-crm CMS port wave 1 — Trust chip, Saved views, SuiNS enrichment</h3>
+          <h3>
+            Sui-stack-crm CMS port wave 1 — Trust chip, Saved views, SuiNS
+            enrichment
+          </h3>
           <p>
             Compared
-            <a href="https://github.com/abhinavg6/sui-stack-crm">sui-stack-crm</a>
-            against Echo&apos;s dashboard and ported three CMS-grade
-            patterns. (1) <strong>Trust chip</strong> in the NavPill — a
-            persistent <em>E2E · Seal · Walrus · Sui</em> badge with hover
-            popover that explains what each layer guarantees and what it
-            does NOT promise; adapted from the &ldquo;trust badge in the
-            title bar&rdquo; idiom. (2) <strong>Saved views</strong> above
-            the triage queue — name + persist a filter combo (search +
-            status + form + submitter) to localStorage scoped per wallet,
-            one-click apply; sui-stack-crm flagged this as their single
-            biggest day-to-day usability gap. (3) <strong>SuiNS
-            enrichment popover</strong> — every wallet handle on the page
-            now reveals SUI balance, owned-objects count, and last-tx age
-            on hover, with a Sui explorer link; adapted from their
-            &ldquo;address as a first-class column type&rdquo; pattern.
-            Wave 2 (member management, versions drawer, storage extension)
-            blocked on Move package upgrades — current published package
-            doesn&apos;t expose add_member / extend_blob entrypoints.
+            <a href="https://github.com/abhinavg6/sui-stack-crm"
+              >sui-stack-crm</a
+            >
+            against Echo&apos;s dashboard and ported three CMS-grade patterns.
+            (1) <strong>Trust chip</strong> in the NavPill — a persistent
+            <em>E2E · Seal · Walrus · Sui</em> badge with hover popover that
+            explains what each layer guarantees and what it does NOT promise;
+            adapted from the &ldquo;trust badge in the title bar&rdquo; idiom.
+            (2) <strong>Saved views</strong> above the triage queue — name +
+            persist a filter combo (search + status + form + submitter) to
+            localStorage scoped per wallet, one-click apply; sui-stack-crm
+            flagged this as their single biggest day-to-day usability gap. (3)
+            <strong>SuiNS enrichment popover</strong> — every wallet handle on
+            the page now reveals SUI balance, owned-objects count, and last-tx
+            age on hover, with a Sui explorer link; adapted from their
+            &ldquo;address as a first-class column type&rdquo; pattern. Wave 2
+            (member management, versions drawer, storage extension) blocked on
+            Move package upgrades — current published package doesn&apos;t
+            expose add_member / extend_blob entrypoints.
           </p>
         </article>
 
@@ -196,29 +308,29 @@
           <h3>Insights slice 7 — Reasoning panel narrates the synthesis</h3>
           <p>
             New <code>Reasoning</code> component — API-compatible with
-            <a href="https://nexus-ui.dev/docs/components/reasoning">nexus-ui/reasoning</a>
+            <a href="https://nexus-ui.dev/docs/components/reasoning"
+              >nexus-ui/reasoning</a
+            >
             (<code>Reasoning</code>, <code>ReasoningTrigger</code>,
-            <code>ReasoningContent</code>) so callers can later swap to
-            the upstream via <code>npx shadcn add @nexus-ui/reasoning</code>
-            without touching call sites. Built in-repo using lucide
-            (<code>Brain</code>, <code>ChevronDown</code>) and motion
-            instead of pulling in <code>@hugeicons</code>,
-            <code>streamdown</code>, and <code>tw-shimmer</code> for one
-            cosmetic widget. CSS-keyframe shimmer inlined via
-            <code>styled-jsx</code>. Honest framing: the upstream wires
-            actual model reasoning channels (Claude extended thinking,
-            DeepSeek R1) — Echo&rsquo;s <code>streamObject</code> pipeline
-            doesn&rsquo;t expose one, so the panel narrates
-            <em>synthesis progress</em> derived from streamingPartial
-            deltas (&ldquo;Drafting prose answer…&rdquo;,
+            <code>ReasoningContent</code>) so callers can later swap to the
+            upstream via <code>npx shadcn add @nexus-ui/reasoning</code> without
+            touching call sites. Built in-repo using lucide (<code>Brain</code>,
+            <code>ChevronDown</code>) and motion instead of pulling in
+            <code>@hugeicons</code>, <code>streamdown</code>, and
+            <code>tw-shimmer</code> for one cosmetic widget. CSS-keyframe
+            shimmer inlined via <code>styled-jsx</code>. Honest framing: the
+            upstream wires actual model reasoning channels (Claude extended
+            thinking, DeepSeek R1) — Echo&rsquo;s
+            <code>streamObject</code> pipeline doesn&rsquo;t expose one, so the
+            panel narrates <em>synthesis progress</em> derived from
+            streamingPartial deltas (&ldquo;Drafting prose answer…&rdquo;,
             &ldquo;Theme: Onboarding friction (4, mixed)&rdquo;,
-            &ldquo;Confidence: medium&rdquo;, &ldquo;Cited
-            0xabc12345&rdquo;). Labelled &ldquo;Working notes&rdquo;
-            collapsed, &ldquo;Echo is reasoning…&rdquo; with shimmer
-            while streaming. Auto-opens during stream, collapses ~1.2s
-            after <code>done</code>. Wired into InsightsConsole above
-            the streaming InsightAnswer; resets per fresh ask via a
-            <code>reasoningSnapshot</code> ref so the dedupe set
+            &ldquo;Confidence: medium&rdquo;, &ldquo;Cited 0xabc12345&rdquo;).
+            Labelled &ldquo;Working notes&rdquo; collapsed, &ldquo;Echo is
+            reasoning…&rdquo; with shimmer while streaming. Auto-opens during
+            stream, collapses ~1.2s after <code>done</code>. Wired into
+            InsightsConsole above the streaming InsightAnswer; resets per fresh
+            ask via a <code>reasoningSnapshot</code> ref so the dedupe set
             doesn&rsquo;t carry state between questions.
           </p>
         </article>
@@ -231,24 +343,21 @@
           <h3>Insights slice 6 — Compare side-by-side closes the wishlist</h3>
           <p>
             Last brainstorm item. New
-            <code>Compare</code> toggle pill in the action row (only
-            shown when the user owns 2+ forms). Toggling on reveals a
-            secondary <code>vs &lt;Form B&gt;</code> picker. Asking with
-            both forms selected calls a
-            <code>runComparisonQuery</code> helper twice in parallel
-            via <code>Promise.all</code> — bypasses the streaming
-            <code>queryMutation</code> for compare runs because two
-            concurrent <code>streamingPartial</code> writes would
-            clobber each other (compare trades token streaming for
-            parallelism). Both results land as thread entries tagged
-            with a shared <code>pairId</code>. The thread renderer
-            walks the array and groups consecutive entries with
-            matching <code>pairId</code> into a
-            <code>lg:grid-cols-2</code> row — desktop sees the two
-            answers side-by-side, mobile stacks vertically. Pin /
-            counter-arg / citation-sheet still work on either pane.
-            All 9 wishlist items now landed (Slack/Discord remains
-            skipped — external integration with no SDK in repo).
+            <code>Compare</code> toggle pill in the action row (only shown when
+            the user owns 2+ forms). Toggling on reveals a secondary
+            <code>vs &lt;Form B&gt;</code> picker. Asking with both forms
+            selected calls a <code>runComparisonQuery</code> helper twice in
+            parallel via <code>Promise.all</code> — bypasses the streaming
+            <code>queryMutation</code> for compare runs because two concurrent
+            <code>streamingPartial</code> writes would clobber each other
+            (compare trades token streaming for parallelism). Both results land
+            as thread entries tagged with a shared <code>pairId</code>. The
+            thread renderer walks the array and groups consecutive entries with
+            matching <code>pairId</code> into a <code>lg:grid-cols-2</code> row
+            — desktop sees the two answers side-by-side, mobile stacks
+            vertically. Pin / counter-arg / citation-sheet still work on either
+            pane. All 9 wishlist items now landed (Slack/Discord remains skipped
+            — external integration with no SDK in repo).
           </p>
         </article>
 
@@ -260,28 +369,27 @@
           <h3>Insights slice 5 — token streaming via streamObject</h3>
           <p>
             Wired actual token streaming for the answer.
-            <code>/api/insights/query</code> accepts <code>stream: true</code>
-            and switches from <code>generateObject</code> to AI SDK
-            <code>streamObject</code>, wrapping its
-            <code>partialObjectStream</code> in a
+            <code>/api/insights/query</code> accepts
+            <code>stream: true</code> and switches from
+            <code>generateObject</code> to AI SDK <code>streamObject</code>,
+            wrapping its <code>partialObjectStream</code> in a
             <code>text/event-stream</code> ReadableStream that emits
-            <code>partial</code> events (each is the cumulative object
-            snapshot) followed by a <code>done</code> event with full
-            metadata + memories. Single primary model only — the
-            fallback chain stays in the non-stream branch, with the
-            client retrying without <code>stream</code> on stream
-            errors. Client adds a <code>streamingPartial</code> state
-            populated from the SSE reader and renders a transient
-            <code>InsightAnswer</code> card below the thread while the
-            mutation is pending, tagged with a small &ldquo;Streaming&rdquo;
-            chip in the corner. On done, the streaming card vanishes and
-            the finalised entry appears in the thread. The cumulative
-            object pattern means citation chips, themes, gaps, etc.
-            don&rsquo;t flicker — they just pop into place as the model
-            commits each field. <strong>Compare side-by-side</strong>
-            stays deferred — cross-form synthesis (slice 4) already
-            covers ask-one-question-across-N-forms with merged citations;
-            a literal 2-column UI is polish, not new capability.
+            <code>partial</code> events (each is the cumulative object snapshot)
+            followed by a <code>done</code> event with full metadata + memories.
+            Single primary model only — the fallback chain stays in the
+            non-stream branch, with the client retrying without
+            <code>stream</code> on stream errors. Client adds a
+            <code>streamingPartial</code> state populated from the SSE reader
+            and renders a transient <code>InsightAnswer</code> card below the
+            thread while the mutation is pending, tagged with a small
+            &ldquo;Streaming&rdquo; chip in the corner. On done, the streaming
+            card vanishes and the finalised entry appears in the thread. The
+            cumulative object pattern means citation chips, themes, gaps, etc.
+            don&rsquo;t flicker — they just pop into place as the model commits
+            each field. <strong>Compare side-by-side</strong>
+            stays deferred — cross-form synthesis (slice 4) already covers
+            ask-one-question-across-N-forms with merged citations; a literal
+            2-column UI is polish, not new capability.
           </p>
         </article>
 
@@ -305,49 +413,47 @@
             <time datetime="2026-05-13">2026-05-13</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
-          <h3>Insights slice 4 — quote · auto-tag · pin · timestamps · cross-form · thread</h3>
+          <h3>
+            Insights slice 4 — quote · auto-tag · pin · timestamps · cross-form
+            · thread
+          </h3>
           <p>
             Six more from the wishlist.
             <strong>(1) Headline quote</strong>: Zod schema gained
-            <code>headlineQuote: {text, submissionId} | null</code> — a
-            verbatim pull-quote shown as a serif italic block above the
-            prose answer, &ldquo;voice of the user&rdquo; style.
+            <code>headlineQuote: {text, submissionId} | null</code> — a verbatim
+            pull-quote shown as a serif italic block above the prose answer,
+            &ldquo;voice of the user&rdquo; style.
             <strong>(2) Auto-tag</strong>:
-            <code>submissionTags: {submissionId, tags[]}[]</code> in the
-            schema; tags render as small pills next to each citation id
-            and become a free pivot dimension.
-            <strong>(3) Pin to localStorage</strong>: new
+            <code>submissionTags: {submissionId, tags[]}[]</code> in the schema;
+            tags render as small pills next to each citation id and become a
+            free pivot dimension. <strong>(3) Pin to localStorage</strong>: new
             <code>Pin insight</code> button on every answer card writes
             <code>{formId, question, excerpt, themes}</code> to
-            <code>localStorage</code> keyed by owner address. Pinned row
-            of up to 6 cards appears above the hero; click to expand back
-            into the answer slot, hover to unpin. No backend pin storage
-            yet — Bento dashboard wiring is the follow-up.
+            <code>localStorage</code> keyed by owner address. Pinned row of up
+            to 6 cards appears above the hero; click to expand back into the
+            answer slot, hover to unpin. No backend pin storage yet — Bento
+            dashboard wiring is the follow-up.
             <strong>(4) Timestamp grounding</strong>:
             <code>flattenAnswersToText</code> now bakes
-            <code>ts:&lt;epochMs&gt;</code> into every indexed memory
-            header (from the Sui event envelope&rsquo;s
-            <code>timestampMs</code>). The query route hard-filters
-            memories whose ts falls outside the scope window — so the
-            Scope chip is now an honest filter for newly indexed forms,
-            with backward-compat fallthrough for older memories without
-            timestamps.
-            <strong>(5) Cross-form synthesis</strong>: new
-            <code>(All my forms)</code> choice in the form picker. Query
-            route accepts <code>formIds: string[]</code>, fans out the
-            two-pass recall across every namespace, dedupes by parsed
+            <code>ts:&lt;epochMs&gt;</code> into every indexed memory header
+            (from the Sui event envelope&rsquo;s <code>timestampMs</code>). The
+            query route hard-filters memories whose ts falls outside the scope
+            window — so the Scope chip is now an honest filter for newly indexed
+            forms, with backward-compat fallthrough for older memories without
+            timestamps. <strong>(5) Cross-form synthesis</strong>: new
+            <code>(All my forms)</code> choice in the form picker. Query route
+            accepts <code>formIds: string[]</code>, fans out the two-pass recall
+            across every namespace, dedupes by parsed
             <code>[submission 0x…]</code> id (since Memwal blob_ids are
-            per-namespace), and runs a single LLM call over the merged
-            context. Composite title reads &ldquo;3 forms (Form A,
-            Form B…)&rdquo;.
-            <strong>(6) Conversation thread</strong>: every successful
-            query now appends to a <code>thread</code> array; the page
-            renders the full stack of Q&amp;A cards instead of wiping
-            each previous answer. Counter-argument and pin work on the
-            most recent (counter) or any (pin) entry. A &ldquo;Clear
-            thread&rdquo; affordance appears once 2+ answers exist.
-            <strong>(Deferred):</strong> streamObject token streaming,
-            side-by-side compare, Slack/Discord digest — each needs a
+            per-namespace), and runs a single LLM call over the merged context.
+            Composite title reads &ldquo;3 forms (Form A, Form B…)&rdquo;.
+            <strong>(6) Conversation thread</strong>: every successful query now
+            appends to a <code>thread</code> array; the page renders the full
+            stack of Q&amp;A cards instead of wiping each previous answer.
+            Counter-argument and pin work on the most recent (counter) or any
+            (pin) entry. A &ldquo;Clear thread&rdquo; affordance appears once 2+
+            answers exist. <strong>(Deferred):</strong> streamObject token
+            streaming, side-by-side compare, Slack/Discord digest — each needs a
             focused session.
           </p>
         </article>
@@ -357,37 +463,38 @@
             <time datetime="2026-05-13">2026-05-13</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
-          <h3>Insights slice 3 — citation deep-view · personas · scope chip · build unblocked</h3>
+          <h3>
+            Insights slice 3 — citation deep-view · personas · scope chip ·
+            build unblocked
+          </h3>
           <p>
             Continuing the brainstorm.
-            <strong>(1) Citation deep-view sheet</strong>: query route now
-            ships full memory texts alongside the structured response —
-            clicking a citation row opens a slide-in panel from the right
-            with the entire submission, the cited excerpt highlighted in
-            amber. Esc / backdrop / X-button to close, background scroll
-            locked while open. New <code>CitationSheet</code> component.
+            <strong>(1) Citation deep-view sheet</strong>: query route now ships
+            full memory texts alongside the structured response — clicking a
+            citation row opens a slide-in panel from the right with the entire
+            submission, the cited excerpt highlighted in amber. Esc / backdrop /
+            X-button to close, background scroll locked while open. New
+            <code>CitationSheet</code> component.
             <strong>(2) Persona inference</strong>: Zod schema gained a
-            <code>personas: {name, count, characteristic,
-            sentimentSlant}[]</code> field (max 4). Renders as a 2-column
-            grid in the answer card between Themes and Citations, each
-            persona card sentiment-dotted. Threaded into the Markdown
-            export too.
-            <strong>(3) Scope chip</strong>: new
-            <code>All&nbsp;time · 30 days · 7 days</code> selector in the
-            action row. The choice ships as <code>scope</code> to
+            <code
+              >personas: {name, count, characteristic, sentimentSlant}[]</code
+            >
+            field (max 4). Renders as a 2-column grid in the answer card between
+            Themes and Citations, each persona card sentiment-dotted. Threaded
+            into the Markdown export too. <strong>(3) Scope chip</strong>: new
+            <code>All&nbsp;time · 30 days · 7 days</code> selector in the action
+            row. The choice ships as <code>scope</code> to
             <code>/api/insights/query</code> and feeds a soft prompt hint
-            (&ldquo;Focus on the most recent submissions…&rdquo;).
-            Honest caveat: this biases the model but doesn&rsquo;t hard-
-            filter the memory set since timestamps aren&rsquo;t yet
-            embedded in indexed text — strict grounding is a follow-up.
-            <strong>(4) Build pipeline unblocked</strong>: replaced 3
-            dynamic <code>require(&quot;react-dom&quot;)</code> calls in
-            the chart components with proper top-level
-            <code>createPortal</code> imports, installed
-            <code>@types/d3-array</code>, and tagged the visx
-            <code>CurveFactory = any</code> with an
-            eslint-disable-next-line. <code>pnpm build</code> goes green
-            again.
+            (&ldquo;Focus on the most recent submissions…&rdquo;). Honest
+            caveat: this biases the model but doesn&rsquo;t hard- filter the
+            memory set since timestamps aren&rsquo;t yet embedded in indexed
+            text — strict grounding is a follow-up.
+            <strong>(4) Build pipeline unblocked</strong>: replaced 3 dynamic
+            <code>require(&quot;react-dom&quot;)</code> calls in the chart
+            components with proper top-level <code>createPortal</code> imports,
+            installed <code>@types/d3-array</code>, and tagged the visx
+            <code>CurveFactory = any</code> with an eslint-disable-next-line.
+            <code>pnpm build</code> goes green again.
           </p>
         </article>
 
@@ -476,27 +583,29 @@
           </header>
           <h3>bklit charts — visx-backed AreaChart + staggered hero text</h3>
           <p>
-            Wired the <a href="https://ui.bklit.com/docs/components">bklit UI</a>
-            chart registry. <code>npx shadcn add</code> pulled in 13 files
-            (chart-context, grid, x-axis, tooltip family, area-chart, area)
-            plus visx (<code>@visx/shape</code>, <code>curve</code>,
+            Wired the
+            <a href="https://ui.bklit.com/docs/components">bklit UI</a> chart
+            registry. <code>npx shadcn add</code> pulled in 13 files
+            (chart-context, grid, x-axis, tooltip family, area-chart, area) plus
+            visx (<code>@visx/shape</code>, <code>curve</code>,
             <code>scale</code>, <code>gradient</code>, <code>responsive</code>,
             <code>event</code>, <code>grid</code>), <code>d3-array</code>,
-            <code>react-use-measure</code>. Themed via CSS custom properties
-            in <code>globals.css</code> — <code>--chart-background</code> /
-            <code>--chart-foreground</code> / <code>--chart-line-primary</code>
-            (#5B8DEF) / <code>--chart-grid</code> / <code>--chart-crosshair</code>
-            with light + dark overrides. Fixed a typo where the auto-installer
-            wrote <code>var(----chart-X)</code> (4 dashes) in the @theme inline
-            block. Replaced the hand-rolled SVG path on the KPI strip&apos;s
-            30-day submissions chart with a real <code>&lt;AreaChart&gt;</code>
+            <code>react-use-measure</code>. Themed via CSS custom properties in
+            <code>globals.css</code> — <code>--chart-background</code> /
+            <code>--chart-foreground</code> /
+            <code>--chart-line-primary</code> (#5B8DEF) /
+            <code>--chart-grid</code> / <code>--chart-crosshair</code> with
+            light + dark overrides. Fixed a typo where the auto-installer wrote
+            <code>var(----chart-X)</code> (4 dashes) in the @theme inline block.
+            Replaced the hand-rolled SVG path on the KPI strip&apos;s 30-day
+            submissions chart with a real <code>&lt;AreaChart&gt;</code>
             — proper visx scaling, motion-driven path animation, cursor-tracked
             tooltip with crosshair, themed axis labels. Also wired
-            <code>react-bits StaggeredText</code> on the editorial hero so
-            each word in &ldquo;Zero gas to submit.&rdquo; / &ldquo;Sealed
+            <code>react-bits StaggeredText</code> on the editorial hero so each
+            word in &ldquo;Zero gas to submit.&rdquo; / &ldquo;Sealed
             end-to-end.&rdquo; / <em>and yours alone.</em> rises + un-blurs
-            individually. Bumped headline line-height 1.02 → 1.12 with
-            explicit per-line top margin so the three lines breathe.
+            individually. Bumped headline line-height 1.02 → 1.12 with explicit
+            per-line top margin so the three lines breathe.
           </p>
         </article>
 
@@ -505,35 +614,38 @@
             <time datetime="2026-05-13">2026-05-13</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
-          <h3>Insights gets structured — themes, citations, form-aware Suggest, empty-state CTAs</h3>
+          <h3>
+            Insights gets structured — themes, citations, form-aware Suggest,
+            empty-state CTAs
+          </h3>
           <p>
             The Insights page used to dead-end on
-            <em>&ldquo;Memwal returned no matches for namespace
-            form-98146a…&rdquo;</em> — no form context, no next step, no
-            answer structure. Reworked four layers in one slice:
-            (1)&nbsp;<code>/api/insights/query</code> now resolves the
-            <strong>form title</strong> from Walrus metadata and returns a
-            <code>recommendation</code> enum
-            (<code>submit_to_populate</code> ·
-            <code>decrypt_failed</code> · <code>wait_for_memwal</code> ·
+            <em
+              >&ldquo;Memwal returned no matches for namespace
+              form-98146a…&rdquo;</em
+            >
+            — no form context, no next step, no answer structure. Reworked four
+            layers in one slice: (1)&nbsp;<code>/api/insights/query</code> now
+            resolves the <strong>form title</strong> from Walrus metadata and
+            returns a <code>recommendation</code> enum (<code
+              >submit_to_populate</code
+            >
+            · <code>decrypt_failed</code> · <code>wait_for_memwal</code> ·
             <code>region_blocked</code>) alongside an
-            <strong>on-chain event count</strong>;
-            (2)&nbsp;the model call switched from
-            <code>generateText</code> to <code>generateObject</code> with
-            a Zod schema, returning prose <em>plus</em>
-            <strong>themes</strong> (label · count · sentiment) and
-            <strong>citations</strong> (verbatim quotes keyed by
-            submission id); (3)&nbsp;new
-            <code>/api/insights/suggest</code> route samples a form&rsquo;s
-            memories and prompts gpt-4o-mini for <strong>3 form-aware
-            questions</strong> shown above the hardcoded prompts under a
-            &ldquo;For this form&rdquo; header; (4)&nbsp;new
+            <strong>on-chain event count</strong>; (2)&nbsp;the model call
+            switched from <code>generateText</code> to
+            <code>generateObject</code> with a Zod schema, returning prose
+            <em>plus</em> <strong>themes</strong> (label · count · sentiment)
+            and <strong>citations</strong> (verbatim quotes keyed by submission
+            id); (3)&nbsp;new <code>/api/insights/suggest</code> route samples a
+            form&rsquo;s memories and prompts gpt-4o-mini for
+            <strong>3 form-aware questions</strong> shown above the hardcoded
+            prompts under a &ldquo;For this form&rdquo; header; (4)&nbsp;new
             <code>InsightAnswer</code> component renders three variants —
-            empty-state card with form title + &ldquo;Open form admin&rdquo;
-            + copy-link CTAs, structured answer with clickable
+            empty-state card with form title + &ldquo;Open form admin&rdquo; +
+            copy-link CTAs, structured answer with clickable
             <code>[0xabc…]</code> citation chips that scroll to the matching
-            row, plain fallback for legacy responses. Hero copy is
-            untouched.
+            row, plain fallback for legacy responses. Hero copy is untouched.
           </p>
         </article>
 
@@ -542,21 +654,24 @@
             <time datetime="2026-05-13">2026-05-13</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
-          <h3>Triage multi-view — Table · Kanban · Heatmap · Contributors · Insights</h3>
+          <h3>
+            Triage multi-view — Table · Kanban · Heatmap · Contributors ·
+            Insights
+          </h3>
           <p>
             The flat 32-row triage list was &ldquo;rối quá&rdquo; — every row
             looked identical, no analysis, no namespace concept. Added a
-            view-switcher pill above the queue and four new lenses on the
-            same submissions data: a 5-column <strong>Kanban</strong>
+            view-switcher pill above the queue and four new lenses on the same
+            submissions data: a 5-column <strong>Kanban</strong>
             grouped by status with click-to-cycle cards (tier-colored left
             stripe + identicon avatars), a 52-week × 7-day GitHub-style
             <strong>Heatmap</strong> with intensity scaling on submission
-            counts, a <strong>Contributors</strong> leaderboard with
-            gradient identicons + per-tier breakdown chips and animated
-            bar fills, and an <strong>Insights</strong> board of preset
-            Memwal RAG prompts that deep-link to <code>/insights</code>.
-            All views share the same TanStack cache and react to the
-            existing filters (search · status · form · submitter type).
+            counts, a <strong>Contributors</strong> leaderboard with gradient
+            identicons + per-tier breakdown chips and animated bar fills, and an
+            <strong>Insights</strong> board of preset Memwal RAG prompts that
+            deep-link to <code>/insights</code>. All views share the same
+            TanStack cache and react to the existing filters (search · status ·
+            form · submitter type).
           </p>
         </article>
 
@@ -565,22 +680,24 @@
             <time datetime="2026-05-12">2026-05-12</time>
             <span class="log-tag" data-tag="fix">fix</span>
           </header>
-          <h3>Submissions = 0 + lag — unify queryEvents + drop redundant aurora</h3>
+          <h3>
+            Submissions = 0 + lag — unify queryEvents + drop redundant aurora
+          </h3>
           <p>
             After the KPI strip mounted above the triage queue, submissions
-            count dropped to <strong>0</strong> even though 7 forms loaded.
-            Root cause: KpiStrip&apos;s local <code>queryEvents</code> used
-            a <code>MoveEventField</code>-only filter while CrossFormDashboard
-            used the proven <code>All&nbsp;[MoveEventType + MoveEventField]</code>
-            shape. KpiStrip ran first → its broken queryFn populated the
-            shared cache with empty data → CrossFormDashboard read 0 from
-            cache. Exported <code>queryEventsByFormId</code> + the
-            <code>SubmissionEvent</code> type from CrossFormDashboard,
-            replaced the local copy in KpiStrip. Both components now share
-            one queryFn implementation as well as one cache. Also dropped
-            the second AuroraBlur shader on the KPI section (the hero
-            already runs one) — two simultaneous WebGL canvases were the
-            source of the lag.
+            count dropped to <strong>0</strong> even though 7 forms loaded. Root
+            cause: KpiStrip&apos;s local <code>queryEvents</code> used a
+            <code>MoveEventField</code>-only filter while CrossFormDashboard
+            used the proven
+            <code>All&nbsp;[MoveEventType + MoveEventField]</code> shape.
+            KpiStrip ran first → its broken queryFn populated the shared cache
+            with empty data → CrossFormDashboard read 0 from cache. Exported
+            <code>queryEventsByFormId</code> + the
+            <code>SubmissionEvent</code> type from CrossFormDashboard, replaced
+            the local copy in KpiStrip. Both components now share one queryFn
+            implementation as well as one cache. Also dropped the second
+            AuroraBlur shader on the KPI section (the hero already runs one) —
+            two simultaneous WebGL canvases were the source of the lag.
           </p>
         </article>
 
@@ -592,17 +709,17 @@
           <h3>KPI tile typography — fix invisible numbers + breathing room</h3>
           <p>
             The shimmer text idiom (<code>background-clip:text</code> +
-            <code>color: transparent</code> + <code>var(--color-foreground)</code>
-            gradient stops) was rendering the big KPI numbers invisible —
-            tiles looked empty except for labels and sublines.
-            Replaced with solid <code>text-foreground</code> using a clamp
-            scale (<code>clamp(2.25rem,3vw,3.25rem)</code>) that matches
+            <code>color: transparent</code> +
+            <code>var(--color-foreground)</code> gradient stops) was rendering
+            the big KPI numbers invisible — tiles looked empty except for labels
+            and sublines. Replaced with solid <code>text-foreground</code> using
+            a clamp scale (<code>clamp(2.25rem,3vw,3.25rem)</code>) that matches
             the homepage&apos;s typographic rhythm, plus a subtle accent
             text-shadow for the tier-color glow. Tile padding bumped
-            <code>p-4 → p-6</code>, internal gap <code>gap-3 → gap-5</code>,
-            and the 30-day chart card&apos;s heading row now uses
-            <em>font-serif</em> on the SubmissionMade reference to match
-            the homepage italic idiom. Numbers stop clipping.
+            <code>p-4 → p-6</code>, internal gap <code>gap-3 → gap-5</code>, and
+            the 30-day chart card&apos;s heading row now uses
+            <em>font-serif</em> on the SubmissionMade reference to match the
+            homepage italic idiom. Numbers stop clipping.
           </p>
         </article>
 
@@ -617,15 +734,16 @@
             site to the rest of Echo. Aligned it: dropped the
             <code>#F2F2F0</code> editorial bg for the homepage&apos;s
             <code>bg-background</code> + <code>AuroraBlur</code> shader idiom,
-            switched headline to a <code>clamp(2.25rem,6vw,5.5rem)</code> three-line
-            triplet with a <code>font-serif</code> italic accent on the last
-            line (matching MarketingHero&apos;s &ldquo;belongs to you.&rdquo;
-            moment), and removed the now-redundant <code>dark</code> wrapper
-            (default theme already is dark). The hero is locked at this look
-            in memory. Bento tiles got a creative pass: stronger tier-tinted
-            gradients (60% → 80% opacity), spring hover-lift, tier-color
-            <code>--tile-glow</code> shadow on hover, and a conic ribbon
-            border that breathes on hover.
+            switched headline to a
+            <code>clamp(2.25rem,6vw,5.5rem)</code> three-line triplet with a
+            <code>font-serif</code> italic accent on the last line (matching
+            MarketingHero&apos;s &ldquo;belongs to you.&rdquo; moment), and
+            removed the now-redundant <code>dark</code> wrapper (default theme
+            already is dark). The hero is locked at this look in memory. Bento
+            tiles got a creative pass: stronger tier-tinted gradients (60% → 80%
+            opacity), spring hover-lift, tier-color
+            <code>--tile-glow</code> shadow on hover, and a conic ribbon border
+            that breathes on hover.
           </p>
         </article>
 
@@ -636,17 +754,20 @@
           </header>
           <h3>Unify dashboard query keys + respect Demo admin toggle</h3>
           <p>
-            Visitors browsing with Demo admin ON saw triage queue load 7
-            forms while the KPI strip + Bento above said
-            &ldquo;0 / No forms yet&rdquo; — they were querying separate cache
-            keys with the wallet address instead of the demo address.
-            Routed both the KPI strip and BentoDashboard through
+            Visitors browsing with Demo admin ON saw triage queue load 7 forms
+            while the KPI strip + Bento above said &ldquo;0 / No forms
+            yet&rdquo; — they were querying separate cache keys with the wallet
+            address instead of the demo address. Routed both the KPI strip and
+            BentoDashboard through
             <code>useDemoAdminMode()</code> + substituted
-            <code>DEMO_ADMIN_ADDRESS</code> when the toggle is on, and
-            unified all three components on the same TanStack key
-            <code>[&ldquo;echo&rdquo;, &ldquo;dashboard-forms&rdquo;, ownerAddress, demoMode]</code>
-            so one fetch feeds the entire page (down from three duplicated
-            RPC round-trips per load).
+            <code>DEMO_ADMIN_ADDRESS</code> when the toggle is on, and unified
+            all three components on the same TanStack key
+            <code
+              >[&ldquo;echo&rdquo;, &ldquo;dashboard-forms&rdquo;, ownerAddress,
+              demoMode]</code
+            >
+            so one fetch feeds the entire page (down from three duplicated RPC
+            round-trips per load).
           </p>
         </article>
 
@@ -655,21 +776,23 @@
             <time datetime="2026-05-12">2026-05-12</time>
             <span class="log-tag" data-tag="feat">feat</span>
           </header>
-          <h3>Dashboard KPI tiles — react-bits aurora + spotlight + shimmer + glow chart</h3>
+          <h3>
+            Dashboard KPI tiles — react-bits aurora + spotlight + shimmer + glow
+            chart
+          </h3>
           <p>
             Took the operator-console KPI strip from clean-but-flat to alive:
             mounted the <code>react-bits</code> AuroraBlur shader behind the
             tiles (toned-down Walrus palette — steel-blue / violet / faint
-            emerald / amber, 50% opacity, 4px blur) so the dark zone has
-            ambient dimensionality. Each tile gets a tone-matched
-            cursor-tracked spotlight (radial gradient follows the mouse),
-            a conic-gradient ribbon that breathes on hover, and a
-            <code>drop-shadow</code> on the icon in its tile's accent color.
-            Big numbers now shimmer once on mount via a background-clip
-            text gradient sweep. The 30-day chart line rides a Gaussian
-            glow filter and the card border wears a slow rotating conic
-            ribbon. Bundle stays at 8.57 kB / 350 kB First Load (the
-            shader chunk is shared with the marketing hero).
+            emerald / amber, 50% opacity, 4px blur) so the dark zone has ambient
+            dimensionality. Each tile gets a tone-matched cursor-tracked
+            spotlight (radial gradient follows the mouse), a conic-gradient
+            ribbon that breathes on hover, and a <code>drop-shadow</code> on the
+            icon in its tile's accent color. Big numbers now shimmer once on
+            mount via a background-clip text gradient sweep. The 30-day chart
+            line rides a Gaussian glow filter and the card border wears a slow
+            rotating conic ribbon. Bundle stays at 8.57 kB / 350 kB First Load
+            (the shader chunk is shared with the marketing hero).
           </p>
         </article>
 
@@ -680,20 +803,20 @@
           </header>
           <h3>Dashboard audit — one overview and a dark operator console</h3>
           <p>
-            Deep-audit pass exposed three competing overviews
-            (LivePreviewCard + SwissBentoOverview + BentoDashboard hero) all
-            showing the same numbers in three palettes — that&apos;s why it felt
+            Deep-audit pass exposed three competing overviews (LivePreviewCard +
+            SwissBentoOverview + BentoDashboard hero) all showing the same
+            numbers in three palettes — that&apos;s why it felt
             <em>kho chiu</em>. Replaced with one cohesive surface: editorial
             hero (brand chrome) then dark operator console below. New
             <code>DashboardKpiStrip</code>: four live tiles (Submissions 24h Δ,
-            Open forms, Bounty TVL, Awaiting decrypt) feeding the cached
-            queries already running in CrossFormDashboard, plus a real
-            30-day submissions area chart driven by on-chain SubmissionMade
-            events (not the prior fake form-created-ms bucket). Forced dark
-            on the interior so the palette stops flickering warm → light →
-            dark on scroll. Bumped every <code>text-[10px]/[9px]</code> to
-            <code>text-xs</code> in the triage queue and added dark
-            variants to every chip. Full audit at
+            Open forms, Bounty TVL, Awaiting decrypt) feeding the cached queries
+            already running in CrossFormDashboard, plus a real 30-day
+            submissions area chart driven by on-chain SubmissionMade events (not
+            the prior fake form-created-ms bucket). Forced dark on the interior
+            so the palette stops flickering warm → light → dark on scroll.
+            Bumped every <code>text-[10px]/[9px]</code> to
+            <code>text-xs</code> in the triage queue and added dark variants to
+            every chip. Full audit at
             <code>plans/reports/deep-260512-dashboard-uiux-audit.md</code>.
           </p>
         </article>
@@ -707,13 +830,14 @@
           <p>
             Replaced the dense-but-flat bento tiles with bklit-style chart
             primitives: 5-segment <code>TierDonut</code> with center label,
-            horizontal <code>SubmissionsBarList</code> ranked across every
-            form (color = tier), and a <code>MiniBars</code> distribution
-            sparkline at the bottom of the hero counter. Labels bumped
-            <code>text-xs → text-sm</code>, titles <code>text-xl → text-2xl</code>,
-            and the no-wallet empty state now shows a teaser donut + sample
-            data so newcomers see the product&apos;s shape before signing in.
-            Pure SVG/CSS — zero new deps, donut and bar list animate on mount.
+            horizontal <code>SubmissionsBarList</code> ranked across every form
+            (color = tier), and a <code>MiniBars</code> distribution sparkline
+            at the bottom of the hero counter. Labels bumped
+            <code>text-xs → text-sm</code>, titles
+            <code>text-xl → text-2xl</code>, and the no-wallet empty state now
+            shows a teaser donut + sample data so newcomers see the
+            product&apos;s shape before signing in. Pure SVG/CSS — zero new
+            deps, donut and bar list animate on mount.
           </p>
         </article>
 
@@ -724,15 +848,14 @@
           </header>
           <h3>Echo-branded dashboard hero — WalrusBlobs + live preview</h3>
           <p>
-            Differentiated the editorial hero from a literal Synex port:
-            swapped the hosted stone PNGs for inline-SVG <code>WalrusBlob</code>
-            shapes (steel-blue encrypted base, amber decrypted reveal on
-            hover, faint data-grid texture), added a third backdrop blob
-            for depth, and replaced the small CTA pill with a live preview
-            card rising centrally — three real on-chain stats (forms,
-            submissions, encrypted) with odometer count-ups. Copy now
-            names the actual Echo value props: zero-gas submit, Seal
-            end-to-end, walletless option.
+            Differentiated the editorial hero from a literal Synex port: swapped
+            the hosted stone PNGs for inline-SVG <code>WalrusBlob</code>
+            shapes (steel-blue encrypted base, amber decrypted reveal on hover,
+            faint data-grid texture), added a third backdrop blob for depth, and
+            replaced the small CTA pill with a live preview card rising
+            centrally — three real on-chain stats (forms, submissions,
+            encrypted) with odometer count-ups. Copy now names the actual Echo
+            value props: zero-gas submit, Seal end-to-end, walletless option.
           </p>
         </article>
 
@@ -744,12 +867,12 @@
           <h3>Editorial Synex-style onboarding hero for /dashboard</h3>
           <p>
             Mounted a full-bleed photoreal-stones intro above the bento grid:
-            warm paper background, Inter Tight display type, mossy
-            hover-reveal stones, and a live pill showing
+            warm paper background, Inter Tight display type, mossy hover-reveal
+            stones, and a live pill showing
             <em>N forms · M submissions · K open</em>. Renames the misplaced
-            per-form hero into a generic <code>EditorialHero</code> and
-            removes the unused <code>BentoAdmin</code>; per-form admin keeps
-            its dense detail-panel layout.
+            per-form hero into a generic <code>EditorialHero</code> and removes
+            the unused <code>BentoAdmin</code>; per-form admin keeps its dense
+            detail-panel layout.
           </p>
         </article>
 

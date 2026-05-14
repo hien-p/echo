@@ -41,7 +41,13 @@ interface OnChainForm {
   unlock_ms?: string;
 }
 
-const TIER_NAMES = ["Public", "Admin only", "Threshold", "Time-locked", "Conditional"];
+const TIER_NAMES = [
+  "Public",
+  "Admin only",
+  "Threshold",
+  "Time-locked",
+  "Conditional",
+];
 const TIER_COLORS = ["#0A0A0A", "#4DA2FF", "#A06EE9", "#6CD3D6", "#E8A540"];
 
 function useAdminShell(formId: string) {
@@ -111,10 +117,22 @@ function TierDot({ tier }: { tier: number }) {
 function StatusTag({ status }: { status: number }) {
   const cfg =
     status === 1
-      ? { bg: "var(--echo-success-bg)", color: "var(--echo-success)", label: "open" }
+      ? {
+          bg: "var(--echo-success-bg)",
+          color: "var(--echo-success)",
+          label: "open",
+        }
       : status === 2
-        ? { bg: "var(--echo-rail-2)", color: "var(--echo-mut)", label: "closed" }
-        : { bg: "var(--echo-rail-2)", color: "var(--echo-mut-2)", label: "archived" };
+        ? {
+            bg: "var(--echo-rail-2)",
+            color: "var(--echo-mut)",
+            label: "closed",
+          }
+        : {
+            bg: "var(--echo-rail-2)",
+            color: "var(--echo-mut-2)",
+            label: "archived",
+          };
   return (
     <span
       style={{
@@ -174,9 +192,7 @@ function BlobChip({
       >
         {blob.length > 22 ? `${blob.slice(0, 10)}…${blob.slice(-6)}` : blob}
       </span>
-      {href && (
-        <span style={{ fontSize: 9, color: "var(--echo-mut)" }}>↗</span>
-      )}
+      {href && <span style={{ fontSize: 9, color: "var(--echo-mut)" }}>↗</span>}
     </Tag>
   );
 }
@@ -223,12 +239,16 @@ function HeroShelf({ formId }: { formId: string }) {
     return null;
   }, [data, tier]);
 
-  const aggregator = clientConfig.WALRUS_NETWORK === "mainnet"
-    ? "https://aggregator.walrus.mainnet.walrus.space"
-    : "https://aggregator.walrus-testnet.walrus.space";
+  const aggregator =
+    clientConfig.WALRUS_NETWORK === "mainnet"
+      ? "https://aggregator.walrus.mainnet.walrus.space"
+      : "https://aggregator.walrus-testnet.walrus.space";
 
   return (
-    <section className="echo-section" style={{ background: "var(--echo-paper)" }}>
+    <section
+      className="echo-section"
+      style={{ background: "var(--echo-paper)" }}
+    >
       <div className="echo-container" style={{ paddingBlock: "32px 40px" }}>
         <Link
           href="/forms"
@@ -286,7 +306,9 @@ function HeroShelf({ formId }: { formId: string }) {
                 textWrap: "balance" as never,
               }}
             >
-              {shell.isLoading ? "Loading admin…" : data?.title ?? "(metadata unavailable)"}
+              {shell.isLoading
+                ? "Loading admin…"
+                : (data?.title ?? "(metadata unavailable)")}
             </motion.h1>
             {data?.description && (
               <p
@@ -310,7 +332,9 @@ function HeroShelf({ formId }: { formId: string }) {
                 marginBottom: 14,
               }}
             >
-              {tier !== 0 && <TrustChip icon="🔒">end-to-end encrypted</TrustChip>}
+              {tier !== 0 && (
+                <TrustChip icon="🔒">end-to-end encrypted</TrustChip>
+              )}
               {tier !== 0 && <TrustChip icon="◆">sealed by Seal</TrustChip>}
               <TrustChip icon="●">stored on Walrus</TrustChip>
               <TrustChip icon="∞">settled on Sui</TrustChip>
@@ -360,7 +384,11 @@ function HeroShelf({ formId }: { formId: string }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              transition={{
+                duration: 0.9,
+                delay: 0.2,
+                ease: [0.22, 1, 0.36, 1],
+              }}
               className="ff-bobble"
             >
               <WalrusMascot pose="salute" size={120} />

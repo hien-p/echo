@@ -85,7 +85,9 @@ function useFormsData() {
       });
       const caps = owned.objects as unknown as OwnedCap[];
       const formIds = Array.from(
-        new Set(caps.map((c) => c.json?.form_id).filter((id): id is string => !!id)),
+        new Set(
+          caps.map((c) => c.json?.form_id).filter((id): id is string => !!id),
+        ),
       );
       if (formIds.length === 0) return [];
       const formObjs = await suiClient.getObjects({
@@ -129,7 +131,8 @@ function useFormsData() {
   const submissionsQuery = useQuery({
     queryKey: ["echo", "dashboard-submissions", formIdsKey],
     queryFn: async () => {
-      if (forms.length === 0) return [] as Array<{ formId: string; submittedAtMs: number }>;
+      if (forms.length === 0)
+        return [] as Array<{ formId: string; submittedAtMs: number }>;
       const eventType = `${packageId}::submission::SubmissionMade`;
       const fullnodeUrl = clientConfig.SUI_FULLNODE_URL;
       const perForm = await Promise.all(
@@ -197,7 +200,9 @@ function useFormsData() {
     const openForms = forms.filter((f) => f.onChain.status === 1).length;
     const closedForms = forms.filter((f) => f.onChain.status === 2).length;
     const draftForms = 0;
-    const subs7dThis = subs.filter((s) => s.submittedAtMs > now - 7 * dayMs).length;
+    const subs7dThis = subs.filter(
+      (s) => s.submittedAtMs > now - 7 * dayMs,
+    ).length;
     const subs7dLast = subs.filter(
       (s) =>
         s.submittedAtMs <= now - 7 * dayMs &&
@@ -207,7 +212,8 @@ function useFormsData() {
 
     // Mapped form rows with derived stats
     const rows = forms.map((f) => {
-      const counts = countsByForm.get(f.id) ?? Number(f.onChain.submission_count ?? 0);
+      const counts =
+        countsByForm.get(f.id) ?? Number(f.onChain.submission_count ?? 0);
       const spark = spark15ByForm.get(f.id) ?? new Array(buckets).fill(0);
       const formSubs = subs.filter((x) => x.formId === f.id);
       const latest = formSubs.length
@@ -370,10 +376,7 @@ function MonoLabel({
   color?: string;
 }) {
   return (
-    <span
-      className="echo-mono"
-      style={{ fontSize: size, color }}
-    >
+    <span className="echo-mono" style={{ fontSize: size, color }}>
       {children}
     </span>
   );
@@ -394,7 +397,8 @@ function BrutalistInk({
   aurora?: boolean;
   onClick?: () => void;
 }) {
-  const pads = size === "sm" ? "8px 14px" : size === "lg" ? "16px 24px" : "12px 18px";
+  const pads =
+    size === "sm" ? "8px 14px" : size === "lg" ? "16px 24px" : "12px 18px";
   const fontSize = size === "sm" ? 11 : size === "lg" ? 13 : 12;
   const bg = aurora
     ? "var(--echo-aurora-plate)"
@@ -442,7 +446,9 @@ function FramePill({
         style={{
           width: 6,
           height: 6,
-          background: active ? "var(--echo-paper)" : dotColor ?? "var(--echo-ink)",
+          background: active
+            ? "var(--echo-paper)"
+            : (dotColor ?? "var(--echo-ink)"),
           display: "inline-block",
         }}
       />
@@ -454,7 +460,9 @@ function FramePill({
             fontVariantNumeric: "tabular-nums",
             fontSize: 10,
             padding: "2px 6px",
-            background: active ? "rgba(255,255,255,0.18)" : "var(--echo-rail-2)",
+            background: active
+              ? "rgba(255,255,255,0.18)"
+              : "var(--echo-rail-2)",
             color: active ? "var(--echo-paper)" : "var(--echo-ink)",
             borderRadius: 999,
             letterSpacing: 0,
@@ -626,7 +634,10 @@ function StatusTag({ status }: { status: "open" | "closed" | "draft" }) {
 function HeroShelf() {
   const data = useFormsCtx();
   return (
-    <section className="echo-section" style={{ background: "var(--echo-paper)" }}>
+    <section
+      className="echo-section"
+      style={{ background: "var(--echo-paper)" }}
+    >
       <div
         className="echo-container"
         style={{
@@ -789,7 +800,11 @@ function KpiStrip() {
         className="echo-container"
         style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}
       >
-        <KpiTile label="Total forms" value={kpis.totalForms} sub={`${kpis.draftForms} drafts · ${kpis.openForms} open`} />
+        <KpiTile
+          label="Total forms"
+          value={kpis.totalForms}
+          sub={`${kpis.draftForms} drafts · ${kpis.openForms} open`}
+        />
         <KpiTile
           label="Total submissions"
           value={kpis.totalSubmissions}
@@ -797,7 +812,11 @@ function KpiStrip() {
           sub="across every form"
           spark={aggregateSpark}
         />
-        <KpiTile label="Open now" value={kpis.openForms} sub="accepting submissions" />
+        <KpiTile
+          label="Open now"
+          value={kpis.openForms}
+          sub="accepting submissions"
+        />
         <KpiTile
           label="Bounty TVL"
           value={kpis.bountySui}
@@ -838,7 +857,9 @@ function KpiTile({
         minHeight: 220,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+      <div
+        style={{ display: "flex", justifyContent: "space-between", gap: 12 }}
+      >
         <MonoLabel size={11}>{label}</MonoLabel>
         {delta !== undefined && delta !== 0 && <DeltaChip value={delta} />}
       </div>
@@ -858,7 +879,12 @@ function KpiTile({
         </MonoLabel>
         {spark && (
           <span style={{ width: 80 }}>
-            <Sparkline data={spark} height={22} accent="#0A0A0A" fillFrom="#0A0A0A" />
+            <Sparkline
+              data={spark}
+              height={22}
+              accent="#0A0A0A"
+              fillFrom="#0A0A0A"
+            />
           </span>
         )}
       </div>
@@ -868,7 +894,9 @@ function KpiTile({
 
 function FormsList() {
   const data = useFormsCtx();
-  const [status, setStatus] = useState<"all" | "open" | "closed" | "draft">("all");
+  const [status, setStatus] = useState<"all" | "open" | "closed" | "draft">(
+    "all",
+  );
   const [tierFilter, setTierFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"recent" | "subs">("recent");
 
@@ -917,7 +945,14 @@ function FormsList() {
             >
               the catalog.
             </h2>
-            <p style={{ margin: 0, color: "var(--echo-mut)", fontSize: 14, maxWidth: 460 }}>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--echo-mut)",
+                fontSize: 14,
+                maxWidth: 460,
+              }}
+            >
               Click any form to open its admin view. Drafts publish in one
               transaction.
             </p>
@@ -1263,7 +1298,9 @@ function FormCardTile({ form, delay = 0 }: { form: FormRow; delay?: number }) {
             gap: 12,
           }}
         >
-          <div style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+          <div
+            style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}
+          >
             <span
               style={{
                 fontFamily: "Inter, sans-serif",
@@ -1361,7 +1398,9 @@ function BottomBand() {
                 }}
               >
                 publish a form in{" "}
-                <span style={{ color: "var(--echo-mut)" }}>one transaction.</span>
+                <span style={{ color: "var(--echo-mut)" }}>
+                  one transaction.
+                </span>
               </h3>
               <p
                 style={{
@@ -1371,8 +1410,8 @@ function BottomBand() {
                   maxWidth: 460,
                 }}
               >
-                Drag-drop builder · 5 privacy tiers · gas-sponsored
-                submissions. Your wallet signs once. The object lives on chain.
+                Drag-drop builder · 5 privacy tiers · gas-sponsored submissions.
+                Your wallet signs once. The object lives on chain.
               </p>
               <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
                 <BrutalistInk href="/forms/new">create form</BrutalistInk>

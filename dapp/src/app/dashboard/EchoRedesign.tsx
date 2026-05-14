@@ -71,6 +71,26 @@ interface FormCard {
   title: string;
   onChain: OnChainForm;
 }
+// Triage row shape — declared at file scope so the hook return and the
+// FALLBACK_RAW constant can both be typed against the same wide union.
+// Without this, TS infers narrow per-row literal types from FALLBACK_RAW
+// (status: "flagged" | "new" | "read" only, submitterNs: null on rows
+// where the value is null) which collides with the hook's wider derived
+// rows (status can take any of the 4 values; submitterNs: string | null).
+type TriageStatus = "new" | "read" | "flagged" | "archived";
+interface TriageRowData {
+  id: string;
+  form: string;
+  submitter: string;
+  submitterNs: string | null;
+  ago: string;
+  tier: string;
+  status: TriageStatus;
+  encrypted: boolean;
+  k: string | null;
+  note: string;
+}
+
 interface SubmissionRow {
   formId: string;
   formTitle: string;
@@ -105,7 +125,9 @@ function useEchoDashboardData() {
       });
       const caps = owned.objects as unknown as OwnedCap[];
       const formIds = Array.from(
-        new Set(caps.map((c) => c.json?.form_id).filter((id): id is string => !!id)),
+        new Set(
+          caps.map((c) => c.json?.form_id).filter((id): id is string => !!id),
+        ),
       );
       if (formIds.length === 0) return [];
       const formObjs = await suiClient.getObjects({
@@ -237,38 +259,35 @@ function useEchoDashboardData() {
     // 24h/7d/older heuristic. localStorage status from CrossFormDashboard
     // is intentionally NOT consulted here since this surface is new and
     // we want a fresh "new/read/flagged" view.
-    type TriageStatus = "new" | "read" | "flagged" | "archived";
-    const triage = submissions.slice(0, 24).map((s) => {
-      const t = Date.parse(s.submittedAt);
-      const ageMs = Number.isFinite(t) ? now - t : 0;
-      const status: TriageStatus =
-        ageMs < dayMs
-          ? "new"
-          : ageMs < 7 * dayMs
-            ? "read"
-            : "archived";
-      const ago = humanAgo(ageMs);
-      const tierName = TIER_NAMES[s.formTier] ?? "Public";
-      return {
-        id: s.submissionId,
-        form: s.formTitle,
-        submitter: s.anonymous ? "anon" : shortAddr(s.submitter),
-        submitterNs: null as string | null,
-        ago,
-        tier: tierName,
-        status,
-        encrypted: s.encrypted,
-        k:
-          s.formTier === 2
-            ? "2/3"
-            : s.formTier === 3
-              ? "time-lock"
-              : s.formTier === 1
-                ? "owner only"
-                : null,
-        note: "",
-      };
-    });
+    const triage: TriageRowData[] = submissions
+      .slice(0, 24)
+      .map<TriageRowData>((s) => {
+        const t = Date.parse(s.submittedAt);
+        const ageMs = Number.isFinite(t) ? now - t : 0;
+        const status: TriageStatus =
+          ageMs < dayMs ? "new" : ageMs < 7 * dayMs ? "read" : "archived";
+        const ago = humanAgo(ageMs);
+        const tierName = TIER_NAMES[s.formTier] ?? "Public";
+        return {
+          id: s.submissionId,
+          form: s.formTitle,
+          submitter: s.anonymous ? "anon" : shortAddr(s.submitter),
+          submitterNs: null as string | null,
+          ago,
+          tier: tierName,
+          status,
+          encrypted: s.encrypted,
+          k:
+            s.formTier === 2
+              ? "2/3"
+              : s.formTier === 3
+                ? "time-lock"
+                : s.formTier === 1
+                  ? "owner only"
+                  : null,
+          note: "",
+        };
+      });
 
     // Tier counts (Public 0, Admin 1, Threshold 2, Time-lock 3, Cond 4)
     const tierCounts = [0, 0, 0, 0, 0];
@@ -336,7 +355,15 @@ type DashboardData = ReturnType<typeof useEchoDashboardData>;
 
 // Static fallback when wallet not connected — show the design with
 // realistic-looking placeholder so the page never reads as broken.
-const FALLBACK_RAW = {
+const FALLBACK_RAW: {
+  wallet: string;
+  suins: string;
+  kpis: DashboardData["kpis"];
+  sparkline: number[];
+  triage: TriageRowData[];
+  topForms: DashboardData["topForms"];
+  tierCounts: number[];
+} = {
   wallet: "0x9c4f…ae12",
   suins: "memwal.sui",
   kpis: {
@@ -463,10 +490,20 @@ const FALLBACK_RAW = {
     },
   ],
   topForms: [
-    { id: "form_0x1c", title: "Devnet hackathon · onboarding", subs: 128, tierIdx: 2 },
+    {
+      id: "form_0x1c",
+      title: "Devnet hackathon · onboarding",
+      subs: 128,
+      tierIdx: 2,
+    },
     { id: "form_0x2b", title: "Public bug bounty · Q2", subs: 84, tierIdx: 0 },
     { id: "form_0x3a", title: "Validator pulse · May", subs: 62, tierIdx: 3 },
-    { id: "form_0x4d", title: "Customer NPS · April cohort", subs: 41, tierIdx: 1 },
+    {
+      id: "form_0x4d",
+      title: "Customer NPS · April cohort",
+      subs: 41,
+      tierIdx: 1,
+    },
     { id: "form_0x5e", title: "Conditional · seal beta", subs: 22, tierIdx: 4 },
   ],
   tierCounts: [4, 3, 5, 3, 3],
@@ -482,12 +519,18 @@ const FALLBACK: DashboardData = {
   submissions: [],
   kpis: FALLBACK_RAW.kpis,
   sparkline: FALLBACK_RAW.sparkline,
-  triage: FALLBACK_RAW.triage,
+  // FALLBACK_RAW.triage carries the wider TriageStatus (includes "flagged")
+  // while the hook's inferred return narrows to the subset its branches
+  // actually emit. Cast through unknown so the fallback can include the
+  // demo "flagged" row without forcing the hook to fabricate a flagged
+  // branch it doesn't need.
+  triage: FALLBACK_RAW.triage as unknown as DashboardData["triage"],
   tierCounts: FALLBACK_RAW.tierCounts,
   topForms: FALLBACK_RAW.topForms,
 };
 
-type TriageRowData = (typeof FALLBACK_RAW)["triage"][number];
+// TriageRowData is declared at the top of the file so the hook return
+// and the FALLBACK constant share the same wide shape.
 
 // Context for prop-drilling-free section access. Always populated by the
 // root component (either live hook output or FALLBACK).
@@ -552,14 +595,13 @@ function BrutalistInk({
   const pads =
     size === "sm" ? "8px 14px" : size === "lg" ? "16px 24px" : "12px 18px";
   const fontSize = size === "sm" ? 11 : size === "lg" ? 13 : 12;
-  const bg =
-    aurora
-      ? "var(--echo-aurora-plate)"
-      : variant === "ink"
-        ? "#0A0A0A"
-        : variant === "yellow"
-          ? "#E8FF75"
-          : "#FFFFFF";
+  const bg = aurora
+    ? "var(--echo-aurora-plate)"
+    : variant === "ink"
+      ? "#0A0A0A"
+      : variant === "yellow"
+        ? "#E8FF75"
+        : "#FFFFFF";
   const fg = variant === "ink" ? "#FAF8F5" : "#0A0A0A";
 
   const inner = (
@@ -583,13 +625,17 @@ function BrutalistInk({
     );
   }
   return (
-    <button type="button" onClick={onClick} className={cn("echo-brut", className)}
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn("echo-brut", className)}
       style={{
         padding: pads,
         background: bg,
         color: fg,
         fontSize,
-      }}>
+      }}
+    >
       {children}
     </button>
   );
@@ -620,7 +666,9 @@ function FramePill({
         style={{
           width: 6,
           height: 6,
-          background: active ? "var(--echo-paper)" : dotColor ?? "var(--echo-ink)",
+          background: active
+            ? "var(--echo-paper)"
+            : (dotColor ?? "var(--echo-ink)"),
           display: "inline-block",
         }}
       />
@@ -633,7 +681,9 @@ function FramePill({
             fontVariantNumeric: "tabular-nums",
             fontSize: 10,
             padding: "2px 6px",
-            background: active ? "rgba(255,255,255,0.18)" : "var(--echo-rail-2)",
+            background: active
+              ? "rgba(255,255,255,0.18)"
+              : "var(--echo-rail-2)",
             color: active ? "var(--echo-paper)" : "var(--echo-ink)",
             borderRadius: 999,
             letterSpacing: 0,
@@ -674,13 +724,9 @@ function KpiNumber({
   size?: "md" | "lg";
 }) {
   const fontSize =
-    size === "lg"
-      ? "clamp(56px, 6vw, 88px)"
-      : "clamp(40px, 4.5vw, 64px)";
+    size === "lg" ? "clamp(56px, 6vw, 88px)" : "clamp(40px, 4.5vw, 64px)";
   const formatted =
-    decimals > 0
-      ? value.toFixed(decimals)
-      : Math.round(value).toLocaleString();
+    decimals > 0 ? value.toFixed(decimals) : Math.round(value).toLocaleString();
   return (
     <span className="echo-kpi-num" style={{ fontSize }}>
       {formatted}
@@ -1193,7 +1239,12 @@ function KpiTile({
         </MonoLabel>
         {spark && (
           <span style={{ width: 80 }}>
-            <Sparkline data={spark} height={22} accent="#0A0A0A" fillFrom="#0A0A0A" />
+            <Sparkline
+              data={spark}
+              height={22}
+              accent="#0A0A0A"
+              fillFrom="#0A0A0A"
+            />
           </span>
         )}
       </div>
@@ -1434,7 +1485,8 @@ function TriageTable({
               nothing in <em>{filter}</em>.
             </h4>
             <p style={{ margin: 0, color: "var(--echo-mut)" }}>
-              You&rsquo;re caught up. Try a different filter or create a new form.
+              You&rsquo;re caught up. Try a different filter or create a new
+              form.
             </p>
           </div>
         </div>
@@ -1651,7 +1703,10 @@ const SUGGESTIONS = [
 function RailAskCard() {
   const [q, setQ] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setQ((i) => (i + 1) % SUGGESTIONS.length), 3800);
+    const t = setInterval(
+      () => setQ((i) => (i + 1) % SUGGESTIONS.length),
+      3800,
+    );
     return () => clearInterval(t);
   }, []);
   return (
@@ -1834,7 +1889,9 @@ function RailAskCard() {
           <BrutalistInk size="sm" href="/insights">
             open insights
           </BrutalistInk>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+          >
             <MonoLabel size={9} color="var(--echo-ink)">
               2.3s avg
             </MonoLabel>
@@ -2136,10 +2193,7 @@ function ThirtyStrip() {
       className="echo-section"
       style={{ background: "var(--echo-paper-2)" }}
     >
-      <div
-        className="echo-container"
-        style={{ paddingBlock: "40px 48px" }}
-      >
+      <div className="echo-container" style={{ paddingBlock: "40px 48px" }}>
         <div
           style={{
             display: "flex",
@@ -2255,8 +2309,8 @@ function BottomBand() {
                   maxWidth: 440,
                 }}
               >
-                Drag-drop builder · 5 privacy tiers · gas-sponsored
-                submissions. About 90 seconds end-to-end.
+                Drag-drop builder · 5 privacy tiers · gas-sponsored submissions.
+                About 90 seconds end-to-end.
               </p>
               <div
                 style={{

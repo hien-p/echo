@@ -393,9 +393,7 @@ export function AnimatedDelta({
           </span>
         )}
       </div>
-      {label && (
-        <span className="text-sm text-muted-foreground">{label}</span>
-      )}
+      {label && <span className="text-sm text-muted-foreground">{label}</span>}
     </div>
   );
 

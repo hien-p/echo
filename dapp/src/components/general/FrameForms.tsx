@@ -27,7 +27,13 @@
 
 import Image from "next/image";
 import * as React from "react";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 
@@ -180,7 +186,8 @@ export function BrutalistButton({
     aurora
       ? "text-foreground"
       : "bg-background text-foreground hover:bg-foreground hover:text-background",
-    disabled && "cursor-not-allowed opacity-50 hover:translate-x-0 hover:translate-y-0",
+    disabled &&
+      "cursor-not-allowed opacity-50 hover:translate-x-0 hover:translate-y-0",
     className,
   );
 
@@ -283,13 +290,7 @@ export function SuiDroplet({ size = 12 }: { size?: number }) {
         fill="url(#ff-sui-droplet-g)"
       />
       <defs>
-        <linearGradient
-          id="ff-sui-droplet-g"
-          x1="0"
-          y1="0"
-          x2="0"
-          y2="40"
-        >
+        <linearGradient id="ff-sui-droplet-g" x1="0" y1="0" x2="0" y2="40">
           <stop offset="0" stopColor="#6FBCF0" />
           <stop offset="1" stopColor="#2B7DD9" />
         </linearGradient>

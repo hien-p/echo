@@ -55,11 +55,11 @@ export function WalrusBlob({
   // and centered, sitting lower behind the H1.
   const heightCls = isBack
     ? "h-[180px] sm:h-[220px] md:h-[280px]"
-    : "h-[260px] sm:h-[340px] md:h-[440px] lg:h-[520px]";
+    : "h-[220px] sm:h-[300px] md:h-[380px] lg:h-[450px]";
 
   const widthCls = isBack
     ? "w-[440px] sm:w-[540px] md:w-[680px]"
-    : "w-[420px] sm:w-[520px] md:w-[640px] lg:w-[760px]";
+    : "w-[380px] sm:w-[480px] md:w-[580px] lg:w-[680px]";
 
   const sideCls =
     side === "left"
@@ -67,6 +67,7 @@ export function WalrusBlob({
       : side === "right"
         ? "right-0 origin-bottom-right"
         : "left-1/2 -translate-x-1/2 origin-bottom";
+  const bottomCls = isBack ? "-bottom-6" : "-bottom-10";
 
   const initialX = side === "left" ? -40 : side === "right" ? 40 : 0;
 
@@ -79,8 +80,8 @@ export function WalrusBlob({
       initial={{ opacity: 0, x: initialX }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.9, delay, ease: "easeOut" }}
-      className={`pointer-events-auto absolute bottom-0 ${sideCls} ${widthCls} ${heightCls} cursor-crosshair`}
-      style={{ zIndex: isBack ? 0 : side === "left" ? 1 : 4 }}
+      className={`pointer-events-auto absolute ${bottomCls} ${sideCls} ${widthCls} ${heightCls} cursor-crosshair`}
+      style={{ zIndex: isBack ? 1 : 3 }}
     >
       <BlobSvg variant="encrypted" side={side} isBack={isBack} />
       <motion.div
@@ -147,7 +148,11 @@ function BlobSvg({
             stopColor={isEncrypted ? "#7BB3D9" : "#FFE7B8"}
             stopOpacity="0.7"
           />
-          <stop offset="100%" stopColor={isEncrypted ? "#1F3A52" : "#D98E4F"} stopOpacity="0" />
+          <stop
+            offset="100%"
+            stopColor={isEncrypted ? "#1F3A52" : "#D98E4F"}
+            stopOpacity="0"
+          />
         </radialGradient>
       </defs>
       <g transform={transform}>

@@ -95,8 +95,8 @@ export function TrustChip() {
                   Echo&rsquo;s trust model
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Four layers, each independently verifiable. None can read
-                  your encrypted data on its own.
+                  Four layers, each independently verifiable. None can read your
+                  encrypted data on its own.
                 </p>
               </div>
             </div>
