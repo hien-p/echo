@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { CountUp } from "./CountUp";
 import { useDemoAdminMode } from "./DemoAdminToggle";
 import { queryEventsByFormId } from "./CrossFormDashboard";
+import { AuroraPlate, SuiDroplet } from "./FrameForms";
 import { AreaChart } from "@/components/charts/area-chart";
 import { Area } from "@/components/charts/area";
 import { Grid } from "@/components/charts/grid";
@@ -362,11 +363,18 @@ export function DashboardKpiStrip() {
 
   if (!ownerAddress) {
     return (
-      <div className="rounded-sm border border-foreground/15 bg-card/40 p-8 text-center">
-        <p className="text-base text-muted-foreground">
-          Connect a wallet, or toggle <span className="font-medium">Demo admin</span> in the nav to load live operator metrics.
-        </p>
-      </div>
+      <AuroraPlate pose="primary" className="min-h-[200px] p-8">
+        <div className="flex max-w-[460px] flex-col gap-3">
+          <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/70">
+            <SuiDroplet size={10} /> Live operator metrics
+          </span>
+          <p className="text-base leading-relaxed text-foreground/80">
+            Connect a wallet, or toggle{" "}
+            <span className="font-medium text-foreground">Demo admin</span> in
+            the nav to load live operator metrics.
+          </p>
+        </div>
+      </AuroraPlate>
     );
   }
 

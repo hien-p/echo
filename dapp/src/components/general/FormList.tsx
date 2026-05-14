@@ -1,14 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
-import { Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { clientConfig } from "@/config/clientConfig";
 import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 import { useDemoAdminMode } from "./DemoAdminToggle";
 import { TimeLockBadge } from "./TimeLockBadge";
 import { SuiNSName } from "./SuiNSName";
+import {
+  AuroraPlate,
+  BrutalistButton,
+  Reveal,
+  SuiDroplet,
+  WalrusMascot,
+} from "./FrameForms";
 
 interface OwnedCap {
   objectId: string;
@@ -97,17 +105,36 @@ export const FormList = () => {
 
   if (!ownerAddress) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Connect a wallet to see your forms.
-      </p>
+      <AuroraPlate pose="salute" className="min-h-[280px] p-8 sm:p-10">
+        <div className="flex max-w-[440px] flex-col gap-4">
+          <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/70">
+            <SuiDroplet size={10} /> Built on Sui
+          </span>
+          <h2 className="text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl">
+            Connect a wallet to see your forms.
+          </h2>
+          <p className="text-sm leading-relaxed text-foreground/70">
+            Echo reads your FormOwnerCap holdings directly from chain. No
+            account creation, no backend session.
+          </p>
+        </div>
+      </AuroraPlate>
     );
   }
   if (formsQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>;
+    return (
+      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+        <span
+          aria-hidden="true"
+          className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-foreground"
+        />
+        Loading forms from chain…
+      </div>
+    );
   }
   if (formsQuery.error) {
     return (
-      <p className="text-sm text-destructive">
+      <p className="rounded-sm border border-destructive/40 bg-destructive/5 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-destructive">
         {(formsQuery.error as Error).message}
       </p>
     );
@@ -115,40 +142,75 @@ export const FormList = () => {
   const forms = formsQuery.data ?? [];
   if (forms.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        No forms yet.{" "}
-        <Link className="underline" href="/forms/new">
-          Create one
-        </Link>
-        .
-      </p>
+      <AuroraPlate pose="peace" className="min-h-[320px] p-8 sm:p-10">
+        <div className="flex max-w-[440px] flex-col gap-4">
+          <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/70">
+            <Sparkles size={10} /> Brand new
+          </span>
+          <h2 className="text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl">
+            No forms yet — let&rsquo;s ship the first.
+          </h2>
+          <p className="text-sm leading-relaxed text-foreground/70">
+            Walrus-native schema, Seal-encrypted submissions, gas sponsored.
+            About 90 seconds end-to-end.
+          </p>
+          <div className="pt-2">
+            <BrutalistButton href="/forms/new" aurora size="md">
+              Create the first form
+              <ArrowRight size={12} strokeWidth={2.5} />
+            </BrutalistButton>
+          </div>
+        </div>
+      </AuroraPlate>
     );
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-5">
       {demoMode && (
-        <p className="inline-flex items-start gap-2 rounded-sm border border-foreground/40 bg-background px-3 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/85">
-          <Sparkles size={11} className="mt-0.5 shrink-0" />
-          <span className="normal-case tracking-normal text-sm font-normal text-muted-foreground">
-            Showing forms owned by the demo address (
-            <code className="font-mono text-foreground">
-              {demoAddress.slice(0, 10)}…{demoAddress.slice(-4)}
-            </code>
-            ). Server-side decrypt is enabled for these.
-          </span>
-        </p>
+        <Reveal>
+          <div className="flex items-start gap-3 rounded-sm border border-foreground/40 bg-background px-4 py-3">
+            <WalrusMascot pose="salute" size={36} className="-mt-0.5 shrink-0" />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/85">
+                Demo admin · server-side decrypt enabled
+              </span>
+              <span className="text-sm text-muted-foreground">
+                Showing forms owned by{" "}
+                <code className="font-mono text-foreground">
+                  {demoAddress.slice(0, 10)}…{demoAddress.slice(-4)}
+                </code>
+                .
+              </span>
+            </div>
+          </div>
+        </Reveal>
       )}
       <ul className="flex flex-col divide-y divide-foreground/10 border-y border-foreground/15">
-        {forms.map((f) => (
-          <li
+        {forms.map((f, idx) => (
+          <motion.li
             key={f.id}
-            className="group flex flex-col gap-1.5 px-3 py-3 transition-colors hover:bg-foreground/[0.035]"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: 0.45,
+              delay: 0.04 * idx,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            whileHover={{ x: 3 }}
+            className="group relative flex flex-col gap-1.5 px-3 py-3 transition-colors hover:bg-foreground/[0.035]"
           >
+            {/* Sui Sea Blue accent rail revealed on hover — the
+                single brand-color moment per row. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0 top-1/2 h-[60%] -translate-y-1/2 -translate-x-[3px] rounded-r-sm bg-[var(--ff-sui-sea)] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              style={{ width: 3 }}
+            />
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <Link
                 href={`/forms/${f.id}/admin`}
-                className="text-base font-medium text-foreground hover:underline"
+                className="ff-focus rounded-sm text-base font-medium text-foreground hover:underline"
               >
                 {f.title}
               </Link>
@@ -173,16 +235,38 @@ export const FormList = () => {
               )}
               <span className="ml-auto normal-case tracking-normal">
                 <Link
-                  className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground/55 hover:text-foreground hover:underline"
+                  className="ff-focus inline-flex items-center gap-1 rounded-sm font-mono text-[10px] uppercase tracking-[0.16em] text-foreground/55 transition-all hover:gap-2 hover:text-foreground"
                   href={`/forms/${f.id}`}
                 >
-                  public link →
+                  public link <ArrowRight size={10} />
                 </Link>
               </span>
             </div>
-          </li>
+          </motion.li>
         ))}
       </ul>
+      {/* Sticky brutalist "Create another" CTA — the on-chain commit
+          moment for the /forms list. Walrus salute + aurora gradient
+          on hover keep the brand active without crowding the list. */}
+      <Reveal delay={120} className="pt-1">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-sm border border-foreground/15 bg-card/40 px-4 py-4">
+          <div className="flex items-center gap-3">
+            <WalrusMascot pose="salute" size={44} bobble />
+            <div className="flex flex-col">
+              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/70">
+                Need another?
+              </span>
+              <span className="text-sm text-foreground">
+                Sign &amp; publish a new schema to Walrus in under a minute.
+              </span>
+            </div>
+          </div>
+          <BrutalistButton href="/forms/new" aurora>
+            Create form
+            <ArrowRight size={12} strokeWidth={2.5} />
+          </BrutalistButton>
+        </div>
+      </Reveal>
     </div>
   );
 };

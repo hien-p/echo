@@ -32,6 +32,7 @@ import {
   MiniBars,
 } from "./BentoCharts";
 import { useDemoAdminMode } from "./DemoAdminToggle";
+import { AuroraPlate, BrutalistButton, SuiDroplet } from "./FrameForms";
 
 /**
  * Apple-bento-style overview that lives ABOVE the dense
@@ -234,28 +235,26 @@ export function BentoDashboard() {
 
   if (forms.length === 0) {
     return (
-      <div className="flex flex-col gap-6 rounded-sm border-2 border-dashed border-border bg-muted/20 p-12 text-center">
-        <Sparkles
-          size={28}
-          className="mx-auto text-muted-foreground"
-          strokeWidth={1.5}
-        />
-        <div className="flex flex-col gap-2">
-          <h2 className="text-2xl font-medium tracking-tight text-foreground">
-            No forms yet
+      <AuroraPlate pose="haulout" className="min-h-[320px] p-8 sm:p-10">
+        <div className="flex max-w-[420px] flex-col gap-4">
+          <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/70">
+            <SuiDroplet size={10} /> Built on Sui
+          </span>
+          <h2 className="text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl">
+            Your dashboard is waiting on its first form.
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Create your first form to start collecting feedback. Drag-drop
-            builder, 5 privacy tiers, gas-sponsored submissions.
+          <p className="text-sm leading-relaxed text-foreground/70">
+            Drag-drop builder, 5 privacy tiers, gas-sponsored submissions —
+            about 90 seconds end to end.
           </p>
+          <div className="pt-2">
+            <BrutalistButton href="/forms/new" aurora size="md">
+              <Plus size={14} strokeWidth={2.5} />
+              Create your first form
+            </BrutalistButton>
+          </div>
         </div>
-        <Link
-          href="/forms/new"
-          className="mx-auto inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background transition hover:opacity-90"
-        >
-          <Plus size={16} /> Create your first form
-        </Link>
-      </div>
+      </AuroraPlate>
     );
   }
 
