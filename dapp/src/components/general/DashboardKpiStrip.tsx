@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { CountUp } from "./CountUp";
 import { useDemoAdminMode } from "./DemoAdminToggle";
 import { queryEventsByFormId } from "./CrossFormDashboard";
-import { AuroraPlate, SuiDroplet } from "./FrameForms";
+import { AuroraPlate, SuiDroplet, WalrusMascot } from "./FrameForms";
 import { AreaChart } from "@/components/charts/area-chart";
 import { Area } from "@/components/charts/area";
 import { Grid } from "@/components/charts/grid";
@@ -649,13 +649,20 @@ function Submissions30dChart({
       className="relative flex flex-col gap-5 overflow-hidden rounded-sm border border-foreground/15 bg-card/60 p-6 backdrop-blur sm:p-7"
     >
       <div className="relative flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            Submissions · last 30 days
-          </span>
-          <span className="text-sm text-muted-foreground">
-            From <em className="font-serif">SubmissionMade</em> events on Sui
-          </span>
+        <div className="flex items-center gap-3">
+          <WalrusMascot
+            pose="primary"
+            size={56}
+            className="shrink-0 hidden sm:block"
+          />
+          <div className="flex flex-col gap-1.5">
+            <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              <SuiDroplet size={10} /> Submissions · last 30 days
+            </span>
+            <span className="text-sm text-muted-foreground">
+              From <em className="font-serif">SubmissionMade</em> events on Sui
+            </span>
+          </div>
         </div>
         <div className="flex items-baseline gap-2.5">
           <span

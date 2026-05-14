@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ArrowRight, GripVertical, Plus, Sparkles, Trash2 } from "lucide-react";
 import { apiUrl, clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import {
@@ -33,6 +33,12 @@ import { executeSponsored } from "@/lib/echo/sponsor";
 import { uploadJsonViaPublisher } from "@/lib/echo/walrus";
 import { resolveNameToAddress } from "@/lib/echo/suins";
 import { FormPreview } from "./FormPreview";
+import {
+  AuroraPlate,
+  BrutalistButton,
+  SuiDroplet,
+  WalrusMascot,
+} from "./FrameForms";
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "short_text", label: "Short text" },
@@ -841,45 +847,81 @@ export const FormBuilder = () => {
               </div>
             </BuilderSection>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               <TierBadge
                 tier={tier}
                 requiredK={requiredApprovals}
                 totalAdmins={1 + resolvedAdmins.filter((r) => r.address).length}
                 unlockMs={unlockMs}
               />
-              <button
-                className={cn(
-                  "border rounded px-4 py-2 font-medium",
-                  currentAccount && status.kind !== "saving"
-                    ? "bg-foreground text-background hover:opacity-90"
-                    : "opacity-60 cursor-not-allowed",
-                )}
-                onClick={() => void handleSave()}
-                type="button"
-                disabled={!currentAccount || status.kind === "saving"}
-              >
-                {status.kind === "saving"
-                  ? status.step
-                  : currentAccount
-                    ? "Save form"
-                    : "Connect wallet to save"}
-              </button>
+              {/* On-chain commit moment — brutalist + aurora per Frame
+                  Forms rules. The Sui droplet eyebrow tells the user
+                  what they're about to sign. */}
+              <div className="flex flex-col gap-2 rounded-sm border border-foreground/15 bg-card/40 p-4">
+                <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/70">
+                  <SuiDroplet size={10} /> Sign &amp; publish on Sui
+                </span>
+                <span className="text-sm leading-relaxed text-muted-foreground">
+                  Schema + metadata upload to Walrus, then the Form anchors
+                  blob IDs + owner cap on chain. Gas is sponsored.
+                </span>
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <BrutalistButton
+                    aurora={!!currentAccount && status.kind !== "saving"}
+                    onClick={() => void handleSave()}
+                    disabled={!currentAccount || status.kind === "saving"}
+                    title={
+                      currentAccount
+                        ? "Sign the create_form transaction"
+                        : "Connect a wallet to sign"
+                    }
+                  >
+                    {status.kind === "saving"
+                      ? status.step
+                      : currentAccount
+                        ? "Sign & publish"
+                        : "Connect wallet to sign"}
+                    {status.kind !== "saving" && currentAccount && (
+                      <ArrowRight size={12} strokeWidth={2.5} />
+                    )}
+                  </BrutalistButton>
+                  {currentAccount && status.kind === "saving" && (
+                    <WalrusMascot pose="salute" size={36} bobble />
+                  )}
+                </div>
+              </div>
               {!packageDeployed && (
-                <p className="text-xs text-amber-600">
-                  ⚠ NEXT_PUBLIC_ECHO_PACKAGE_ID is not set yet. Deploy the Move
-                  package via <code>publish/</code> and add the resulting object
-                  ID to <code>dapp/.env</code> to enable on-chain saves.
+                <p className="rounded-sm border border-warning/40 bg-warning/5 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-warning">
+                  NEXT_PUBLIC_ECHO_PACKAGE_ID is not set yet. Deploy the Move
+                  package via <code className="font-mono">publish/</code>{" "}
+                  and add the object ID to{" "}
+                  <code className="font-mono">dapp/.env</code> to enable
+                  on-chain saves.
                 </p>
               )}
               {status.kind === "error" && (
-                <p className="text-sm text-destructive">{status.message}</p>
+                <p className="rounded-sm border border-destructive/40 bg-destructive/5 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-destructive">
+                  {status.message}
+                </p>
               )}
               {status.kind === "saved" && (
-                <p className="text-sm text-emerald-700">
-                  ✓ Form created. Redirecting to{" "}
-                  <code>/forms/{status.formId.slice(0, 10)}…</code>
-                </p>
+                <AuroraPlate
+                  pose="peace"
+                  intensity="soft"
+                  className="p-5"
+                >
+                  <div className="flex max-w-[440px] flex-col gap-2">
+                    <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/70">
+                      <SuiDroplet size={10} /> Form created on chain
+                    </span>
+                    <span className="text-base font-medium text-foreground">
+                      Redirecting to{" "}
+                      <code className="font-mono text-sm">
+                        /forms/{status.formId.slice(0, 10)}…
+                      </code>
+                    </span>
+                  </div>
+                </AuroraPlate>
               )}
             </div>
           </>
@@ -1312,40 +1354,43 @@ function AiGeneratePanel({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group flex items-center justify-between gap-3 rounded-xl border border-violet-300/40 bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/40 dark:to-blue-950/40 dark:border-violet-700/40 p-4 text-left transition hover:border-violet-400 hover:from-violet-100 hover:to-blue-100 dark:hover:from-violet-900/60 dark:hover:to-blue-900/60"
+        className="group ff-focus flex items-center justify-between gap-3 rounded-sm border border-foreground/15 bg-card/60 p-4 text-left transition hover:border-foreground/40 hover:bg-card"
       >
         <span className="flex items-center gap-3">
-          <Sparkles
-            size={18}
-            className="text-violet-600 dark:text-violet-400"
-          />
-          <span className="flex flex-col">
-            <span className="font-semibold text-foreground">
-              ✨ Generate with AI
+          <WalrusMascot pose="monogram" size={40} className="shrink-0" />
+          <span className="flex flex-col gap-0.5">
+            <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/70">
+              <Sparkles size={10} /> Generate with AI
+            </span>
+            <span className="text-sm font-medium text-foreground">
+              Start from a prompt
             </span>
             <span className="text-xs text-muted-foreground">
               Describe the feedback you want — we&apos;ll write the questions.
             </span>
           </span>
         </span>
-        <span className="text-violet-600 dark:text-violet-400 transition group-hover:translate-x-0.5">
-          →
-        </span>
+        <ArrowRight
+          size={14}
+          className="text-foreground/55 transition-transform group-hover:translate-x-1 group-hover:text-foreground"
+        />
       </button>
     );
   }
 
   const generating = status.kind === "generating";
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-violet-300/40 bg-gradient-to-br from-violet-50 to-blue-50 dark:from-violet-950/40 dark:to-blue-950/40 dark:border-violet-700/40 p-4">
+    <div className="flex flex-col gap-3 rounded-sm border border-foreground/15 bg-card/60 p-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Sparkles
-            size={16}
-            className="text-violet-600 dark:text-violet-400"
+        <div className="flex items-center gap-2.5">
+          <WalrusMascot
+            pose="monogram"
+            size={32}
+            bobble={generating}
+            className="shrink-0"
           />
-          <span className="font-semibold text-foreground">
-            ✨ Generate with AI
+          <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/80">
+            <Sparkles size={10} /> Generate with AI
           </span>
         </div>
         <button
@@ -1354,9 +1399,9 @@ function AiGeneratePanel({
             setOpen(false);
             setStatus({ kind: "idle" });
           }}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="ff-focus rounded-sm font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground hover:text-foreground"
         >
-          collapse
+          Collapse
         </button>
       </div>
       <textarea
@@ -1364,37 +1409,34 @@ function AiGeneratePanel({
         onChange={(e) => setPrompt(e.target.value)}
         placeholder="Describe the feedback you want to collect…"
         rows={3}
-        className="w-full resize-y rounded-lg border bg-background/60 px-3 py-2 text-sm leading-relaxed outline-none focus:border-violet-400"
+        className="ff-focus w-full resize-y rounded-sm border border-foreground/25 bg-background px-3 py-2.5 text-sm leading-relaxed outline-none focus:border-foreground/60"
         disabled={generating}
       />
-      <div className="flex flex-wrap items-center gap-2 text-[11px]">
-        <span className="text-muted-foreground">Try:</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+          Try
+        </span>
         {examples.map((ex) => (
           <button
             key={ex}
             type="button"
             onClick={() => setPrompt(ex)}
             disabled={generating}
-            className="rounded-full border border-violet-300/40 dark:border-violet-700/40 bg-background/40 px-2.5 py-1 text-muted-foreground hover:bg-background hover:text-foreground"
+            className="ff-focus rounded-sm border border-foreground/20 bg-background px-2.5 py-1 text-[11px] text-muted-foreground transition hover:border-foreground/45 hover:bg-foreground/[0.04] hover:text-foreground disabled:opacity-50"
           >
             {ex.slice(0, 36)}…
           </button>
         ))}
       </div>
       <div className="flex items-center gap-3">
-        <button
-          type="button"
+        <BrutalistButton
+          aurora={!!prompt.trim() && !generating}
           onClick={() => void generate(prompt.trim())}
           disabled={!prompt.trim() || generating}
-          className={cn(
-            "rounded-full px-5 py-2 text-sm font-semibold shadow-md transition",
-            !prompt.trim() || generating
-              ? "cursor-not-allowed bg-muted text-muted-foreground shadow-none"
-              : "bg-violet-600 text-white shadow-violet-500/20 hover:bg-violet-500",
-          )}
+          size="sm"
         >
           {generating ? "Generating…" : "Generate form"}
-        </button>
+        </BrutalistButton>
         <span className="text-[11px] text-muted-foreground">
           Replaces current title / description / fields. Continue in the visual
           editor after.

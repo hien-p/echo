@@ -32,7 +32,12 @@ import {
   MiniBars,
 } from "./BentoCharts";
 import { useDemoAdminMode } from "./DemoAdminToggle";
-import { AuroraPlate, BrutalistButton, SuiDroplet } from "./FrameForms";
+import {
+  AuroraPlate,
+  BrutalistButton,
+  SuiDroplet,
+  WalrusMascot,
+} from "./FrameForms";
 
 /**
  * Apple-bento-style overview that lives ABOVE the dense
@@ -270,8 +275,8 @@ export function BentoDashboard() {
         <div className="flex h-full flex-col justify-between gap-6 p-8">
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-1.5">
-              <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-                Total submissions
+              <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                <SuiDroplet size={10} /> Total submissions · live from Sui
               </span>
               <span className="text-base text-muted-foreground">
                 across every form you own
@@ -349,11 +354,19 @@ export function BentoDashboard() {
       >
         <Link
           href="/forms/new"
-          className="group flex h-full flex-col justify-between gap-4 p-6"
+          className="group relative flex h-full flex-col justify-between gap-4 overflow-hidden p-6"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-              Quick action
+          {/* Walrus salute peeks in from the bottom-right corner — the
+              character moment that signals "this is the on-chain step." */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-6 -right-4 opacity-90 transition-transform duration-500 group-hover:translate-x-[-4px] group-hover:translate-y-[-2px]"
+          >
+            <WalrusMascot pose="salute" size={140} />
+          </div>
+          <div className="relative flex items-center justify-between">
+            <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              <SuiDroplet size={10} /> Quick action
             </span>
             <FileEdit
               size={20}
@@ -361,17 +374,18 @@ export function BentoDashboard() {
               className="text-foreground/65"
             />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="relative flex flex-col gap-1">
             <span className="text-3xl font-medium tracking-tight text-foreground">
               Build a new form
             </span>
             <span className="text-base text-muted-foreground">
-              Drag-drop · 5 templates · ✨ AI generator
+              Drag-drop · 5 templates · AI generator
             </span>
           </div>
-          <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background transition group-hover:gap-2.5">
-            Open builder <ArrowRight size={15} />
-          </span>
+          <BrutalistButton aurora className="relative self-start">
+            Open builder
+            <ArrowRight size={12} strokeWidth={2.5} />
+          </BrutalistButton>
         </Link>
       </BentoTile>
 
