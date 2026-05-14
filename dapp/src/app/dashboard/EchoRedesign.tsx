@@ -29,16 +29,314 @@
  */
 
 import Link from "next/link";
+import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
+import { useQuery } from "@tanstack/react-query";
+import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
+import { clientConfig } from "@/config/clientConfig";
+import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 import { WalrusMascot } from "@/components/general/FrameForms";
+import { queryEventsByFormId } from "@/components/general/CrossFormDashboard";
+import { useDemoAdminMode } from "@/components/general/DemoAdminToggle";
 import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────────
-// Mock data — replace with TanStack hooks in follow-up
+// Real-data hooks — share TanStack query cache with the prior
+// dashboard chain (CrossFormDashboard / DashboardKpiStrip) so the
+// new surface doesn't fetch twice. Query keys are kept identical
+// to those components for dedupe.
 // ─────────────────────────────────────────────────────────────────
 
-const DATA = {
+interface OnChainForm {
+  metadata_blob_id: string;
+  privacy_tier: number;
+  status: number;
+  submission_count?: string;
+  threshold_n?: number;
+  threshold_m?: number;
+}
+interface OwnedCap {
+  objectId: string;
+  json: { form_id?: string };
+}
+interface SubmissionRefJson {
+  payload_blob_id: string;
+  submitted_ms: string;
+  submitter: string;
+  commitment: number[];
+}
+interface FormCard {
+  id: string;
+  title: string;
+  onChain: OnChainForm;
+}
+interface SubmissionRow {
+  formId: string;
+  formTitle: string;
+  formTier: number;
+  submissionId: string;
+  submitter: string;
+  anonymous: boolean;
+  submittedAt: string;
+  payloadBlobId: string;
+  encrypted: boolean;
+}
+
+function useEchoDashboardData() {
+  const account = useCurrentAccount();
+  const dAppKit = useDAppKit();
+  const suiClient = dAppKit.getClient();
+  const packageId = clientConfig.ECHO_PACKAGE_ID;
+  const demoMode = useDemoAdminMode();
+  const demoAddress = clientConfig.DEMO_ADMIN_ADDRESS;
+  const ownerAddress = demoMode ? demoAddress : account?.address;
+
+  const formsQuery = useQuery({
+    queryKey: ["echo", "dashboard-forms", ownerAddress, demoMode],
+    queryFn: async (): Promise<FormCard[]> => {
+      if (!ownerAddress) return [];
+      const capType = `${packageId}::form::FormOwnerCap`;
+      const owned = await suiClient.listOwnedObjects({
+        owner: ownerAddress,
+        type: capType,
+        include: { json: true },
+        limit: 200,
+      });
+      const caps = owned.objects as unknown as OwnedCap[];
+      const formIds = Array.from(
+        new Set(caps.map((c) => c.json?.form_id).filter((id): id is string => !!id)),
+      );
+      if (formIds.length === 0) return [];
+      const formObjs = await suiClient.getObjects({
+        objectIds: formIds,
+        include: { json: true },
+      });
+      const network = clientConfig.WALRUS_NETWORK;
+      const items = await Promise.all(
+        formObjs.objects.map(async (obj) => {
+          const asUnknown = obj as unknown as Record<string, unknown>;
+          if ("error" in asUnknown) return null;
+          const fobj = obj as unknown as {
+            objectId: string;
+            json: OnChainForm;
+          };
+          let title = "(metadata unavailable)";
+          try {
+            const meta = await readJsonViaAggregator<FormMetadata>(
+              fobj.json.metadata_blob_id,
+              { network },
+            );
+            title = meta.title;
+          } catch {
+            /* keep fallback */
+          }
+          return { id: fobj.objectId, onChain: fobj.json, title };
+        }),
+      );
+      return items.filter((x): x is FormCard => x !== null);
+    },
+    enabled: !!ownerAddress && packageId.startsWith("0x"),
+    staleTime: 30_000,
+  });
+
+  const forms = useMemo(() => formsQuery.data ?? [], [formsQuery.data]);
+  const formIdsKey = forms.map((f) => f.id).join(",");
+
+  const submissionsQuery = useQuery({
+    queryKey: ["echo", "dashboard-submissions", formIdsKey],
+    queryFn: async (): Promise<SubmissionRow[]> => {
+      if (forms.length === 0) return [];
+      const eventType = `${packageId}::submission::SubmissionMade`;
+      const fullnodeUrl = clientConfig.SUI_FULLNODE_URL;
+      const perForm = await Promise.all(
+        forms.map(async (form) => {
+          const events = await queryEventsByFormId(
+            fullnodeUrl,
+            eventType,
+            form.id,
+          );
+          if (events.length === 0) return [] as SubmissionRow[];
+          const subObjs = await suiClient.getObjects({
+            objectIds: events.map((e) => e.submission_id),
+            include: { json: true },
+          });
+          const byId = new Map<string, SubmissionRefJson>();
+          for (const obj of subObjs.objects as unknown as Array<{
+            objectId: string;
+            json?: SubmissionRefJson;
+          }>) {
+            if (obj.json) byId.set(obj.objectId, obj.json);
+          }
+          return events.map((e): SubmissionRow => {
+            const ref = byId.get(e.submission_id);
+            return {
+              formId: form.id,
+              formTitle: form.title,
+              formTier: form.onChain.privacy_tier,
+              submissionId: e.submission_id,
+              submitter: e.submitter,
+              anonymous: e.anonymous,
+              submittedAt: ref
+                ? new Date(Number(ref.submitted_ms)).toISOString()
+                : "(unknown)",
+              payloadBlobId: ref?.payload_blob_id ?? "",
+              encrypted: form.onChain.privacy_tier !== 0,
+            };
+          });
+        }),
+      );
+      const flat = perForm.flat();
+      flat.sort(
+        (a, b) =>
+          (Date.parse(b.submittedAt) || 0) - (Date.parse(a.submittedAt) || 0),
+      );
+      return flat;
+    },
+    enabled: forms.length > 0,
+    staleTime: 15_000,
+  });
+
+  const submissions = useMemo(
+    () => submissionsQuery.data ?? [],
+    [submissionsQuery.data],
+  );
+
+  // ─── Derive everything the redesign needs ───
+  return useMemo(() => {
+    // 24h delta
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const subs24h = submissions.filter(
+      (s) => Date.parse(s.submittedAt) > now - dayMs,
+    ).length;
+    const subs48h = submissions.filter((s) => {
+      const t = Date.parse(s.submittedAt);
+      return t > now - 2 * dayMs && t <= now - dayMs;
+    }).length;
+    const delta24h = subs24h - subs48h;
+
+    const openForms = forms.filter((f) => f.onChain.status === 1).length;
+    const totalForms = forms.length;
+    const awaitingDecrypt = submissions.filter(
+      (s) => s.encrypted && Date.parse(s.submittedAt) > now - 7 * dayMs,
+    ).length;
+
+    // 30-day sparkline (oldest first, last bucket = today)
+    const buckets = 30;
+    const sparkline = new Array(buckets).fill(0) as number[];
+    const start = now - buckets * dayMs;
+    for (const s of submissions) {
+      const t = Date.parse(s.submittedAt);
+      if (!Number.isFinite(t) || t < start || t > now) continue;
+      const idx = Math.min(buckets - 1, Math.floor((t - start) / dayMs));
+      sparkline[idx] = (sparkline[idx] ?? 0) + 1;
+    }
+
+    // Triage rows — map submissions newest-first, derive status per
+    // 24h/7d/older heuristic. localStorage status from CrossFormDashboard
+    // is intentionally NOT consulted here since this surface is new and
+    // we want a fresh "new/read/flagged" view.
+    type TriageStatus = "new" | "read" | "flagged" | "archived";
+    const triage = submissions.slice(0, 24).map((s) => {
+      const t = Date.parse(s.submittedAt);
+      const ageMs = Number.isFinite(t) ? now - t : 0;
+      const status: TriageStatus =
+        ageMs < dayMs
+          ? "new"
+          : ageMs < 7 * dayMs
+            ? "read"
+            : "archived";
+      const ago = humanAgo(ageMs);
+      const tierName = TIER_NAMES[s.formTier] ?? "Public";
+      return {
+        id: s.submissionId,
+        form: s.formTitle,
+        submitter: s.anonymous ? "anon" : shortAddr(s.submitter),
+        submitterNs: null as string | null,
+        ago,
+        tier: tierName,
+        status,
+        encrypted: s.encrypted,
+        k:
+          s.formTier === 2
+            ? "2/3"
+            : s.formTier === 3
+              ? "time-lock"
+              : s.formTier === 1
+                ? "owner only"
+                : null,
+        note: "",
+      };
+    });
+
+    // Tier counts (Public 0, Admin 1, Threshold 2, Time-lock 3, Cond 4)
+    const tierCounts = [0, 0, 0, 0, 0];
+    for (const f of forms) {
+      const t = f.onChain.privacy_tier;
+      if (t >= 0 && t < tierCounts.length) tierCounts[t]++;
+    }
+
+    // Top forms by on-chain submission_count
+    const topForms = [...forms]
+      .map((f) => ({
+        id: f.id,
+        title: f.title,
+        subs: Number(f.onChain.submission_count ?? 0),
+        tierIdx: f.onChain.privacy_tier,
+      }))
+      .sort((a, b) => b.subs - a.subs)
+      .slice(0, 5);
+
+    return {
+      ownerAddress: ownerAddress ?? null,
+      demoMode,
+      isLoading: formsQuery.isLoading || submissionsQuery.isLoading,
+      forms,
+      submissions,
+      kpis: {
+        subs24h,
+        delta24h,
+        openForms,
+        totalForms,
+        bountySui: 0, // wire bounty totals in a follow-up
+        pools: 0,
+        awaitingDecrypt,
+      },
+      sparkline,
+      triage,
+      tierCounts,
+      topForms,
+    };
+  }, [
+    forms,
+    submissions,
+    formsQuery.isLoading,
+    submissionsQuery.isLoading,
+    ownerAddress,
+    demoMode,
+  ]);
+}
+
+const TIER_NAMES = ["Public", "Admin", "Threshold", "Time-lock", "Cond."];
+
+function shortAddr(a: string): string {
+  if (!a || a === "anon" || !a.startsWith("0x")) return a;
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+function humanAgo(ms: number): string {
+  if (ms < 60_000) return `${Math.max(1, Math.floor(ms / 1000))}s`;
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
+  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
+  return `${Math.floor(ms / 86_400_000)}d`;
+}
+
+type DashboardData = ReturnType<typeof useEchoDashboardData>;
+
+// Static fallback when wallet not connected — show the design with
+// realistic-looking placeholder so the page never reads as broken.
+const FALLBACK_RAW = {
   wallet: "0x9c4f…ae12",
   suins: "memwal.sui",
   kpis: {
@@ -174,7 +472,27 @@ const DATA = {
   tierCounts: [4, 3, 5, 3, 3],
 };
 
-type TriageRowData = (typeof DATA)["triage"][number];
+// Shape compatible with both the hook output and FALLBACK_RAW so every
+// section can read from a single `data` value.
+const FALLBACK: DashboardData = {
+  ownerAddress: null,
+  demoMode: false,
+  isLoading: false,
+  forms: [],
+  submissions: [],
+  kpis: FALLBACK_RAW.kpis,
+  sparkline: FALLBACK_RAW.sparkline,
+  triage: FALLBACK_RAW.triage,
+  tierCounts: FALLBACK_RAW.tierCounts,
+  topForms: FALLBACK_RAW.topForms,
+};
+
+type TriageRowData = (typeof FALLBACK_RAW)["triage"][number];
+
+// Context for prop-drilling-free section access. Always populated by the
+// root component (either live hook output or FALLBACK).
+const DashboardContext = React.createContext<DashboardData>(FALLBACK);
+const useDashboard = () => React.useContext(DashboardContext);
 
 const TIER_PALETTE = [
   { name: "Public", color: "#0A0A0A" },
@@ -572,6 +890,7 @@ function PrivacyDonut({
 // ─────────────────────────────────────────────────────────────────
 
 function HeroShelf() {
+  const data = useDashboard();
   return (
     <section
       className="echo-section"
@@ -661,11 +980,11 @@ function HeroShelf() {
           </div>
           <MonoLabel size={10}>
             <strong style={{ color: "var(--echo-ink)", fontWeight: 600 }}>
-              {DATA.kpis.openForms}
+              {data.kpis.openForms}
             </strong>{" "}
             open ·{" "}
             <strong style={{ color: "var(--echo-ink)", fontWeight: 600 }}>
-              {DATA.kpis.totalForms}
+              {data.kpis.totalForms}
             </strong>{" "}
             total
             <span style={{ color: "#D6D6D6", margin: "0 10px" }}>·</span>
@@ -725,7 +1044,7 @@ function HeroShelf() {
             }}
           >
             <MonoLabel size={9} color="var(--echo-ink)">
-              +{DATA.kpis.delta24h} / 24h
+              +{data.kpis.delta24h} / 24h
             </MonoLabel>
           </div>
           {/* Bottom left floating chip */}
@@ -747,7 +1066,7 @@ function HeroShelf() {
           >
             <span style={{ width: 80, display: "inline-block" }}>
               <Sparkline
-                data={DATA.sparkline.slice(-14)}
+                data={data.sparkline.slice(-14)}
                 height={28}
                 accent="#0A0A0A"
                 fillFrom="#4DA2FF"
@@ -764,7 +1083,8 @@ function HeroShelf() {
 }
 
 function KpiStrip() {
-  const { kpis } = DATA;
+  const data = useDashboard();
+  const { kpis, sparkline } = data;
   return (
     <section
       className="echo-section"
@@ -782,7 +1102,7 @@ function KpiStrip() {
           value={kpis.subs24h}
           delta={kpis.delta24h}
           sub="vs previous 24h"
-          spark={DATA.sparkline.slice(-10)}
+          spark={sparkline.slice(-10)}
         />
         <KpiTile
           label="Open forms"
@@ -898,18 +1218,19 @@ function KpiTile({
 }
 
 function TriageSection() {
+  const data = useDashboard();
   const [filter, setFilter] = useState<
     "new" | "read" | "flagged" | "archived" | "all"
   >("new");
-  const filtered = DATA.triage.filter((r) =>
+  const filtered = data.triage.filter((r) =>
     filter === "all" ? true : r.status === filter,
   );
   const counts = useMemo(
     () => ({
-      new: DATA.triage.filter((r) => r.status === "new").length,
-      read: DATA.triage.filter((r) => r.status === "read").length,
-      flagged: DATA.triage.filter((r) => r.status === "flagged").length,
-      archived: DATA.triage.filter((r) => r.status === "archived").length,
+      new: data.triage.filter((r) => r.status === "new").length,
+      read: data.triage.filter((r) => r.status === "read").length,
+      flagged: data.triage.filter((r) => r.status === "flagged").length,
+      archived: data.triage.filter((r) => r.status === "archived").length,
     }),
     [],
   );
@@ -999,7 +1320,7 @@ function TriageSection() {
               <FramePill
                 active={filter === "all"}
                 onClick={() => setFilter("all")}
-                count={DATA.triage.length}
+                count={data.triage.length}
               >
                 all
               </FramePill>
@@ -1016,7 +1337,7 @@ function TriageSection() {
             }}
           >
             <MonoLabel size={9.5} color="var(--echo-mut)">
-              showing {filtered.length} of {DATA.triage.length} · click any row
+              showing {filtered.length} of {data.triage.length} · click any row
               to inspect on-chain
             </MonoLabel>
             <Link
@@ -1627,7 +1948,8 @@ function Bullet({
 }
 
 function RailPrivacyCard() {
-  const total = DATA.tierCounts.reduce((a, b) => a + b, 0);
+  const data = useDashboard();
+  const total = data.tierCounts.reduce((a, b) => a + b, 0);
   return (
     <div className="echo-card" style={{ padding: 22 }}>
       <div
@@ -1651,7 +1973,7 @@ function RailPrivacyCard() {
           alignItems: "center",
         }}
       >
-        <PrivacyDonut counts={DATA.tierCounts} size={140} thickness={18} />
+        <PrivacyDonut counts={data.tierCounts} size={140} thickness={18} />
         <ul
           style={{
             listStyle: "none",
@@ -1683,7 +2005,7 @@ function RailPrivacyCard() {
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
-                {DATA.tierCounts[i]}
+                {data.tierCounts[i]}
               </span>
             </li>
           ))}
@@ -1694,7 +2016,8 @@ function RailPrivacyCard() {
 }
 
 function RailTopFormsCard() {
-  const max = Math.max(...DATA.topForms.map((f) => f.subs));
+  const data = useDashboard();
+  const max = Math.max(...data.topForms.map((f) => f.subs), 1);
   return (
     <div className="echo-card" style={{ padding: 22 }}>
       <div
@@ -1730,7 +2053,7 @@ function RailTopFormsCard() {
           gap: 14,
         }}
       >
-        {DATA.topForms.map((f, idx) => (
+        {data.topForms.map((f, idx) => (
           <motion.li
             key={f.id}
             initial={{ opacity: 0, x: -6 }}
@@ -1806,7 +2129,8 @@ function RailTopFormsCard() {
 }
 
 function ThirtyStrip() {
-  const total = DATA.sparkline.reduce((a, b) => a + b, 0);
+  const data = useDashboard();
+  const total = data.sparkline.reduce((a, b) => a + b, 0);
   return (
     <section
       className="echo-section"
@@ -1853,7 +2177,7 @@ function ThirtyStrip() {
         </div>
         <div style={{ paddingTop: 4 }}>
           <Sparkline
-            data={DATA.sparkline}
+            data={data.sparkline}
             height={100}
             accent="#0A0A0A"
             fillFrom="#4DA2FF"
@@ -2143,15 +2467,25 @@ function Floater() {
 // ─────────────────────────────────────────────────────────────────
 
 export function EchoDashboardRedesign() {
+  const live = useEchoDashboardData();
+  // Use live data once a wallet (or demo) is connected AND something has
+  // resolved. Falls back to the design-spec placeholders before then so
+  // the page never reads as broken/loading-skeleton.
+  const data: DashboardData =
+    live.ownerAddress && (live.forms.length > 0 || !live.isLoading)
+      ? live
+      : FALLBACK;
   return (
-    <div className="echo-dashboard">
-      <HeroShelf />
-      <KpiStrip />
-      <TriageSection />
-      <ThirtyStrip />
-      <BottomBand />
-      <FooterRail />
-      <Floater />
-    </div>
+    <DashboardContext.Provider value={data}>
+      <div className="echo-dashboard">
+        <HeroShelf />
+        <KpiStrip />
+        <TriageSection />
+        <ThirtyStrip />
+        <BottomBand />
+        <FooterRail />
+        <Floater />
+      </div>
+    </DashboardContext.Provider>
   );
 }
