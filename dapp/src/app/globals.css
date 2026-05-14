@@ -309,6 +309,177 @@
   animation: ff-aurora-shimmer 8s ease-in-out infinite;
 }
 
+/* === Echo Dashboard redesign tokens (sourced from Claude Design
+   handoff `website-memwal/project/styles.css`). Used by the new
+   /dashboard composition only — namespaced --echo-* so they never
+   bleed into Tailwind utilities. */
+:root {
+  --echo-ink:       #0A0A0A;
+  --echo-paper:     #FFFFFF;
+  --echo-paper-2:   #FAFAF8;
+  --echo-rail:      #E5E5E5;
+  --echo-rail-2:    #F2F2F0;
+  --echo-mut:       #737373;
+  --echo-mut-2:     #A8A8A8;
+  --echo-sui-sea:   #4DA2FF;
+  --echo-sui-violet:#A06EE9;
+  --echo-mw-walrus: #6CD3D6;
+  --echo-mw-yellow: #E8FF75;
+  --echo-warn:      #B45309;
+  --echo-warn-bg:   #FFFBEB;
+  --echo-success:   #166534;
+  --echo-success-bg:#DCFCE7;
+  --echo-danger:    #B91C1C;
+  --echo-aurora-plate: linear-gradient(135deg, #4DA2FF 0%, #6CD3D6 35%, #A06EE9 70%, #F5B6E6 100%);
+  --echo-brut-shadow:    4px 4px 0 0 var(--echo-ink);
+  --echo-brut-shadow-sm: 3px 3px 0 0 var(--echo-ink);
+  --echo-brut-shadow-lg: 6px 6px 0 0 var(--echo-ink);
+}
+.dark {
+  --echo-paper:    #FAFAF8;
+  --echo-paper-2:  #FFFFFF;
+  /* Light scaffolding regardless of theme — this surface is intentionally
+     a white "magazine" page; dark mode parents are overridden inside the
+     scoped `.echo-dashboard` wrapper. */
+}
+
+/* Scoping wrapper — always paper, always ink. Forces a local light
+   palette so the Echo dashboard renders identically across themes. */
+.echo-dashboard {
+  background: var(--echo-paper);
+  color: var(--echo-ink);
+  font-feature-settings: "cv11", "ss01", "ss03";
+}
+.echo-dashboard a { color: inherit; text-decoration: none; }
+.echo-dashboard em {
+  font-family: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Container — Frame's 1440px max with hairline vertical rails. */
+.echo-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding-inline: 56px;
+  border-inline: 1px solid var(--echo-rail);
+  position: relative;
+}
+@media (max-width: 1100px) { .echo-container { padding-inline: 32px; } }
+@media (max-width: 720px)  { .echo-container { padding-inline: 20px; border-inline: none; } }
+
+.echo-section { border-top: 1px solid var(--echo-rail); position: relative; }
+.echo-section:first-of-type { border-top: none; }
+
+/* Mono micro-label */
+.echo-mono {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+}
+
+/* Frame card */
+.echo-card {
+  background: var(--echo-paper);
+  border: 1px solid var(--echo-rail);
+  border-radius: 16px;
+  transition: border-color 200ms ease;
+  position: relative;
+}
+.echo-card:hover { border-color: #C4C4C4; }
+
+/* Brutalist button — on-chain commit moments only. */
+.echo-brut {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 2px solid var(--echo-ink);
+  border-radius: 12px;
+  box-shadow: var(--echo-brut-shadow);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+  text-decoration: none;
+  user-select: none;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.echo-brut:hover { transform: translate(-2px,-2px); box-shadow: var(--echo-brut-shadow-lg); }
+.echo-brut:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 0 var(--echo-ink); }
+.echo-brut[disabled] { cursor: not-allowed; opacity: 0.5; }
+.echo-brut[disabled]:hover { transform: none; box-shadow: var(--echo-brut-shadow-sm); }
+
+/* Frame pill */
+.echo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--echo-rail);
+  border-radius: 999px;
+  background: var(--echo-paper);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--echo-ink);
+  transition: all 140ms ease;
+  cursor: pointer;
+}
+.echo-pill:hover { border-color: var(--echo-ink); }
+.echo-pill[data-active="true"] {
+  background: var(--echo-ink);
+  color: var(--echo-paper);
+  border-color: var(--echo-ink);
+}
+
+/* KPI display number */
+.echo-kpi-num {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  line-height: 0.95;
+  display: inline-flex;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+  color: var(--echo-ink);
+}
+
+/* Display H1 "triage." — magazine type */
+.echo-display {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+  font-size: clamp(96px, 13vw, 184px);
+  letter-spacing: -0.06em;
+  line-height: 0.9;
+  margin: 18px 0 24px;
+  display: inline-flex;
+  align-items: baseline;
+}
+
+/* Live status dot */
+@keyframes echo-live-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  50%      { opacity: .7; box-shadow: 0 0 0 5px rgba(34,197,94,0.10); }
+}
+.echo-live-dot {
+  width: 7px; height: 7px; border-radius: 999px;
+  background: #22C55E;
+  box-shadow: 0 0 0 3px rgba(34,197,94,0.18);
+  animation: echo-live-pulse 1.8s ease-in-out infinite;
+}
+
+/* Selection — MemWal yellow on ink */
+.echo-dashboard ::selection { background: #E8FF75; color: #0A0A0A; }
+
 /* === Accessibility: respect prefers-reduced-motion globally === */
 @media (prefers-reduced-motion: reduce) {
   html {
