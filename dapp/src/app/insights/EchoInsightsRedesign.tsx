@@ -36,7 +36,7 @@ import { readJsonViaAggregator, type FormMetadata } from "@/lib/echo";
 import { WalrusMascot } from "@/components/general/FrameForms";
 import { useDemoAdminMode } from "@/components/general/DemoAdminToggle";
 import { queryEventsByFormId } from "@/components/general/CrossFormDashboard";
-import { InsightsConsole } from "./InsightsClient";
+import { EchoAnswerThread } from "./EchoAnswerThread";
 
 // ─────────────────────────────────────────────────────────────────
 // Real data hook — reuses the dashboard forms query for the
@@ -973,12 +973,11 @@ function RagSection({ initialQuestion }: { initialQuestion?: string }) {
           alignItems: "start",
         }}
       >
-        {/* Real RAG console — the working chat */}
-        <div
-          className="echo-card"
-          style={{ padding: 0, overflow: "hidden", minHeight: 600 }}
-        >
-          <InsightsConsole initialQuestion={initialQuestion} />
+        {/* Magazine answer thread — wires to /api/insights/query and
+            renders results in the brutalist aurora-ribbon answer card.
+            Demo thread shows pre-ask so layout never reads as broken. */}
+        <div style={{ minHeight: 600 }}>
+          <EchoAnswerThread activeQuestion={initialQuestion} />
         </div>
         <aside
           style={{
