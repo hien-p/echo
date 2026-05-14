@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FormAdmin } from "./FormAdminClient";
+import { EchoFormAdminShell } from "./EchoFormAdminShell";
 
 export const runtime = "edge";
 
@@ -20,15 +20,18 @@ export async function generateMetadata({
   };
 }
 
+/**
+ * /forms/[id]/admin — Echo Form Admin per
+ * `~/Downloads/memwal_newversion/form-admin.jsx`. Shell-only
+ * rewrite: the working FormAdmin component (Seal session-key gate,
+ * submission decryption, members ACL, webhooks, danger zone) is
+ * preserved verbatim inside the Frame×MemWal×Sui paper theme.
+ */
 export default async function FormAdminPage({
   params,
 }: {
   params: Promise<Params>;
 }) {
   const { id } = await params;
-  return (
-    <section className="flex flex-col gap-md max-w-[960px] mx-auto p-md pt-24 w-full">
-      <FormAdmin formId={id} />
-    </section>
-  );
+  return <EchoFormAdminShell formId={id} />;
 }

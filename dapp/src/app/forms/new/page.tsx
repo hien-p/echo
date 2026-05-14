@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { AppShell } from "@/components/shell";
-import { FormBuilder } from "./FormBuilderClient";
+import { EchoFormBuilderShell } from "./EchoFormBuilderShell";
 
 export const metadata: Metadata = {
   title: "New form · Echo",
@@ -8,15 +7,15 @@ export const metadata: Metadata = {
     "Build a Walrus-backed feedback form with on-chain composability.",
 };
 
+export const runtime = "edge";
+
+/**
+ * /forms/new — Echo Form Builder per
+ * `~/Downloads/memwal_newversion/form-builder.jsx`. Shell-only
+ * rewrite: the working FormBuilder component (drag-drop, AI
+ * generate, sponsored publish) is preserved verbatim inside the
+ * Frame×MemWal×Sui paper theme.
+ */
 export default function NewFormPage() {
-  return (
-    <AppShell
-      kicker="Build"
-      title="New form"
-      subtitle="Schema and metadata land on Walrus; the on-chain Form anchors the blob IDs, owner cap, and privacy tier. Try ✨ AI generate at the top to start from a prompt."
-      width="wide"
-    >
-      <FormBuilder />
-    </AppShell>
-  );
+  return <EchoFormBuilderShell />;
 }
