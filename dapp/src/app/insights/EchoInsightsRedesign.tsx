@@ -159,15 +159,16 @@ function useInsightsData() {
             if (obj.json?.submitted_ms)
               tsById.set(obj.objectId, Number(obj.json.submitted_ms));
           }
+          const tier = form.onChain?.privacy_tier ?? 0;
           return events.map((e) => ({
             formId: form.id,
             formTitle: form.title,
-            formTier: form.onChain.privacy_tier,
+            formTier: tier,
             submissionId: e.submission_id,
             submitter: e.submitter,
             anonymous: e.anonymous,
             submittedAtMs: tsById.get(e.submission_id) ?? Date.now(),
-            encrypted: form.onChain.privacy_tier !== 0,
+            encrypted: tier !== 0,
           }));
         }),
       );
@@ -184,8 +185,13 @@ function useInsightsData() {
     [submissionsQuery.data],
   );
 
+  // Guard `f.onChain` — getObjects can return an error envelope for a
+  // form id and our mapper turns those into null + filter, but a stale
+  // cache or partial response from a transition can still slip a
+  // bare-shaped entry into `forms`. Use optional chaining everywhere
+  // that reads .onChain so a malformed row never throws.
   const totalDocs = submissions.length || forms.reduce(
-    (a, f) => a + Number(f.onChain.submission_count ?? 0),
+    (a, f) => a + Number(f.onChain?.submission_count ?? 0),
     0,
   );
 
@@ -194,8 +200,10 @@ function useInsightsData() {
       .map((f) => ({
         id: f.id,
         title: f.title,
-        tier: f.onChain.privacy_tier,
-        subs: submissions.filter((s) => s.formId === f.id).length || Number(f.onChain.submission_count ?? 0),
+        tier: f.onChain?.privacy_tier ?? 0,
+        subs:
+          submissions.filter((s) => s.formId === f.id).length ||
+          Number(f.onChain?.submission_count ?? 0),
       }))
       .sort((a, b) => b.subs - a.subs)
       .slice(0, 5);
