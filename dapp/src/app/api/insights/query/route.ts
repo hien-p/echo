@@ -65,7 +65,8 @@ type Recommendation =
   | "submit_to_populate"
   | "decrypt_failed"
   | "wait_for_memwal"
-  | "region_blocked";
+  | "region_blocked"
+  | "cross_form_not_indexed";
 
 /**
  * RAG over a form's Memwal namespace via OpenRouter, returning prose AND
@@ -286,7 +287,13 @@ export async function POST(request: Request) {
     //                (encrypted tier + indexer missing the cap, or seal err)
     //   events === 0 → no submissions yet, share the form to get some
     //   recallErrors → Memwal relayer sick, retrying may help
-    //   null → fallback itself failed, treat as Memwal sickness
+    //   cross-form + no info → none of the namespaces are indexed yet.
+    //                          Cross-form mode never auto-indexes (the
+    //                          single-form auto-index effect bails on
+    //                          `formId === "all"`), so the honest message
+    //                          is "switch to a single form first" rather
+    //                          than the misleading "indexer is queueing."
+    //   null → single-form fallback itself failed, treat as Memwal sickness
     let recommendation: Recommendation;
     if (onChainEventCount === 0) {
       recommendation = "submit_to_populate";
@@ -294,6 +301,8 @@ export async function POST(request: Request) {
       recommendation = "decrypt_failed";
     } else if (recallErrors.length > 0) {
       recommendation = "wait_for_memwal";
+    } else if (isCrossForm) {
+      recommendation = "cross_form_not_indexed";
     } else {
       recommendation = "wait_for_memwal";
     }
@@ -305,7 +314,9 @@ export async function POST(request: Request) {
           ? " No submissions found on chain for this form. Submit one to populate the namespace."
           : onChainEventCount && onChainEventCount > 0
             ? ` Found ${onChainEventCount} submission(s) on chain but couldn't decrypt them — the indexer may be missing a FormOwnerCap.`
-            : "";
+            : isCrossForm
+              ? ` Searched ${effectiveFormIds.length} namespaces in parallel; none returned memories. Cross-form mode does fan-out recall but never indexes — pick a single form from the picker to auto-index it, then re-ask.`
+              : "";
     return NextResponse.json({
       answer: `Memwal returned no matches for namespace "${namespace}" (${
         formTitle ?? effectiveFormIds[0].slice(0, 10) + "…"

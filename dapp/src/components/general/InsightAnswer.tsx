@@ -38,6 +38,7 @@ export type Recommendation =
   | "submit_to_populate"
   | "decrypt_failed"
   | "wait_for_memwal"
+  | "cross_form_not_indexed"
   | "region_blocked";
 
 export interface Citation {
@@ -212,6 +213,13 @@ function EmptyAnswer({ data }: { data: InsightAnswerData }) {
             href: `/forms/${formId}/admin`,
           },
         };
+      case "cross_form_not_indexed":
+        return {
+          Icon: FileText,
+          title: "None of the selected forms are indexed yet",
+          body: "Cross-form mode runs Memwal recall against every form's namespace in parallel but doesn't trigger indexing — that's only wired up when you pick a single form. Switch the picker to one specific form to auto-index it, then return to cross-form once each form has at least one indexed submission.",
+          primaryCta: null,
+        };
       case "region_blocked":
         return {
           Icon: WifiOff,
@@ -270,21 +278,25 @@ function EmptyAnswer({ data }: { data: InsightAnswerData }) {
             <ArrowUpRight size={14} strokeWidth={2} />
           </Link>
         )}
-        <button
-          type="button"
-          onClick={onCopy}
-          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-4 py-2 text-sm text-foreground transition hover:border-foreground/40 hover:bg-muted"
-        >
-          <Copy size={14} strokeWidth={1.75} />
-          Copy form link
-        </button>
-        <Link
-          href={`/s/${formId}`}
-          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-4 py-2 text-sm text-foreground transition hover:border-foreground/40 hover:bg-muted"
-        >
-          <Send size={14} strokeWidth={1.75} />
-          Open submission view
-        </Link>
+        {rec !== "cross_form_not_indexed" && (
+          <>
+            <button
+              type="button"
+              onClick={onCopy}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-4 py-2 text-sm text-foreground transition hover:border-foreground/40 hover:bg-muted"
+            >
+              <Copy size={14} strokeWidth={1.75} />
+              Copy form link
+            </button>
+            <Link
+              href={`/s/${formId}`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-4 py-2 text-sm text-foreground transition hover:border-foreground/40 hover:bg-muted"
+            >
+              <Send size={14} strokeWidth={1.75} />
+              Open submission view
+            </Link>
+          </>
+        )}
       </div>
 
       <dl className="mt-2 grid grid-cols-2 gap-x-8 gap-y-1 text-[11px] text-muted-foreground/70 sm:grid-cols-3">
