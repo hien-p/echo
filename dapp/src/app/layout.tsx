@@ -55,6 +55,52 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Strip Bitdefender / Avast / Norton anti-tracker attributes
+            that get injected onto every <div> before React hydration —
+            otherwise React 19 logs a hydration mismatch ("bis_skin_
+            checked", "cz-shortcut-listen", "data-darkreader-*") that
+            pops the dev overlay. Runs synchronously at top of head so
+            it fires before React's first commit. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){
+              try {
+                var STRIP = ["bis_skin_checked","bis_register","__processed_bis_register__","cz-shortcut-listen"];
+                function clean(node){
+                  if(!node || node.nodeType !== 1) return;
+                  for (var i=0;i<STRIP.length;i++){
+                    if (node.hasAttribute(STRIP[i])) node.removeAttribute(STRIP[i]);
+                  }
+                }
+                var mo = new MutationObserver(function(records){
+                  for (var i=0;i<records.length;i++){
+                    var r = records[i];
+                    if (r.type === "attributes" && STRIP.indexOf(r.attributeName) !== -1){
+                      r.target.removeAttribute(r.attributeName);
+                    } else if (r.type === "childList"){
+                      r.addedNodes.forEach(function(n){
+                        clean(n);
+                        if (n.querySelectorAll){
+                          n.querySelectorAll("*").forEach(clean);
+                        }
+                      });
+                    }
+                  }
+                });
+                if (document.documentElement){
+                  mo.observe(document.documentElement, {
+                    subtree: true,
+                    childList: true,
+                    attributes: true,
+                    attributeFilter: STRIP,
+                  });
+                }
+              } catch (e) { /* extension-strip best-effort */ }
+            })();`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${interTight.variable} antialiased min-h-[100dvh] flex flex-col`}
         suppressHydrationWarning
