@@ -480,6 +480,21 @@
 /* Selection — MemWal yellow on ink */
 .echo-dashboard ::selection { background: #E8FF75; color: #0A0A0A; }
 
+/* Forms-list filter select */
+.echo-select {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border: 1px solid var(--echo-rail);
+  border-radius: 999px;
+  background: var(--echo-paper);
+  color: var(--echo-ink);
+  cursor: pointer;
+}
+.echo-select:hover { border-color: var(--echo-ink); }
+
 /* === Accessibility: respect prefers-reduced-motion globally === */
 @media (prefers-reduced-motion: reduce) {
   html {
