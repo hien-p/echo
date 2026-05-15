@@ -13,6 +13,7 @@
     "build:preview": "env-cmd -f .env.preview next build",
     "build:cf": "next-on-pages",
     "build:walrus": "bash scripts/build-walrus.sh",
+    "build:walrus:mainnet": "env-cmd -f .env.mainnet bash scripts/build-walrus.sh",
     "preview:cf": "wrangler pages dev .vercel/output/static --compatibility-flag=nodejs_compat",
     "deploy:cf": "wrangler pages deploy .vercel/output/static --project-name echo --commit-dirty=true",
     "start": "next start",

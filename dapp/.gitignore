@@ -37,9 +37,14 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (can opt-in for committing if needed) — keep aligned with
+# the root .gitignore: per-network templates (devnet/testnet/mainnet)
+# are committable, the rest are not.
 .env*
 !.env.example
+!.env.devnet
+!.env.testnet
+!.env.mainnet
 
 # vercel
 .vercel
