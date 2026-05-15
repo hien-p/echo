@@ -6,7 +6,7 @@ import {
   Inter_Tight,
 } from "next/font/google";
 import { SuiProvider } from "@/contexts/SuiProvider";
-import { NavPill, SkipToContent } from "@/components/shell";
+import { SkipToContent } from "@/components/shell";
 import { Toaster } from "@/components/general/Toaster";
 import { ExtensionAttrStripper } from "@/components/general/ExtensionAttrStripper";
 import "./globals.css";
@@ -71,10 +71,10 @@ export default function RootLayout({
         <ExtensionAttrStripper />
         <SuiProvider>
           <SkipToContent />
-          {/* Floating-pill nav — auto-hides on marketing /, public form
-              viewer routes, and SuiNS share alias. Mounted on every
-              other route (including /forms/<id>/admin). */}
-          <NavPill />
+          {/* Headers are now per-page: marketing uses MarketingHeader,
+              app surfaces use EchoNavRail. The legacy NavPill was
+              double-stacking on top of EchoNavRail across /dashboard,
+              /forms, /forms/new, /insights — removed here. */}
           <main id="main-content" className="p-2xs flex-1 w-full">
             {children}
           </main>

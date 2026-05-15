@@ -375,82 +375,108 @@ export function Faq() {
 
 // ──────────────────────────────────────────────────────────────────────
 //  SCROLL-REVEAL TEXT (FlowingServices) — agency `services.tsx` pattern
-//  but motion-only (no GSAP). Each line reveals letter-by-letter as it
-//  scrolls into view; used as a "what Echo does" flowing menu under
-//  StackStory.
+//  but motion-only (no GSAP). Keep the section readable first: no narrow
+//  stacked headline or per-character menu that can collapse into vertical text.
 // ──────────────────────────────────────────────────────────────────────
 
-function SplitChars({ children }: { children: string }) {
-  return (
-    <>
-      {children.split(" ").map((word, wi, all) => (
-        <span key={wi} className="inline-block whitespace-nowrap">
-          {word.split("").map((char, ci) => (
-            <motion.span
-              key={ci}
-              className="inline-block"
-              initial={{ y: "60%", opacity: 0 }}
-              whileInView={{ y: 0, opacity: 1 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{
-                duration: 0.6,
-                delay: wi * 0.04 + ci * 0.015,
-                ease: [0.22, 1, 0.36, 1] as const,
-              }}
-            >
-              {char}
-            </motion.span>
-          ))}
-          {wi < all.length - 1 && <span className="inline-block">&nbsp;</span>}
-        </span>
-      ))}
-    </>
-  );
+interface ServiceCard {
+  id: string;
+  title: string;
+  short: string;
+  body: string;
 }
 
-const services = [
-  "Walrus-native forms",
-  "Seal-encrypted privacy",
-  "Walletless answers",
-  "Anonymous nullifiers",
-  "Bounty payouts",
-  "Soulbound reputation",
-  "Memwal RAG insights",
+const services: ReadonlyArray<ServiceCard> = [
+  {
+    id: "walrus-forms",
+    title: "Walrus-native forms",
+    short: "Schemas + answers content-addressed on Walrus storage.",
+    body: "Every form schema and submission is uploaded as JSON to Walrus, the on-chain decentralized blob store. Echo anchors a SubmissionRef object on Sui that points at the Walrus blob id, so payloads are tamper-evident and survive even if the dapp goes offline. No central database, no proprietary export format — your data is content-addressed and portable.",
+  },
+  {
+    id: "seal-privacy",
+    title: "Seal-encrypted privacy",
+    short: "Five tiers — Public, Admin, Threshold, Time-locked, Conditional.",
+    body: "Pick the threat model at create time. From plaintext-on-Walrus to Seal IBE-encryption tied to a Move predicate, every privacy tier is enforced by Sui key servers — not by trusting the dapp. Threshold tiers require k unique witnesses on-chain before keys unlock; time-locked tiers refuse signing until a deadline; conditional tiers gate decryption on arbitrary Move calls.",
+  },
+  {
+    id: "walletless",
+    title: "Walletless answers",
+    short: "Respondents submit without ever connecting a wallet.",
+    body: 'Echo generates an ephemeral Ed25519 keypair inside the respondent\'s browser, signs one submission, then discards the key. Enoki sponsors gas, so the respondent pays nothing and installs nothing. No popups, no seed phrases, no "connect wallet" modal — feedback friction drops to zero while every submission remains on-chain verifiable.',
+  },
+  {
+    id: "nullifiers",
+    title: "Anonymous nullifiers",
+    short:
+      "One submission per wallet per form, with @0x0 in place of the address.",
+    body: "Each respondent's wallet signs a deterministic message bound to the form, and the SHA-256 of that signature becomes a 32-byte commitment recorded in a Move Table on the Form object. Duplicate hashes abort atomically — same wallet can't submit twice — and the submission object stores @0x0 in place of the signer. Wallet-level dedup, not person-level Sybil resistance: a determined adversary with N wallets can still cast N votes. Pair with walletless mode for stronger tx-envelope unlinkability. Useful for governance polls, exit interviews, and any survey where one-per-wallet uniqueness matters alongside object-level pseudonymity.",
+  },
+  {
+    id: "bounty",
+    title: "Bounty payouts",
+    short: "On-chain pools auto-pay top responders.",
+    body: "Attach a SUI or stablecoin pool at form-create time. After close, an admin (or DAO) ranks submissions; the form contract auto-distributes the pool to the winners in a single transaction. Programmable payout curves (top-N, quadratic, full split) are plain Move modules — fork them. Respondents see the pool size before submitting, so incentives are transparent.",
+  },
+  {
+    id: "soulbound",
+    title: "Soulbound reputation",
+    short: "Quality badges issued from issued credit tickets.",
+    body: "When a respondent wins a bounty or hits a quality threshold, Echo mints a non-transferable badge to their address. Over time these badges become a portable feedback-quality reputation, queryable by any other dapp. Think of it as a respondent's resume — composable, on-chain, and resistant to Sybil farms because each badge has provenance back to a specific form + payout.",
+  },
+  {
+    id: "memwal-rag",
+    title: "Memwal RAG insights",
+    short: "Natural-language queries across all submissions.",
+    body: 'Memwal is Echo\'s retrieval layer over Walrus blobs. Embed every submission, then ask "what are the top three complaints from respondents who held the X NFT?" — get a streamed answer with citations back to specific submission ids. For private tiers, RAG runs over an encrypted index that only the FormOwnerCap can unlock.',
+  },
 ];
 
 export function FlowingServices() {
   return (
     <section
       id="services"
-      className="relative bg-background px-6 py-32 sm:px-12 lg:px-24"
+      className="relative scroll-mt-44 bg-[#FAFAF7] px-6 pb-20 pt-28 text-[#0A0A0A] sm:px-10 sm:pt-32 lg:px-14"
     >
-      <div className="mx-auto max-w-[1440px]">
-        <motion.div {...fadeUp} className="flex flex-col gap-4">
-          <span className="text-xs font-semibold uppercase tracking-widest text-foreground/50">
+      <div className="mx-auto w-full max-w-[1320px]">
+        <div className="border-b border-[#E4E2DD] pb-8">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8A8A85]">
             Capabilities
           </span>
-          <h2 className="max-w-3xl text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight text-foreground">
-            What Echo does, <br />
-            <em className="font-serif text-foreground/70">end to end.</em>
+          <h2 className="mt-5 w-full text-[clamp(2rem,4.2vw,4.8rem)] font-medium leading-[1.04] tracking-tight">
+            What Echo does,{" "}
+            <em className="font-serif italic text-[#4A4A47]">end to end.</em>
           </h2>
-        </motion.div>
+          <p className="mt-5 w-full max-w-[44rem] text-base leading-relaxed text-[#4A4A47]">
+            Seven primitives stitched into one product surface: storage,
+            privacy, walletless submit, identity, incentives, reputation, and AI
+            readouts.
+          </p>
+        </div>
 
-        <div className="mt-16 flex flex-col">
-          {services.map((s) => (
-            <div
-              key={s}
-              className="group flex items-center justify-between gap-6 border-b border-border py-6 text-[clamp(1.5rem,4vw,3.5rem)] font-medium leading-tight tracking-tight text-foreground transition hover:bg-foreground/5 sm:py-8"
+        <div className="mt-6 divide-y divide-[#E4E2DD] border-y border-[#E4E2DD]">
+          {services.map((s, index) => (
+            <article
+              key={s.id}
+              className="grid min-w-0 gap-4 py-5 transition-colors hover:bg-[#F2F1ED] sm:py-6 md:grid-cols-[3rem_minmax(14rem,0.65fr)_minmax(0,1fr)] md:items-start md:gap-6 md:px-3"
             >
-              <span className="flex-1 overflow-hidden">
-                <SplitChars>{s}</SplitChars>
+              <span className="font-mono text-xs text-[#8A8A85] md:pt-1.5">
+                {String(index + 1).padStart(2, "0")}
               </span>
-              <span
-                className="text-foreground/30 transition group-hover:translate-x-1 group-hover:text-foreground"
-                aria-hidden="true"
-              >
-                →
-              </span>
-            </div>
+              <div className="min-w-0">
+                <h3 className="text-2xl font-medium leading-tight tracking-tight sm:text-3xl">
+                  {s.title}
+                </h3>
+              </div>
+              <div className="min-w-0 max-w-[56rem] space-y-2 md:pt-1.5">
+                <p className="w-full text-base font-medium leading-relaxed text-[#0A0A0A]">
+                  {s.short}
+                </p>
+                <p className="w-full text-sm leading-relaxed text-[#4A4A47]">
+                  {s.body}
+                </p>
+              </div>
+            </article>
           ))}
         </div>
       </div>
@@ -559,7 +585,7 @@ export function SocialProofBento() {
             <span className="text-xs font-semibold uppercase tracking-widest text-foreground/50">
               Why it matters
             </span>
-            <h2 className="max-w-3xl text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight text-foreground">
+            <h2 className="max-w-[768px] text-[clamp(2rem,5vw,5rem)] font-medium leading-[1.05] tracking-tight text-foreground">
               Forms that move <br />
               <em className="font-serif text-foreground/70">
                 at hackathon speed.
