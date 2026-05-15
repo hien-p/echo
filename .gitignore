@@ -31,3 +31,4 @@ lcov.info
 .trace
 
 gas_cost_estimation.csv
+publish/.env.mainnet

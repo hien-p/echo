@@ -36,7 +36,7 @@ echo "→ sui mainnet · $ACTIVE_ADDR"
 
 # 2. Build the static SPA against .env.mainnet
 echo "→ building static SPA (env: .env.mainnet)…"
-env-cmd -f .env.mainnet bash scripts/build-walrus.sh
+pnpm run build:walrus:mainnet
 
 if [ ! -d "$OUT_DIR" ]; then
   echo "✗ build produced no $OUT_DIR/ dir" >&2
