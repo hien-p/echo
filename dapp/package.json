@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "rm -rf .next",
     "dev": "next dev --port 3333",
     "dev:turbo": "next dev --turbopack --port 3333",
     "dev:production": "env-cmd -f .env.production next dev --port 3333",
