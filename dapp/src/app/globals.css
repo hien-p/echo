@@ -802,6 +802,18 @@
 .echo-builder .bld-wallet-pill--btn:hover .bld-wallet-pill__chev {
   color: var(--echo-ink);
 }
+/* Connect-state pill — wraps dApp Kit's <ConnectButton> Lit element.
+   Removes default pill padding so the inner button fills the frame. */
+.echo-builder .bld-wallet-pill--connect {
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  display: inline-flex;
+}
+.echo-builder .bld-wallet-pill--connect > * {
+  border-radius: 999px;
+}
 
 .echo-builder .bld-topbar {
   position: sticky;

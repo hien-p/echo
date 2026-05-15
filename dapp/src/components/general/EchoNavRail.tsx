@@ -12,10 +12,18 @@
  */
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { clientConfig } from "@/config/clientConfig";
 import { resolveAddressToName, shortAddress } from "@/lib/echo/suins";
+
+// dApp Kit's ConnectButton is a Lit web component — needs to be
+// client-only so Next.js doesn't try to SSR it.
+const ConnectButton = dynamic(
+  () => import("@mysten/dapp-kit-react/ui").then((mod) => mod.ConnectButton),
+  { ssr: false },
+);
 
 type NavKey = "forms" | "dashboard" | "insights" | "reputation";
 
@@ -94,16 +102,13 @@ export function EchoNavRail({ active }: { active: NavKey }) {
               <span className="bld-wallet-pill__chev">↪</span>
             </button>
           ) : (
-            <Link
-              href="/"
-              className="bld-wallet-pill bld-wallet-pill--btn"
-              style={{ textDecoration: "none" }}
-              title="connect a wallet"
-            >
-              <span className="bld-wallet-pill__aurora" aria-hidden="true" />
-              <span>connect wallet</span>
-              <span className="bld-wallet-pill__chev">→</span>
-            </Link>
+            // dApp Kit's stock connect button — handles the wallet
+            // picker modal + Enoki Google zkLogin flow internally.
+            // Styled by the dApp Kit Lit theme; pill border below
+            // gives it a frame so it still feels part of the navrail.
+            <span className="bld-wallet-pill bld-wallet-pill--connect">
+              <ConnectButton />
+            </span>
           )}
         </div>
       </div>
