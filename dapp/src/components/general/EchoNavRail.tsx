@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { clientConfig } from "@/config/clientConfig";
 import { resolveAddressToName, shortAddress } from "@/lib/echo/suins";
+import { DemoAdminToggle } from "@/components/general/DemoAdminToggle";
 
 // dApp Kit's ConnectButton is a Lit web component — needs to be
 // client-only so Next.js doesn't try to SSR it.
@@ -81,6 +82,11 @@ export function EchoNavRail({ active }: { active: NavKey }) {
           </nav>
         </div>
         <div className="bld-nav-right">
+          {/* Demo-admin toggle — lets visitors browse encrypted forms
+              owned by the project's demo address without connecting a
+              wallet. Component hides itself when DEMO_ADMIN_ADDRESS is
+              unset in the env. */}
+          <DemoAdminToggle />
           <span className="bld-testnet-pill">
             <span className="bld-testnet-pill__dot" />
             {network}

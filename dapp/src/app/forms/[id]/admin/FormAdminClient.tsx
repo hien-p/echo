@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+import Link from "next/link";
 import { FormAdmin as FormAdminInner } from "@/components/general/FormAdmin";
 import { useResolvedFormId } from "@/lib/echo/useResolvedFormId";
 
@@ -17,10 +19,29 @@ import { useResolvedFormId } from "@/lib/echo/useResolvedFormId";
  */
 export const FormAdmin = ({ formId }: { formId: string }) => {
   const resolved = useResolvedFormId(formId);
-  if (!resolved) {
+  if (resolved === null) {
     return (
       <p className="p-md text-sm text-muted-foreground">Loading admin view…</p>
     );
   }
-  return <FormAdminInner formId={resolved} />;
+  if (resolved === "") {
+    return (
+      <div className="mx-auto max-w-md p-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          No form id in the URL. Pick one from your{" "}
+          <Link href="/forms" className="underline">
+            forms list
+          </Link>
+          .
+        </p>
+      </div>
+    );
+  }
+  // FormAdminInner reads `?focus=` via useSearchParams() — wrap in Suspense
+  // so the static prerender doesn't bail out (same constraint as /insights).
+  return (
+    <Suspense fallback={null}>
+      <FormAdminInner formId={resolved} />
+    </Suspense>
+  );
 };

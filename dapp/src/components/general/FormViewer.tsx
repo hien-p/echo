@@ -11,11 +11,12 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
-import { ChevronDown, ChevronUp, Check, Lock } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Lock } from "lucide-react";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { WalrusMascot, type MascotPose } from "./FrameForms";
 import {
   PrivacyTier,
   buildSubmitAnonymousTx,
@@ -35,6 +36,8 @@ import {
   type FormSchema,
   type SubmissionAnswer,
   type SubmissionPayload,
+  type RatingField,
+  type ChoiceField,
 } from "@/lib/echo";
 
 interface OnChainForm {
@@ -141,22 +144,158 @@ export const FormViewer = ({ formId }: { formId: string }) => {
 
 function TakeoverShell({ children }: { children: React.ReactNode }) {
   // Fixed inset-0 escapes the global <main> padding and the page-level
-  // <section max-w-[768px]> wrapper. Internal scroll keeps the viewport
-  // pinned; z-40 sits below the wallet-modal layer but above everything
-  // else on the page.
+  // <section max-w-[768px]> wrapper. Light Echo paper background — the
+  // Frame×MemWal×Sui form-filler design owns the full viewport instead
+  // of nesting under a hero shell.
   return (
-    <div className="fixed inset-0 z-40 overflow-y-auto bg-zinc-950 text-zinc-100 antialiased">
+    <div
+      className="fixed inset-0 z-40 overflow-y-auto antialiased"
+      style={{
+        background: "var(--echo-paper, #FFFFFF)",
+        color: "var(--echo-ink, #0A0A0A)",
+      }}
+    >
       {children}
     </div>
+  );
+}
+
+const TIER_COLOR_HEX = ["#0A0A0A", "#4DA2FF", "#A06EE9", "#6CD3D6", "#E8A540"];
+
+function SlimTopbar({
+  privacyTier,
+  unlocked,
+}: {
+  privacyTier: number;
+  unlocked: boolean;
+}) {
+  const tierColor = TIER_COLOR_HEX[privacyTier] ?? "#0A0A0A";
+  const tierName = TIER_LABELS[privacyTier] ?? "Public";
+  return (
+    <header
+      className="sticky top-0 z-20"
+      style={{
+        background: "var(--echo-paper)",
+        borderBottom: "1px solid var(--echo-rail)",
+      }}
+    >
+      <div
+        className="mx-auto flex items-center justify-between gap-4 px-6 py-3"
+        style={{ maxWidth: 1200 }}
+      >
+        <Link
+          href="/"
+          className="flex items-center gap-2"
+          style={{ color: "var(--echo-ink)" }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              display: "inline-block",
+              width: 16,
+              height: 16,
+              background: "var(--echo-ink)",
+            }}
+          />
+          <span
+            style={{
+              fontWeight: 600,
+              letterSpacing: "-0.02em",
+              fontSize: 15,
+            }}
+          >
+            echo
+          </span>
+        </Link>
+        <div
+          className="hidden sm:flex items-center gap-3"
+          style={{ fontSize: 12 }}
+        >
+          <span
+            className="inline-flex items-center gap-2"
+            style={{ color: "var(--echo-ink)" }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                background: tierColor,
+              }}
+            />
+            <span style={{ fontWeight: 500 }}>{tierName} form</span>
+            {privacyTier > 0 && (
+              <span
+                className="font-mono"
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  border: "1px solid var(--echo-rail)",
+                  color: unlocked ? "var(--echo-success)" : "var(--echo-mut)",
+                  background: unlocked
+                    ? "var(--echo-success-bg)"
+                    : "var(--echo-rail-2)",
+                }}
+              >
+                {unlocked ? "✓ unlocked" : "● locked"}
+              </span>
+            )}
+          </span>
+        </div>
+        <span
+          className="font-mono hidden md:inline"
+          style={{
+            fontSize: 10,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: "var(--echo-mut)",
+          }}
+        >
+          gas sponsored by Enoki · stored on Walrus
+        </span>
+      </div>
+    </header>
   );
 }
 
 function ClosedNotice({ title, status }: { title: string; status: string }) {
   return (
     <div className="flex min-h-screen items-center justify-center px-6">
-      <div className="max-w-[420px] text-center">
-        <h1 className="text-2xl font-semibold text-zinc-100">{title}</h1>
-        <p className="mt-3 text-sm text-zinc-400">
+      <div
+        className="max-w-[460px] text-center rounded-md border-2 p-8"
+        style={{
+          borderColor: "var(--echo-ink)",
+          background: "var(--echo-paper-2)",
+          boxShadow: "var(--echo-brut-shadow)",
+        }}
+      >
+        <Lock
+          size={28}
+          style={{ color: "var(--echo-mut)", margin: "0 auto" }}
+        />
+        <h1
+          className="mt-4"
+          style={{
+            fontSize: 32,
+            fontWeight: 600,
+            letterSpacing: "-0.03em",
+            color: "var(--echo-ink)",
+          }}
+        >
+          {title}
+        </h1>
+        <p
+          className="mt-3"
+          style={{
+            fontSize: 14,
+            lineHeight: 1.6,
+            color: "var(--echo-mut)",
+          }}
+        >
           This form isn&apos;t accepting submissions right now ({status}).
         </p>
       </div>
@@ -180,7 +319,7 @@ interface GatedProps {
 }
 
 function GatedTakeover(props: GatedProps) {
-  const { schema, accountAddress, suiClient } = props;
+  const { schema, accountAddress, suiClient, privacyTier } = props;
   const gating = schema.gating;
 
   const gateQuery = useQuery({
@@ -195,26 +334,633 @@ function GatedTakeover(props: GatedProps) {
     staleTime: 30_000,
   });
 
+  // Hoisted above the conditional early-return below so the rules of
+  // hooks aren't violated — useTierGateState owns a useState that must
+  // run on every render of this component.
+  const tierGate = useTierGateState(props);
+
+  // Predicate gate (token/NFT/SuiNS holdings) still uses the simple
+  // verify-again card; conceptually it's "you don't qualify" rather
+  // than the tier-level "form is encrypted / locked / waiting on
+  // shares" gates below.
   if (gating && accountAddress && gateQuery.data && !gateQuery.data.ok) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-6">
-        <div className="max-w-[420px] rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 text-center">
-          <Lock size={28} className="mx-auto text-amber-400" />
-          <p className="mt-4 text-sm text-amber-100">{gateQuery.data.reason}</p>
-          <button
-            type="button"
-            onClick={() => gateQuery.refetch()}
-            disabled={gateQuery.isFetching}
-            className="mt-5 rounded-full bg-amber-400 px-5 py-2 text-xs font-semibold text-zinc-950 hover:bg-amber-300 disabled:opacity-60"
+      <>
+        <SlimTopbar privacyTier={privacyTier} unlocked={false} />
+        <div className="flex min-h-[calc(100vh-56px)] items-center justify-center px-6">
+          <div
+            className="max-w-[460px] rounded-md border-2 p-8 text-center"
+            style={{
+              borderColor: "var(--echo-ink)",
+              background: "var(--echo-paper-2)",
+              boxShadow: "var(--echo-brut-shadow)",
+            }}
           >
-            {gateQuery.isFetching ? "Checking…" : "Verify again"}
-          </button>
+            <Lock size={28} style={{ color: "#B45309", margin: "0 auto" }} />
+            <p
+              className="mt-4"
+              style={{
+                fontSize: 15,
+                lineHeight: 1.55,
+                color: "var(--echo-ink)",
+              }}
+            >
+              {gateQuery.data.reason}
+            </p>
+            <button
+              type="button"
+              onClick={() => gateQuery.refetch()}
+              disabled={gateQuery.isFetching}
+              className="mt-5"
+              style={{
+                fontFamily:
+                  "var(--echo-mono, ui-monospace, SFMono-Regular, Menlo, monospace)",
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                padding: "10px 18px",
+                border: "2px solid var(--echo-ink)",
+                background: "var(--echo-paper)",
+                color: "var(--echo-ink)",
+                boxShadow: "var(--echo-brut-shadow-sm)",
+                cursor: gateQuery.isFetching ? "wait" : "pointer",
+                opacity: gateQuery.isFetching ? 0.6 : 1,
+              }}
+            >
+              {gateQuery.isFetching ? "Checking…" : "Verify again →"}
+            </button>
+          </div>
         </div>
-      </div>
+      </>
+    );
+  }
+
+  // Tier-level gate screens — render BEFORE the form so the visitor
+  // understands the privacy model and reaches the form once gating is
+  // cleared. AdminOnly (1) and Threshold (2) both require a wallet
+  // connection before we can run gating; Time-locked (3) shows a
+  // ticking countdown; Conditional (4) shows the on-chain rule.
+  if (tierGate.show) {
+    return (
+      <>
+        <SlimTopbar privacyTier={privacyTier} unlocked={false} />
+        <GateScreen
+          privacyTier={privacyTier}
+          unlockMs={props.unlockMs}
+          thresholdN={props.thresholdN}
+          accountAddress={accountAddress}
+          onUnlock={tierGate.dismiss}
+        />
+      </>
     );
   }
 
   return <Takeover {...props} />;
+}
+
+function useTierGateState(props: GatedProps) {
+  // Public skips the gate. Private tiers show their per-tier screen on
+  // first visit; the visitor clicks "enter" to dismiss it and reach the
+  // form. The cryptographic enforcement happens at decrypt time on the
+  // owner's side — the gate is informational + brand storytelling.
+  const [dismissed, setDismissed] = useState(false);
+  const isPublic = props.privacyTier === PrivacyTier.Public;
+  return {
+    show: !isPublic && !dismissed,
+    dismiss: () => setDismissed(true),
+  };
+}
+
+function GateScreen({
+  privacyTier,
+  unlockMs,
+  thresholdN,
+  accountAddress,
+  onUnlock,
+}: {
+  privacyTier: number;
+  unlockMs: string;
+  thresholdN: number;
+  accountAddress?: string;
+  onUnlock: () => void;
+}) {
+  const cfg = GATE_COPY[privacyTier] ?? GATE_COPY[1];
+  const pose: MascotPose =
+    privacyTier === 3
+      ? "haulout"
+      : privacyTier === 2
+        ? "salute"
+        : privacyTier === 4
+          ? "salute"
+          : "peace";
+  const [unlocking, setUnlocking] = useState(false);
+  const tierColor = TIER_COLOR_HEX[privacyTier] ?? "#0A0A0A";
+
+  // Live countdown for time-lock — pure visual flourish if we have an
+  // unlock_ms; falls back to a hand-coded 27:12 demo if not.
+  const unlockTarget = unlockMs && unlockMs !== "0" ? Number(unlockMs) : 0;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (privacyTier !== 3) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [privacyTier]);
+  const remainingMs = Math.max(0, unlockTarget - now);
+  const totalSecs = Math.floor(remainingMs / 1000);
+  const fallbackSecs = Math.floor((Date.now() / 1000) % 60);
+  const tlMins = unlockTarget > 0 ? Math.floor(totalSecs / 60) : 27;
+  const tlSecs =
+    unlockTarget > 0 ? totalSecs % 60 : (59 - fallbackSecs + 60) % 60;
+
+  function handleUnlock() {
+    setUnlocking(true);
+    setTimeout(onUnlock, 1500);
+  }
+
+  return (
+    <section
+      className="mx-auto grid items-center gap-10 px-6 py-12"
+      style={{
+        maxWidth: 1100,
+        gridTemplateColumns: "1.05fr 0.95fr",
+      }}
+    >
+      <div>
+        <p
+          className="font-mono"
+          style={{
+            fontSize: 11,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            marginBottom: 18,
+          }}
+        >
+          <span style={{ color: tierColor }}>● {cfg.eyebrow}</span>
+          <span style={{ margin: "0 10px", color: "var(--echo-mut-2)" }}>
+            ·
+          </span>
+          <span style={{ color: "var(--echo-mut)" }}>form locked</span>
+        </p>
+        <h1
+          style={{
+            fontFamily: "Inter, sans-serif",
+            fontWeight: 500,
+            fontSize: "clamp(40px, 5.5vw, 64px)",
+            letterSpacing: "-0.045em",
+            lineHeight: 1.02,
+            color: "var(--echo-ink)",
+            margin: "0 0 14px",
+            textWrap: "balance" as never,
+          }}
+        >
+          {cfg.title}
+        </h1>
+        <p
+          style={{
+            fontSize: 16,
+            lineHeight: 1.55,
+            color: "var(--echo-mut)",
+            maxWidth: 520,
+            margin: "0 0 22px",
+          }}
+        >
+          {cfg.sub}
+        </p>
+
+        {privacyTier === 2 && (
+          <ThresholdShares haveShares={1} need={thresholdN || 2} total={3} />
+        )}
+        {privacyTier === 3 && <TimeLockCountdown mins={tlMins} secs={tlSecs} />}
+        {privacyTier === 4 && <CondProgress have={6} need={10} />}
+
+        <div
+          className="mt-6 flex items-center gap-3 flex-wrap"
+          style={{ marginTop: 28 }}
+        >
+          <button
+            type="button"
+            onClick={handleUnlock}
+            disabled={unlocking}
+            style={{
+              fontFamily:
+                "var(--echo-mono, ui-monospace, SFMono-Regular, Menlo, monospace)",
+              fontSize: 13,
+              fontWeight: 600,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              padding: "14px 22px",
+              border: "2px solid var(--echo-ink)",
+              background: "var(--echo-ink)",
+              color: "var(--echo-paper)",
+              boxShadow: "var(--echo-brut-shadow)",
+              cursor: unlocking ? "wait" : "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              opacity: unlocking ? 0.85 : 1,
+            }}
+          >
+            {unlocking ? "unlocking…" : cfg.cta}
+            <span style={{ fontSize: "1.05em" }}>→</span>
+          </button>
+          <button
+            type="button"
+            onClick={onUnlock}
+            title="design-mode shortcut — skip the gate and reveal the form"
+            style={{
+              fontFamily:
+                "var(--echo-mono, ui-monospace, SFMono-Regular, Menlo, monospace)",
+              fontSize: 11,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--echo-mut)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "10px 4px",
+            }}
+          >
+            preview the form ↗
+          </button>
+        </div>
+
+        <p
+          className="font-mono"
+          style={{
+            fontSize: 11,
+            color: "var(--echo-mut)",
+            marginTop: 18,
+            maxWidth: 440,
+          }}
+        >
+          {cfg.detail}
+        </p>
+        {privacyTier === 1 && !accountAddress && (
+          <p
+            className="font-mono"
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--echo-warn)",
+              marginTop: 10,
+            }}
+          >
+            ⚠ no wallet connected · click {cfg.cta.toLowerCase()} to continue
+          </p>
+        )}
+      </div>
+
+      <div
+        className="relative"
+        style={{
+          minHeight: 320,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: 24,
+            background: "var(--echo-aurora-plate)",
+            opacity: 0.85,
+            filter: "blur(8px)",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 24,
+            borderRadius: 999,
+            border: `2px solid ${tierColor}`,
+            opacity: 0.32,
+            animation: "ff-bobble 2.4s ease-in-out infinite",
+          }}
+        />
+        <div style={{ position: "relative", zIndex: 2 }}>
+          <WalrusMascot pose={pose} size={260} bobble />
+        </div>
+        {privacyTier === 1 && unlocking && (
+          <div
+            className="font-mono absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 px-3 py-2"
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              background: "var(--echo-paper)",
+              border: "1px solid var(--echo-ink)",
+              boxShadow: "var(--echo-brut-shadow-sm)",
+            }}
+          >
+            <span>sui wallet · signing</span>
+            <span
+              style={{
+                display: "inline-flex",
+                gap: 3,
+              }}
+            >
+              <Dot delay={0} />
+              <Dot delay={0.18} />
+              <Dot delay={0.36} />
+            </span>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+const GATE_COPY: Record<
+  number,
+  {
+    eyebrow: string;
+    title: string;
+    sub: string;
+    cta: string;
+    detail: string;
+  }
+> = {
+  1: {
+    eyebrow: "wallet-gated form",
+    title: "Connect a wallet to fill.",
+    sub: "This form is admin-gated. We check your wallet against the allowlist on chain before revealing the questions.",
+    cta: "Connect wallet",
+    detail:
+      "Enoki sponsors the sign — you pay 0 gas. Disconnect after submitting if you'd rather.",
+  },
+  2: {
+    eyebrow: "threshold-decrypted",
+    title: "Collecting decrypt shares.",
+    sub: "This form's answers reveal once a quorum of admins post their Seal approvals on chain. Submissions stay open in the meantime.",
+    cta: "Continue to form",
+    detail:
+      "Shares come in from the admins' wallets. We'll auto-unlock the read-side the moment k is met.",
+  },
+  3: {
+    eyebrow: "time-locked",
+    title: "Sealed until the unlock epoch.",
+    sub: "This form is encrypted by time. Reveals automatically when the chain reaches the unlock epoch — no share-posting required.",
+    cta: "Continue to form",
+    detail:
+      "Powered by Seal time-lock. Submissions are encrypted with an identity bound to the unlock_ms.",
+  },
+  4: {
+    eyebrow: "conditional",
+    title: "On-chain rule gates the reveal.",
+    sub: "The form unseals once the on-chain predicate (token / NFT / SuiNS hold) is satisfied for the reader.",
+    cta: "Continue to form",
+    detail:
+      "Conditional Seal — a Move predicate defines the rule. Audit on chain.",
+  },
+};
+
+function Dot({ delay }: { delay: number }) {
+  return (
+    <span
+      style={{
+        width: 5,
+        height: 5,
+        borderRadius: 999,
+        background: "var(--echo-ink)",
+        display: "inline-block",
+        animation: "ff-bobble 1.05s ease-in-out infinite",
+        animationDelay: `${delay}s`,
+      }}
+    />
+  );
+}
+
+function ThresholdShares({
+  haveShares,
+  need,
+  total,
+}: {
+  haveShares: number;
+  need: number;
+  total: number;
+}) {
+  const slots = Math.max(total, need);
+  return (
+    <div className="flex flex-col gap-3" style={{ maxWidth: 480 }}>
+      <span
+        className="font-mono"
+        style={{
+          fontSize: 11,
+          color: "var(--echo-mut)",
+          letterSpacing: "0.08em",
+        }}
+      >
+        decrypt shares · {haveShares} of {need} required
+      </span>
+      <div className="flex items-stretch gap-3">
+        {Array.from({ length: slots }).map((_, i) => {
+          const filled = i < haveShares;
+          const required = i < need;
+          return (
+            <div
+              key={i}
+              className="flex flex-col items-center gap-1.5 flex-1"
+              style={{
+                padding: "14px 10px",
+                border: `1px ${filled ? "solid" : "dashed"} ${
+                  filled
+                    ? "var(--echo-ink)"
+                    : required
+                      ? "var(--echo-sui-violet)"
+                      : "var(--echo-rail)"
+                }`,
+                borderRadius: 8,
+                background: filled ? "var(--echo-rail-2)" : "var(--echo-paper)",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 999,
+                  background: filled
+                    ? "var(--echo-aurora-plate)"
+                    : required
+                      ? "transparent"
+                      : "transparent",
+                  border: `2px solid ${
+                    filled
+                      ? "var(--echo-ink)"
+                      : required
+                        ? "var(--echo-sui-violet)"
+                        : "var(--echo-rail)"
+                  }`,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: filled ? "var(--echo-ink)" : "transparent",
+                  fontSize: 14,
+                  fontWeight: 700,
+                }}
+              >
+                {filled ? "✓" : ""}
+              </span>
+              <span
+                className="font-mono"
+                style={{
+                  fontSize: 9,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "var(--echo-mut-2)",
+                }}
+              >
+                share {i + 1}
+              </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: filled
+                    ? "var(--echo-success)"
+                    : required
+                      ? "var(--echo-sui-violet)"
+                      : "var(--echo-mut-2)",
+                }}
+              >
+                {filled ? "posted" : required ? "needed" : "optional"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TimeLockCountdown({ mins, secs }: { mins: number; secs: number }) {
+  const mm = String(Math.max(0, mins)).padStart(2, "0");
+  const ss = String(Math.max(0, secs)).padStart(2, "0");
+  return (
+    <div className="flex flex-col gap-2" style={{ maxWidth: 480 }}>
+      <span
+        className="font-mono"
+        style={{
+          fontSize: 11,
+          color: "var(--echo-mut)",
+          letterSpacing: "0.08em",
+        }}
+      >
+        time until unlock
+      </span>
+      <div
+        className="flex items-baseline gap-2"
+        style={{
+          fontFamily: "Inter, sans-serif",
+          fontWeight: 600,
+          fontSize: 64,
+          letterSpacing: "-0.04em",
+          color: "var(--echo-ink)",
+          lineHeight: 1,
+        }}
+      >
+        <span>{mm}</span>
+        <span style={{ color: "var(--echo-mut-2)" }}>:</span>
+        <span style={{ color: "var(--echo-sui-violet)" }}>{ss}</span>
+        <span
+          className="font-mono"
+          style={{
+            fontSize: 11,
+            color: "var(--echo-mut)",
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            marginLeft: 10,
+            fontWeight: 500,
+          }}
+        >
+          mins · secs
+        </span>
+      </div>
+      <div
+        style={{
+          height: 4,
+          background: "var(--echo-rail-2)",
+          borderRadius: 999,
+          overflow: "hidden",
+          marginTop: 8,
+        }}
+      >
+        <div
+          style={{
+            width: "32%",
+            height: "100%",
+            background: "var(--echo-aurora-plate)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function CondProgress({ have, need }: { have: number; need: number }) {
+  const pct = Math.round((have / Math.max(1, need)) * 100);
+  return (
+    <div className="flex flex-col gap-2" style={{ maxWidth: 480 }}>
+      <div className="flex items-baseline justify-between">
+        <span
+          className="font-mono"
+          style={{
+            fontSize: 11,
+            color: "var(--echo-mut)",
+            letterSpacing: "0.08em",
+          }}
+        >
+          votes posted
+        </span>
+        <span
+          style={{
+            fontFamily: "Inter, sans-serif",
+            fontWeight: 600,
+            fontSize: 24,
+            letterSpacing: "-0.02em",
+            color: "var(--echo-ink)",
+          }}
+        >
+          {have}
+          <span style={{ color: "var(--echo-mut-2)" }}> / {need}</span>
+        </span>
+      </div>
+      <div
+        style={{
+          height: 6,
+          background: "var(--echo-rail-2)",
+          borderRadius: 999,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: "var(--echo-aurora-plate)",
+          }}
+        />
+      </div>
+      <div className="flex gap-1 flex-wrap mt-1">
+        {Array.from({ length: need }).map((_, i) => (
+          <span
+            key={i}
+            style={{
+              width: 16,
+              height: 4,
+              borderRadius: 2,
+              background: i < have ? "var(--echo-ink)" : "var(--echo-rail)",
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 type SubmitStatus =
@@ -490,16 +1236,20 @@ function Takeover({
 
   return (
     <div className="relative flex min-h-screen flex-col">
+      <SlimTopbar privacyTier={privacyTier} unlocked />
       <ProgressBar
         current={idx}
         total={totalSteps - 1 /* intro doesn't count toward % */}
+        stepKind={stepKind}
+        stepIdx={idx}
       />
 
-      <div className="flex flex-1 items-center justify-center px-6 py-16 sm:px-12">
-        <div className="w-full max-w-[680px]">
+      <div className="flex flex-1 items-stretch justify-center px-4 py-10 sm:px-8 sm:py-14">
+        <div className="w-full" style={{ maxWidth: 1100 }}>
           {stepKind === "intro" && (
             <IntroStep
               metadata={metadata}
+              formId={formId}
               privacyTier={privacyTier}
               questionCount={visibleFields.length}
               onStart={goNext}
@@ -524,6 +1274,8 @@ function Takeover({
               onAnonymousChange={setAnonymous}
               status={status}
               onSubmit={submit}
+              fields={visibleFields}
+              answers={answers}
             />
           )}
         </div>
@@ -545,50 +1297,263 @@ function Takeover({
 
 function IntroStep({
   metadata,
+  formId,
   privacyTier,
   questionCount,
   onStart,
 }: {
   metadata: FormMetadata;
+  formId: string;
   privacyTier: number;
   questionCount: number;
   onStart: () => void;
 }) {
+  const tierName = TIER_LABELS[privacyTier] ?? "Public";
+  const tierColor = TIER_COLOR_HEX[privacyTier] ?? "#0A0A0A";
+  // The design splits the title at " · " into two display words. Most
+  // form titles won't have a divider so we fall through to a single
+  // word — the "." after the last word is the brand signature dot.
+  const titleParts = metadata.title.split(" · ");
   return (
-    <div className="flex flex-col gap-6">
-      {privacyTier !== 0 && (
-        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-emerald-300">
-          <Lock size={11} />
-          {TIER_LABELS[privacyTier] ?? "encrypted"} · Seal
-        </span>
-      )}
-      <h1 className="text-4xl font-semibold leading-tight tracking-tight text-zinc-50 sm:text-5xl">
-        {metadata.title}
-      </h1>
-      {metadata.description && (
-        <p className="text-base leading-relaxed text-zinc-400">
-          {metadata.description}
-        </p>
-      )}
-      <p className="text-xs text-zinc-500">
-        {questionCount} question{questionCount === 1 ? "" : "s"} · gas sponsored
-        by Enoki · answers stored on Walrus
-      </p>
-      <div className="mt-2 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onStart}
-          className="rounded-full bg-blue-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400"
+    <section
+      className="grid items-center gap-10 sm:gap-14"
+      style={{ gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 0.95fr)" }}
+    >
+      <div>
+        <p
+          className="font-mono"
+          style={{
+            fontSize: 11,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "var(--echo-mut)",
+            marginBottom: 14,
+          }}
         >
-          Start
-        </button>
-        <span className="text-xs text-zinc-500">
-          press <KeyHint>Enter ↵</KeyHint>
+          <span
+            className="inline-flex items-center gap-1.5"
+            style={{ color: tierColor }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                display: "inline-block",
+                width: 7,
+                height: 7,
+                borderRadius: 999,
+                background: tierColor,
+              }}
+            />
+            {tierName.toLowerCase()} form
+          </span>
+          <span style={{ margin: "0 10px", color: "var(--echo-mut-2)" }}>
+            ·
+          </span>
+          {questionCount} question{questionCount === 1 ? "" : "s"} · about{" "}
+          {Math.max(1, Math.round(questionCount * 0.7))} min
+        </p>
+        <h1
+          style={{
+            fontFamily: "Inter, sans-serif",
+            fontWeight: 500,
+            fontSize: "clamp(40px, 6.2vw, 76px)",
+            letterSpacing: "-0.05em",
+            lineHeight: 0.98,
+            color: "var(--echo-ink)",
+            margin: "0 0 18px",
+            textWrap: "balance" as never,
+          }}
+        >
+          {titleParts.map((part, i) => (
+            <span key={i}>
+              {part}
+              {i < titleParts.length - 1 && (
+                <span
+                  style={{
+                    color: "var(--echo-sui-violet)",
+                    fontStyle: "italic",
+                    fontFamily: "Instrument Serif, Georgia, serif",
+                  }}
+                >
+                  .
+                </span>
+              )}
+            </span>
+          ))}
+          <span
+            style={{
+              color: "var(--echo-sui-violet)",
+              fontStyle: "italic",
+              fontFamily: "Instrument Serif, Georgia, serif",
+            }}
+          >
+            .
+          </span>
+        </h1>
+        {metadata.description && (
+          <p
+            style={{
+              fontSize: 17,
+              lineHeight: 1.55,
+              color: "var(--echo-mut)",
+              maxWidth: 560,
+              margin: "0 0 28px",
+            }}
+          >
+            {metadata.description}
+          </p>
+        )}
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={onStart}
+            style={{
+              fontFamily:
+                "var(--echo-mono, ui-monospace, SFMono-Regular, Menlo, monospace)",
+              fontSize: 13,
+              fontWeight: 600,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              padding: "16px 26px",
+              border: "2px solid var(--echo-ink)",
+              background: "var(--echo-ink)",
+              color: "var(--echo-paper)",
+              boxShadow: "var(--echo-brut-shadow)",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            start
+            <span style={{ fontSize: "1.15em" }}>→</span>
+          </button>
+          <span
+            className="font-mono"
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--echo-mut)",
+            }}
+          >
+            press <KeyHint>Enter ↵</KeyHint>
+          </span>
+        </div>
+        <div
+          className="grid gap-6 mt-9"
+          style={{
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            maxWidth: 580,
+          }}
+        >
+          <MetaPair label="storage" value="walrus aggregator" />
+          <MetaPair label="gas" value="sponsored · Enoki" />
+          <MetaPair label="anon" value="optional" />
+          <MetaPair label="object" value={`${formId.slice(0, 8)}…`} mono />
+        </div>
+      </div>
+      <div
+        className="relative"
+        style={{
+          minHeight: 360,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: 32,
+            background: "var(--echo-aurora-plate)",
+            opacity: 0.95,
+            filter: "blur(2px)",
+          }}
+        />
+        <div
+          style={{
+            position: "relative",
+            zIndex: 2,
+            filter: "drop-shadow(0 18px 24px rgba(77,162,255,0.30))",
+          }}
+          className="ff-bobble"
+        >
+          <WalrusMascot pose="peace" size={300} priority />
+        </div>
+        <span
+          className="font-mono absolute"
+          style={{
+            top: 16,
+            right: 16,
+            fontSize: 10,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            padding: "5px 10px",
+            background: "var(--echo-paper)",
+            border: "1px solid var(--echo-ink)",
+            boxShadow: "var(--echo-brut-shadow-sm)",
+            color: "var(--echo-ink)",
+          }}
+        >
+          say hi 👋
         </span>
       </div>
+    </section>
+  );
+}
+
+function MetaPair({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span
+        className="font-mono"
+        style={{
+          fontSize: 9,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          color: "var(--echo-mut)",
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: 13,
+          color: "var(--echo-ink)",
+          fontFamily: mono
+            ? "var(--echo-mono, ui-monospace, SFMono-Regular, Menlo, monospace)"
+            : "Inter, sans-serif",
+          fontWeight: mono ? 500 : 500,
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
+
+// Walrus pose rotation per question — first impression varies which keeps
+// each step feeling like its own moment. Pose hints in `field.kind` are
+// honored when present (a form schema can opt a field into a specific
+// mascot via metadata in the future).
+const QUESTION_POSES: MascotPose[] = [
+  "peace",
+  "salute",
+  "primary",
+  "haulout",
+  "monogram",
+];
 
 function QuestionStep({
   field,
@@ -607,51 +1572,189 @@ function QuestionStep({
   onAdvance: () => void;
   isValid: boolean;
 }) {
+  const isLast = index + 1 === total;
+  const pose = QUESTION_POSES[index % QUESTION_POSES.length];
+  const useTextarea = field.type === "long_text" || field.type === "rich_text";
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex items-start gap-3">
-        <span className="mt-2 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-xs font-semibold text-zinc-300">
-          {index + 1}
-        </span>
-        <h2 className="text-2xl font-semibold leading-tight text-zinc-50 sm:text-3xl">
-          {field.label}
-          {field.required && (
-            <span className="ml-1 text-rose-400" aria-label="required">
-              *
+    <section
+      className="grid gap-10 sm:gap-14 items-start"
+      style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 280px)" }}
+    >
+      <div className="flex flex-col gap-7">
+        <header className="flex flex-col gap-3">
+          <p
+            className="font-mono"
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--echo-mut)",
+            }}
+          >
+            question {String(index + 1).padStart(2, "0")}
+            <span style={{ color: "var(--echo-mut-2)", margin: "0 8px" }}>
+              /
             </span>
+            {String(total).padStart(2, "0")}
+            {field.required && (
+              <>
+                <span style={{ color: "var(--echo-mut-2)", margin: "0 8px" }}>
+                  ·
+                </span>
+                <span
+                  style={{
+                    color: "#B91C1C",
+                    fontWeight: 600,
+                    letterSpacing: "0.16em",
+                  }}
+                >
+                  required
+                </span>
+              </>
+            )}
+          </p>
+          <h2
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 500,
+              fontSize: "clamp(28px, 4vw, 44px)",
+              letterSpacing: "-0.035em",
+              lineHeight: 1.1,
+              color: "var(--echo-ink)",
+              margin: 0,
+              textWrap: "balance" as never,
+            }}
+          >
+            {field.label}
+          </h2>
+          {field.description && (
+            <p
+              style={{
+                fontSize: 15,
+                lineHeight: 1.55,
+                color: "var(--echo-mut)",
+                margin: 0,
+                maxWidth: 580,
+              }}
+            >
+              {field.description}
+            </p>
           )}
-        </h2>
-      </header>
+        </header>
 
-      <TakeoverInput
-        field={field}
-        value={value}
-        onChange={onChange}
-        onAdvance={onAdvance}
-      />
+        <div>
+          <TakeoverInput
+            field={field}
+            value={value}
+            onChange={onChange}
+            onAdvance={onAdvance}
+          />
+        </div>
 
-      <div className="flex items-center gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onAdvance}
-          disabled={!isValid}
-          className={cn(
-            "rounded-full px-6 py-2.5 text-sm font-semibold shadow-lg transition",
-            isValid
-              ? "bg-blue-500 text-white shadow-blue-500/20 hover:bg-blue-400"
-              : "cursor-not-allowed bg-zinc-800 text-zinc-500 shadow-none",
-          )}
-        >
-          OK
-        </button>
-        <span className="text-xs text-zinc-500">
-          press <KeyHint>Enter ↵</KeyHint>
-        </span>
-        <span className="ml-auto text-[11px] uppercase tracking-wider text-zinc-600">
-          {index + 1} / {total}
-        </span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={onAdvance}
+            disabled={!isValid}
+            style={{
+              fontFamily:
+                "var(--echo-mono, ui-monospace, SFMono-Regular, Menlo, monospace)",
+              fontSize: 13,
+              fontWeight: 600,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              padding: "14px 22px",
+              border: "2px solid var(--echo-ink)",
+              background: isValid ? "var(--echo-ink)" : "var(--echo-rail-2)",
+              color: isValid ? "var(--echo-paper)" : "var(--echo-mut-2)",
+              boxShadow: isValid ? "var(--echo-brut-shadow)" : "none",
+              cursor: isValid ? "pointer" : "not-allowed",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            {isLast ? "review" : "continue"}
+            <span style={{ fontSize: "1.1em" }}>→</span>
+          </button>
+          <span
+            className="font-mono"
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--echo-mut)",
+            }}
+          >
+            press <KeyHint>{useTextarea ? "⌘ Enter" : "Enter ↵"}</KeyHint>
+          </span>
+        </div>
       </div>
-    </div>
+
+      <aside className="hidden lg:flex flex-col items-center gap-5">
+        <div
+          className="relative ff-bobble"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <WalrusMascot pose={pose} size={170} />
+        </div>
+        <div className="flex items-center gap-1.5">
+          {Array.from({ length: total }).map((_, i) => {
+            const state = i < index ? "done" : i === index ? "current" : "todo";
+            return (
+              <span
+                key={i}
+                aria-hidden="true"
+                style={{
+                  width: state === "current" ? 24 : 7,
+                  height: 7,
+                  borderRadius: 999,
+                  background:
+                    state === "current"
+                      ? "var(--echo-ink)"
+                      : state === "done"
+                        ? "var(--echo-mut)"
+                        : "var(--echo-rail)",
+                  transition: "all 220ms ease",
+                }}
+              />
+            );
+          })}
+        </div>
+        <div
+          className="flex flex-col items-center gap-1"
+          style={{ padding: "12px 14px", textAlign: "center" }}
+        >
+          <span
+            className="font-mono"
+            style={{
+              fontSize: 9,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: "var(--echo-mut)",
+            }}
+          >
+            stored on walrus
+          </span>
+          <span
+            className="font-mono"
+            style={{
+              fontSize: 9,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: "var(--echo-mut-2)",
+            }}
+          >
+            schema v1 · sealed payload
+          </span>
+        </div>
+      </aside>
+    </section>
   );
 }
 
@@ -662,6 +1765,8 @@ function ReviewStep({
   onAnonymousChange,
   status,
   onSubmit,
+  fields,
+  answers,
 }: {
   accountAddress?: string;
   privacyTier: number;
@@ -669,93 +1774,445 @@ function ReviewStep({
   onAnonymousChange: (v: boolean) => void;
   status: SubmitStatus;
   onSubmit: (mode?: "wallet" | "walletless") => void;
+  fields: FormField[];
+  answers: Record<string, SubmissionAnswer>;
 }) {
   const submitting = status.kind === "submitting";
   const canWalletless =
     !accountAddress && privacyTier === PrivacyTier.Public && !submitting;
   return (
-    <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">
-        Ready to submit?
-      </h2>
-      <p className="text-sm leading-relaxed text-zinc-400">
-        Your answers are bundled into a single payload, uploaded to Walrus, and
-        a SubmissionRef is anchored on Sui. Gas is sponsored by Enoki — you
-        don&apos;t need any SUI in your wallet.
-      </p>
-
-      <button
-        type="button"
-        onClick={() => onAnonymousChange(!anonymous)}
-        className={cn(
-          "flex items-start gap-3 rounded-2xl border px-4 py-3 text-left transition",
-          anonymous
-            ? "border-blue-500/60 bg-blue-500/10"
-            : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-700",
-        )}
-      >
-        <span
-          className={cn(
-            "mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition",
-            anonymous
-              ? "border-blue-400 bg-blue-500 text-white"
-              : "border-zinc-700 bg-zinc-950",
-          )}
-        >
-          {anonymous && <Check size={14} strokeWidth={3} />}
-        </span>
-        <span className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-zinc-100">
-            Submit anonymously
-          </span>
-          <span className="text-xs leading-relaxed text-zinc-500">
-            Your wallet signs a one-time nullifier; only the 32-byte hash hits
-            the chain — never your address. Each wallet can submit anonymously{" "}
-            <strong className="text-zinc-300">once</strong> per form.
-          </span>
-        </span>
-      </button>
-
-      <div className="flex flex-wrap items-center gap-3 pt-2">
-        {canWalletless && (
-          <button
-            type="button"
-            onClick={() => onSubmit("walletless")}
-            className="rounded-full border border-zinc-700 bg-zinc-900 px-5 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-600 hover:bg-zinc-800"
-            title="Echo generates a one-time keypair locally, signs the sponsored tx, and discards it. No wallet needed."
+    <section
+      className="grid gap-10 sm:gap-14 items-start"
+      style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 320px)" }}
+    >
+      <div className="flex flex-col gap-7">
+        <header className="flex flex-col gap-3">
+          <p
+            className="font-mono"
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--echo-mut)",
+            }}
           >
-            Submit without wallet
-          </button>
-        )}
+            review · before you sign
+          </p>
+          <h2
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 500,
+              fontSize: "clamp(28px, 4vw, 44px)",
+              letterSpacing: "-0.035em",
+              lineHeight: 1.08,
+              color: "var(--echo-ink)",
+              margin: 0,
+              textWrap: "balance" as never,
+            }}
+          >
+            Looks good? Sign once. The form object updates on chain.
+          </h2>
+        </header>
+
+        <div
+          className="flex flex-col"
+          style={{ borderTop: "1px solid var(--echo-rail)" }}
+        >
+          {fields.map((f, i) => (
+            <ReviewRow
+              key={f.id}
+              idx={i + 1}
+              field={f}
+              answer={answers[f.id]}
+            />
+          ))}
+        </div>
+
         <button
           type="button"
-          onClick={() => onSubmit("wallet")}
-          disabled={!accountAddress || submitting}
-          className={cn(
-            "rounded-full px-6 py-2.5 text-sm font-semibold shadow-lg transition",
-            accountAddress && !submitting
-              ? "bg-blue-500 text-white shadow-blue-500/20 hover:bg-blue-400"
-              : "cursor-not-allowed bg-zinc-800 text-zinc-500 shadow-none",
-          )}
+          onClick={() => onAnonymousChange(!anonymous)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            padding: "14px 16px",
+            border: `1.5px solid ${
+              anonymous ? "var(--echo-ink)" : "var(--echo-rail)"
+            }`,
+            background: anonymous ? "var(--echo-rail-2)" : "var(--echo-paper)",
+            borderRadius: 8,
+            cursor: "pointer",
+            textAlign: "left",
+            transition: "all 140ms ease",
+            boxShadow: anonymous ? "var(--echo-brut-shadow-sm)" : "none",
+          }}
         >
-          {submitting
-            ? "Submitting…"
-            : accountAddress
-              ? "Submit"
-              : "Connect wallet to submit"}
+          <span
+            aria-hidden="true"
+            style={{
+              width: 44,
+              height: 24,
+              borderRadius: 999,
+              background: anonymous ? "var(--echo-ink)" : "var(--echo-rail)",
+              position: "relative",
+              transition: "background 160ms ease",
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                position: "absolute",
+                top: 3,
+                left: anonymous ? 23 : 3,
+                width: 18,
+                height: 18,
+                borderRadius: 999,
+                background: "var(--echo-paper)",
+                transition: "left 200ms cubic-bezier(0.22, 1, 0.36, 1)",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.18)",
+              }}
+            />
+          </span>
+          <span className="flex flex-col gap-1">
+            <span
+              style={{
+                fontSize: 14,
+                fontWeight: 500,
+                color: "var(--echo-ink)",
+              }}
+            >
+              Submit anonymously
+            </span>
+            <span
+              className="font-mono"
+              style={{
+                fontSize: 10,
+                letterSpacing: "0.12em",
+                color: "var(--echo-mut)",
+              }}
+            >
+              uses an ephemeral key · your wallet address is not stored
+            </span>
+          </span>
         </button>
+
+        <div className="flex items-center gap-3 flex-wrap pt-1">
+          <button
+            type="button"
+            onClick={() => onSubmit("wallet")}
+            disabled={(!accountAddress && !canWalletless) || submitting}
+            style={{
+              fontFamily:
+                "var(--echo-mono, ui-monospace, SFMono-Regular, Menlo, monospace)",
+              fontSize: 13,
+              fontWeight: 600,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              padding: "16px 24px",
+              border: "2px solid var(--echo-ink)",
+              background:
+                accountAddress && !submitting
+                  ? "var(--echo-ink)"
+                  : "var(--echo-rail-2)",
+              color:
+                accountAddress && !submitting
+                  ? "var(--echo-paper)"
+                  : "var(--echo-mut-2)",
+              boxShadow:
+                accountAddress && !submitting
+                  ? "var(--echo-brut-shadow)"
+                  : "none",
+              cursor: accountAddress && !submitting ? "pointer" : "not-allowed",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            {submitting
+              ? "submitting…"
+              : accountAddress
+                ? "sign & publish"
+                : "connect wallet to sign"}
+            {!submitting && accountAddress && (
+              <span style={{ fontSize: "1.1em" }}>→</span>
+            )}
+          </button>
+          {canWalletless && (
+            <button
+              type="button"
+              onClick={() => onSubmit("walletless")}
+              className="font-mono"
+              title="Echo generates a one-time keypair locally, signs the sponsored tx, and discards it. No wallet needed."
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                padding: "12px 16px",
+                border: "1.5px solid var(--echo-rail)",
+                background: "var(--echo-paper)",
+                color: "var(--echo-ink)",
+                cursor: "pointer",
+              }}
+            >
+              submit without wallet ↗
+            </button>
+          )}
+        </div>
+
+        {submitting && (
+          <p
+            className="font-mono"
+            style={{
+              fontSize: 11,
+              color: "var(--echo-mut)",
+              letterSpacing: "0.08em",
+            }}
+          >
+            {status.kind === "submitting" ? status.step : ""}
+          </p>
+        )}
+        {status.kind === "error" && (
+          <div
+            style={{
+              padding: 14,
+              border: "1.5px solid #B91C1C",
+              background: "#FEF2F2",
+              color: "#7F1D1D",
+              fontSize: 13,
+              borderRadius: 8,
+            }}
+          >
+            {status.message}
+          </div>
+        )}
       </div>
 
-      {submitting && (
-        <p className="text-xs text-zinc-500">
-          {status.kind === "submitting" ? status.step : ""}
-        </p>
-      )}
-      {status.kind === "error" && (
-        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4 text-sm text-rose-300">
-          {status.message}
+      <aside className="hidden lg:flex flex-col gap-5">
+        <div
+          className="ff-bobble"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 12,
+          }}
+        >
+          <WalrusMascot pose="salute" size={170} />
         </div>
-      )}
+        <div
+          className="flex flex-col gap-2"
+          style={{
+            padding: "16px 18px",
+            border: "1.5px solid var(--echo-rail)",
+            background: "var(--echo-paper-2)",
+            borderRadius: 10,
+          }}
+        >
+          <span
+            className="font-mono"
+            style={{
+              fontSize: 9,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: "var(--echo-mut)",
+            }}
+          >
+            transaction
+          </span>
+          <TxRow label="gas" value="≈ 0.0042 SUI" mono />
+          <TxRow label="blob" value="walrus aggregator" />
+          <TxRow
+            label="signer"
+            value={anonymous ? "ephemeral" : "your wallet"}
+          />
+          <TxRow
+            label="fee"
+            value={
+              <span style={{ color: "var(--echo-success)" }}>sponsored ✓</span>
+            }
+          />
+        </div>
+      </aside>
+    </section>
+  );
+}
+
+function ReviewRow({
+  idx,
+  field,
+  answer,
+}: {
+  idx: number;
+  field: FormField;
+  answer?: SubmissionAnswer;
+}) {
+  return (
+    <div
+      className="grid items-start gap-4 py-4"
+      style={{
+        gridTemplateColumns: "32px minmax(0, 1.05fr) minmax(0, 1fr)",
+        borderBottom: "1px solid var(--echo-rail)",
+      }}
+    >
+      <span
+        className="font-mono"
+        style={{
+          fontSize: 10,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          color: "var(--echo-mut)",
+          paddingTop: 2,
+        }}
+      >
+        {String(idx).padStart(2, "0")}
+      </span>
+      <div
+        style={{
+          fontSize: 14,
+          color: "var(--echo-ink)",
+          lineHeight: 1.4,
+        }}
+      >
+        {field.label}
+      </div>
+      <div
+        style={{
+          fontSize: 14,
+          color: "var(--echo-mut)",
+          lineHeight: 1.4,
+        }}
+      >
+        {renderAnswer(field, answer)}
+      </div>
+    </div>
+  );
+}
+
+function renderAnswer(field: FormField, a?: SubmissionAnswer) {
+  if (!a) return <em style={{ color: "var(--echo-mut-2)" }}>skipped</em>;
+  if (a.kind === "rating") {
+    return (
+      <span
+        style={{
+          fontFamily: "Inter, sans-serif",
+          fontWeight: 600,
+          fontSize: 18,
+          letterSpacing: "-0.02em",
+          color: "var(--echo-ink)",
+        }}
+      >
+        {a.value}
+        <span style={{ color: "var(--echo-mut-2)", fontSize: 14 }}>
+          /
+          {(field as RatingField).scale === 11
+            ? 10
+            : (field as RatingField).scale}
+        </span>
+      </span>
+    );
+  }
+  if (a.kind === "choice") {
+    if (field.type === "single_select" || field.type === "dropdown") {
+      const opt = (field as ChoiceField).options.find(
+        (o) => o.value === a.value,
+      );
+      return opt?.label ?? <em>—</em>;
+    }
+    const vals = Array.isArray(a.value) ? a.value : [a.value];
+    return (
+      <span className="inline-flex gap-1.5 flex-wrap">
+        {vals.map((v) => {
+          const opt = (field as ChoiceField).options.find((o) => o.value === v);
+          return (
+            <span
+              key={v}
+              style={{
+                fontSize: 12,
+                padding: "3px 8px",
+                background: "var(--echo-rail-2)",
+                border: "1px solid var(--echo-rail)",
+                color: "var(--echo-ink)",
+                borderRadius: 999,
+              }}
+            >
+              {opt?.label ?? v}
+            </span>
+          );
+        })}
+        {vals.length === 0 && (
+          <em style={{ color: "var(--echo-mut-2)" }}>skipped</em>
+        )}
+      </span>
+    );
+  }
+  if (a.kind === "checkbox") {
+    return a.value ? "Yes" : "No";
+  }
+  if (a.kind === "date") {
+    return <span className="font-mono">{a.value}</span>;
+  }
+  if (a.kind === "blob") {
+    return (
+      <code
+        className="font-mono"
+        style={{ fontSize: 11, color: "var(--echo-mut)" }}
+      >
+        {a.blobId.slice(0, 14)}…
+      </code>
+    );
+  }
+  if (a.kind === "text") {
+    return a.value.trim() ? (
+      <span
+        style={{
+          display: "-webkit-box",
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+        }}
+      >
+        {a.value}
+      </span>
+    ) : (
+      <em style={{ color: "var(--echo-mut-2)" }}>skipped</em>
+    );
+  }
+  return null;
+}
+
+function TxRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span
+        className="font-mono"
+        style={{
+          fontSize: 10,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: "var(--echo-mut)",
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: 12,
+          color: "var(--echo-ink)",
+          fontFamily: mono
+            ? "var(--echo-mono, ui-monospace, SFMono-Regular, Menlo, monospace)"
+            : "Inter, sans-serif",
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -768,52 +2225,303 @@ function SubmittedTakeover({
   onSubmitAnother: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-zinc-950 px-6 text-center">
-      <div className="flex max-w-[460px] flex-col items-center gap-6">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
-          <Check size={36} strokeWidth={2.5} />
-        </div>
-        <div className="flex flex-col gap-2">
-          <h2 className="text-3xl font-semibold tracking-tight text-zinc-50">
-            Thanks for submitting!
-          </h2>
-          <p className="text-sm text-zinc-400">
-            Your response is on chain. The form admin can decrypt it (or read
-            plaintext for Public forms) at their convenience.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
-          <span>tx</span>
-          <code className="rounded-md bg-zinc-900 px-2 py-1 font-mono text-zinc-300">
-            {digest.slice(0, 10)}…{digest.slice(-6)}
-          </code>
-          <a
-            href={`https://suiscan.xyz/testnet/tx/${digest}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-400 underline hover:text-blue-300"
-          >
-            view on Suiscan ↗
-          </a>
-        </div>
-        <button
-          type="button"
-          onClick={onSubmitAnother}
-          className="rounded-full border border-zinc-700 bg-zinc-900 px-5 py-2.5 text-sm font-medium text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800"
+    <div
+      className="fixed inset-0 z-40 overflow-y-auto antialiased"
+      style={{
+        background: "var(--echo-paper, #FFFFFF)",
+        color: "var(--echo-ink, #0A0A0A)",
+      }}
+    >
+      <SlimTopbar privacyTier={0} unlocked />
+      <section
+        className="mx-auto grid items-center gap-10 sm:gap-14 px-6 py-14"
+        style={{
+          maxWidth: 1100,
+          gridTemplateColumns: "minmax(0, 0.95fr) minmax(0, 1.05fr)",
+        }}
+      >
+        <div
+          className="relative"
+          style={{
+            minHeight: 380,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
-          Submit another response
-        </button>
-        <p className="mt-4 text-[11px] text-zinc-600">
-          Powered by{" "}
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              borderRadius: 32,
+              background: "var(--echo-aurora-plate)",
+              opacity: 0.92,
+              filter: "blur(2px)",
+            }}
+          />
+          <div
+            style={{
+              position: "relative",
+              zIndex: 2,
+              filter: "drop-shadow(0 18px 24px rgba(77,162,255,0.30))",
+            }}
+            className="ff-bobble"
+          >
+            <WalrusMascot pose="salute" size={300} priority />
+          </div>
+          <ConfettiBits />
+        </div>
+        <div className="flex flex-col gap-6">
+          <p
+            className="font-mono"
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+            }}
+          >
+            <span style={{ color: "var(--echo-success)" }}>● submitted</span>
+            <span style={{ margin: "0 10px", color: "var(--echo-mut-2)" }}>
+              ·
+            </span>
+            <span style={{ color: "var(--echo-mut)" }}>
+              on walrus · sui-anchored
+            </span>
+          </p>
+          <h2
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 500,
+              fontSize: "clamp(56px, 7vw, 96px)",
+              letterSpacing: "-0.05em",
+              lineHeight: 0.95,
+              color: "var(--echo-ink)",
+              margin: 0,
+            }}
+          >
+            thanks
+            <span
+              style={{
+                color: "var(--echo-sui-violet)",
+                fontStyle: "italic",
+                fontFamily: "Instrument Serif, Georgia, serif",
+              }}
+            >
+              .
+            </span>
+          </h2>
+          <p
+            style={{
+              fontSize: 17,
+              lineHeight: 1.55,
+              color: "var(--echo-mut)",
+              maxWidth: 520,
+              margin: 0,
+            }}
+          >
+            Your answers are live. The form owner can decrypt and triage from{" "}
+            <Link
+              href="/dashboard"
+              style={{
+                color: "var(--echo-ink)",
+                fontWeight: 500,
+              }}
+            >
+              /dashboard
+            </Link>
+            . You&apos;ll feed the /insights board the moment they sync.
+          </p>
+          <div
+            className="flex flex-col gap-2 mt-2"
+            style={{
+              padding: "16px 18px",
+              border: "1.5px solid var(--echo-rail)",
+              background: "var(--echo-paper-2)",
+              borderRadius: 10,
+              maxWidth: 480,
+            }}
+          >
+            <ReceiptRow
+              label="transaction"
+              value={digest}
+              link={`https://suiscan.xyz/testnet/tx/${digest}`}
+            />
+            <ReceiptRow label="storage" value="walrus aggregator" />
+            <ReceiptRow label="settled" value="sui object updated" />
+          </div>
+          <div className="flex items-center gap-3 flex-wrap mt-2">
+            <Link
+              href="/insights"
+              style={{
+                fontFamily:
+                  "var(--echo-mono, ui-monospace, SFMono-Regular, Menlo, monospace)",
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                padding: "14px 22px",
+                border: "2px solid var(--echo-ink)",
+                background: "var(--echo-ink)",
+                color: "var(--echo-paper)",
+                boxShadow: "var(--echo-brut-shadow)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 10,
+                textDecoration: "none",
+              }}
+            >
+              see live insights
+              <span style={{ fontSize: "1.1em" }}>→</span>
+            </Link>
+            <button
+              type="button"
+              onClick={onSubmitAnother}
+              className="font-mono"
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                padding: "12px 16px",
+                border: "1.5px solid var(--echo-rail)",
+                background: "var(--echo-paper)",
+                color: "var(--echo-ink)",
+                cursor: "pointer",
+              }}
+            >
+              submit another ↻
+            </button>
+          </div>
+        </div>
+      </section>
+      <footer
+        className="mx-auto flex items-center justify-center"
+        style={{
+          maxWidth: 1100,
+          padding: "0 24px 32px",
+          fontSize: 10,
+        }}
+      >
+        <p
+          className="font-mono"
+          style={{
+            color: "var(--echo-mut)",
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+          }}
+        >
+          powered by{" "}
           <Link
             href="/"
-            className="text-zinc-400 underline hover:text-zinc-200"
+            style={{
+              color: "var(--echo-ink)",
+              fontWeight: 600,
+              letterSpacing: "-0.02em",
+            }}
           >
-            Echo
+            echo
           </Link>{" "}
-          · forms on Sui · Walrus · Seal
+          · forms on sui · walrus · seal
         </p>
-      </div>
+      </footer>
+    </div>
+  );
+}
+
+function ReceiptRow({
+  label,
+  value,
+  link,
+}: {
+  label: string;
+  value: string;
+  link?: string;
+}) {
+  const short =
+    value.length > 22 ? `${value.slice(0, 12)}…${value.slice(-6)}` : value;
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span
+        className="font-mono"
+        style={{
+          fontSize: 10,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          color: "var(--echo-mut)",
+        }}
+      >
+        {label}
+      </span>
+      <span className="flex items-center gap-2">
+        <code
+          className="font-mono"
+          style={{
+            fontSize: 12,
+            color: "var(--echo-ink)",
+          }}
+        >
+          {short}
+        </code>
+        {link && (
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono"
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--echo-mut)",
+              textDecoration: "underline",
+            }}
+          >
+            view ↗
+          </a>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function ConfettiBits() {
+  // Pure CSS confetti drifts down behind the walrus. Keeps the success
+  // moment celebratory without pulling in a confetti library — 16
+  // particles is plenty for the effect, all pre-randomized via index.
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        inset: 0,
+        pointerEvents: "none",
+        overflow: "hidden",
+        zIndex: 1,
+      }}
+    >
+      {Array.from({ length: 16 }).map((_, i) => {
+        const colors = ["#4DA2FF", "#A06EE9", "#6CD3D6", "#E8FF75", "#F5B6E6"];
+        const c = colors[i % colors.length];
+        const left = (i * 7 + 8) % 100;
+        const delay = (i % 8) * 0.18;
+        const dur = 3.6 + (i % 4) * 0.4;
+        const rot = (i * 33) % 360;
+        return (
+          <span
+            key={i}
+            style={{
+              position: "absolute",
+              top: "-12px",
+              left: `${left}%`,
+              width: 8,
+              height: 14,
+              background: c,
+              transform: `rotate(${rot}deg)`,
+              animation: `ff-confetti ${dur}s linear ${delay}s infinite`,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -869,6 +2577,7 @@ function TakeoverInput({
     case "rich_text":
       return (
         <MarkdownEditor
+          variant="light"
           value={value?.kind === "text" ? value.value : ""}
           onChange={(next) => onChange({ kind: "text", value: next })}
         />
@@ -929,30 +2638,64 @@ function TakeoverInput({
       );
     case "rating": {
       const scale = field.scale ?? 5;
-      const current = value?.kind === "rating" ? value.value : 0;
+      // Design intent: the rating renderer reads 0..N as a horizontal
+      // strip, not 1..N. Detect a 0-anchored scale (scale === 11 → 0..10)
+      // by treating the rating value range as inclusive.
+      const zeroAnchored = scale === 11;
+      const opts = zeroAnchored
+        ? Array.from({ length: scale }, (_, i) => i) // 0..10
+        : Array.from({ length: scale }, (_, i) => i + 1); // 1..N
+      const current = value?.kind === "rating" ? value.value : -1;
       return (
-        <div className="flex flex-wrap gap-2">
-          {Array.from({ length: scale }, (_, i) => i + 1).map((n) => {
-            const active = n <= current;
-            return (
-              <button
-                key={n}
-                type="button"
-                onClick={() => {
-                  onChange({ kind: "rating", value: n });
-                  setTimeout(onAdvance, 180);
-                }}
-                className={cn(
-                  "h-12 w-12 rounded-lg border text-base font-semibold transition",
-                  active
-                    ? "border-blue-400 bg-blue-500 text-white"
-                    : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800",
-                )}
-              >
-                {n}
-              </button>
-            );
-          })}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-1.5">
+            {opts.map((n) => {
+              const active = n === current;
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => {
+                    onChange({ kind: "rating", value: n });
+                    setTimeout(onAdvance, 220);
+                  }}
+                  style={{
+                    height: 56,
+                    minWidth: 56,
+                    flex: zeroAnchored ? "1 1 0" : "0 1 auto",
+                    border: `1.5px solid ${
+                      active ? "var(--echo-ink)" : "var(--echo-rail)"
+                    }`,
+                    background: active
+                      ? "var(--echo-ink)"
+                      : "var(--echo-paper)",
+                    color: active ? "var(--echo-paper)" : "var(--echo-ink)",
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 500,
+                    fontSize: 18,
+                    letterSpacing: "-0.02em",
+                    cursor: "pointer",
+                    transition: "all 120ms ease",
+                    borderRadius: 4,
+                  }}
+                >
+                  {n}
+                </button>
+              );
+            })}
+          </div>
+          <div
+            className="flex items-center justify-between font-mono"
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--echo-mut)",
+            }}
+          >
+            <span>{zeroAnchored ? "never" : "low"}</span>
+            <span>{zeroAnchored ? "already pitching" : "high"}</span>
+          </div>
         </div>
       );
     }
@@ -995,7 +2738,7 @@ function AutoFocusInput({
   onChange,
   onKeyDown,
 }: {
-  type: "text" | "url" | "date" | "time";
+  type: "text" | "url" | "date" | "time" | "email";
   placeholder?: string;
   value: string;
   onChange: (v: string) => void;
@@ -1013,7 +2756,20 @@ function AutoFocusInput({
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={onKeyDown}
-      className="w-full border-0 border-b border-zinc-700 bg-transparent pb-3 text-2xl text-zinc-50 placeholder:text-zinc-600 focus:border-blue-400 focus:outline-none focus:ring-0 sm:text-3xl"
+      className="ff-input"
+      style={{
+        width: "100%",
+        border: 0,
+        borderBottom: "1.5px solid var(--echo-rail)",
+        background: "transparent",
+        padding: "10px 0 12px",
+        fontSize: "clamp(20px, 2.4vw, 28px)",
+        fontFamily: "Inter, sans-serif",
+        fontWeight: 500,
+        letterSpacing: "-0.02em",
+        color: "var(--echo-ink)",
+        outline: "none",
+      }}
     />
   );
 }
@@ -1040,8 +2796,22 @@ function AutoFocusTextarea({
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={onKeyDown}
-      rows={4}
-      className="w-full resize-y border-0 border-b border-zinc-700 bg-transparent pb-3 text-xl leading-relaxed text-zinc-50 placeholder:text-zinc-600 focus:border-blue-400 focus:outline-none focus:ring-0 sm:text-2xl"
+      rows={5}
+      className="ff-input"
+      style={{
+        width: "100%",
+        resize: "vertical",
+        border: 0,
+        borderBottom: "1.5px solid var(--echo-rail)",
+        background: "transparent",
+        padding: "10px 0 12px",
+        fontSize: "clamp(17px, 2vw, 22px)",
+        lineHeight: 1.45,
+        fontFamily: "Inter, sans-serif",
+        fontWeight: 400,
+        color: "var(--echo-ink)",
+        outline: "none",
+      }}
     />
   );
 }
@@ -1087,33 +2857,78 @@ function ChoiceList({
             key={opt.value}
             type="button"
             onClick={() => onToggle(opt.value)}
-            className={cn(
-              "group flex items-center gap-3 rounded-full border px-4 py-3 text-left text-base transition",
-              isSelected
-                ? "border-blue-400/70 bg-blue-500/15 text-zinc-50"
-                : "border-zinc-800 bg-zinc-900/60 text-zinc-200 hover:border-zinc-700 hover:bg-zinc-900",
-            )}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              padding: "14px 18px",
+              textAlign: "left",
+              fontSize: 16,
+              border: `1.5px solid ${
+                isSelected ? "var(--echo-ink)" : "var(--echo-rail)"
+              }`,
+              background: isSelected
+                ? "var(--echo-rail-2)"
+                : "var(--echo-paper)",
+              color: "var(--echo-ink)",
+              borderRadius: 8,
+              cursor: "pointer",
+              transition: "all 120ms ease",
+              boxShadow: isSelected ? "var(--echo-brut-shadow-sm)" : "none",
+              transform: isSelected ? "translate(-1px, -1px)" : "none",
+            }}
+            onMouseEnter={(e) => {
+              if (!isSelected)
+                e.currentTarget.style.borderColor = "var(--echo-mut)";
+            }}
+            onMouseLeave={(e) => {
+              if (!isSelected)
+                e.currentTarget.style.borderColor = "var(--echo-rail)";
+            }}
           >
             <span
-              className={cn(
-                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold uppercase tracking-wider",
-                isSelected
-                  ? "bg-blue-500 text-white"
-                  : "bg-zinc-800 text-zinc-300 group-hover:bg-zinc-700",
-              )}
+              className="font-mono"
+              style={{
+                width: 28,
+                height: 28,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+                background: isSelected
+                  ? "var(--echo-ink)"
+                  : "var(--echo-rail-2)",
+                color: isSelected ? "var(--echo-paper)" : "var(--echo-mut)",
+                borderRadius: 4,
+                flexShrink: 0,
+              }}
             >
               {letter}
             </span>
-            <span className="flex-1">{opt.label}</span>
-            {multi && isSelected && (
-              <Check size={16} className="text-blue-300" />
+            <span style={{ flex: 1 }}>{opt.label}</span>
+            {isSelected && (
+              <Check
+                size={16}
+                style={{ color: "var(--echo-ink)" }}
+                strokeWidth={2.5}
+              />
             )}
           </button>
         );
       })}
       {multi && (
-        <p className="mt-1 text-[11px] uppercase tracking-wider text-zinc-600">
-          Select all that apply
+        <p
+          className="font-mono mt-1"
+          style={{
+            fontSize: 10,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "var(--echo-mut-2)",
+          }}
+        >
+          select all that apply · {selected.length} chosen
         </p>
       )}
     </div>
@@ -1163,24 +2978,95 @@ function FileTakeover({
 
   if (value) {
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-        <Check size={18} className="text-emerald-400" />
-        <code className="flex-1 text-sm text-zinc-300">
-          {value.blobId.slice(0, 18)}…
-        </code>
+      <div
+        className="flex items-center gap-3 p-4"
+        style={{
+          border: "1.5px solid var(--echo-ink)",
+          background: "var(--echo-rail-2)",
+          boxShadow: "var(--echo-brut-shadow-sm)",
+          borderRadius: 8,
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 999,
+            background: "var(--echo-aurora-plate)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--echo-paper)",
+            flexShrink: 0,
+          }}
+        >
+          <Check size={16} strokeWidth={3} />
+        </span>
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+          <code
+            className="font-mono"
+            style={{
+              fontSize: 12,
+              color: "var(--echo-ink)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {value.blobId.slice(0, 18)}…
+          </code>
+          <span
+            className="font-mono"
+            style={{
+              fontSize: 9,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--echo-mut)",
+            }}
+          >
+            uploaded · {value.mimeType ?? "blob"} ·{" "}
+            {value.bytes ? humanFileSize(value.bytes) : "—"}
+          </span>
+        </div>
         <button
           type="button"
           onClick={() => onChange({ kind: "blob", blobId: "", bytes: 0 })}
-          className="text-xs text-zinc-500 underline hover:text-zinc-300"
+          className="font-mono"
+          style={{
+            fontSize: 10,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: "var(--echo-mut)",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+          }}
         >
-          replace
+          replace ↗
         </button>
       </div>
     );
   }
 
   return (
-    <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-zinc-700 bg-zinc-900/20 px-6 py-10 text-center transition hover:border-zinc-600 hover:bg-zinc-900/40">
+    <label
+      className="flex cursor-pointer flex-col items-center gap-3 text-center transition"
+      style={{
+        padding: "32px 24px",
+        border: "1.5px dashed var(--echo-rail)",
+        background: "var(--echo-paper-2)",
+        borderRadius: 8,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = "var(--echo-ink)";
+        e.currentTarget.style.background = "var(--echo-rail-2)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "var(--echo-rail)";
+        e.currentTarget.style.background = "var(--echo-paper-2)";
+      }}
+    >
       <input
         type="file"
         accept={accept}
@@ -1190,7 +3076,21 @@ function FileTakeover({
           if (f) void upload(f);
         }}
       />
-      <span className="text-sm font-medium text-zinc-200">
+      <span
+        style={{
+          fontSize: 28,
+          color: "var(--echo-mut)",
+        }}
+      >
+        ＋
+      </span>
+      <span
+        style={{
+          fontSize: 14,
+          fontWeight: 500,
+          color: "var(--echo-ink)",
+        }}
+      >
         {uploading
           ? `Uploading ${pendingName ?? "…"}`
           : `Click to upload ${
@@ -1201,14 +3101,30 @@ function FileTakeover({
                   : "a file"
             }`}
       </span>
-      {accept && (
-        <span className="text-xs text-zinc-500">
-          Accepts <code>{accept}</code>
+      <span
+        className="font-mono"
+        style={{
+          fontSize: 10,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: "var(--echo-mut)",
+        }}
+      >
+        {accept ? `accepts ${accept}` : "any file type"} · stored as walrus blob
+      </span>
+      {error && (
+        <span className="font-mono" style={{ fontSize: 11, color: "#B91C1C" }}>
+          {error}
         </span>
       )}
-      {error && <span className="text-xs text-rose-400">{error}</span>}
     </label>
   );
+}
+
+function humanFileSize(b: number) {
+  if (b > 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  if (b > 1024) return `${Math.round(b / 1024)} KB`;
+  return `${b} B`;
 }
 
 // ───────────────────────── Chrome ─────────────────────────
@@ -1325,7 +3241,7 @@ function SignaturePad({
               with rich-text image embeds. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={`/api/walrus/blob/${value.blobId}`}
+            src={`${clientConfig.API_BASE_URL || ""}/api/walrus/blob/${value.blobId}`}
             alt="signature"
             className="block h-[180px] w-full object-contain"
           />
@@ -1389,14 +3305,82 @@ function SignaturePad({
   );
 }
 
-function ProgressBar({ current, total }: { current: number; total: number }) {
+function ProgressBar({
+  current,
+  total,
+  stepKind,
+  stepIdx,
+}: {
+  current: number;
+  total: number;
+  stepKind?: "intro" | "question" | "review";
+  stepIdx?: number;
+}) {
   const pct = total > 0 ? Math.min(100, (current / total) * 100) : 0;
+  const label =
+    stepKind === "intro"
+      ? "intro"
+      : stepKind === "review"
+        ? "review"
+        : stepIdx !== undefined
+          ? `q ${stepIdx} of ${total}`
+          : "";
   return (
-    <div className="absolute left-0 right-0 top-0 h-[3px] bg-zinc-900">
+    <div
+      className="w-full"
+      style={{
+        background: "var(--echo-paper)",
+        borderBottom: "1px solid var(--echo-rail)",
+      }}
+    >
       <div
-        className="h-full bg-blue-500 transition-[width] duration-300"
-        style={{ width: `${pct}%` }}
-      />
+        className="mx-auto flex items-center gap-4 px-6 py-2"
+        style={{ maxWidth: 1200 }}
+      >
+        <span
+          className="font-mono"
+          style={{
+            fontSize: 10,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "var(--echo-mut)",
+            minWidth: 64,
+          }}
+        >
+          {label}
+        </span>
+        <div
+          className="flex-1"
+          style={{
+            height: 3,
+            background: "var(--echo-rail)",
+            borderRadius: 999,
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              width: `${pct}%`,
+              height: "100%",
+              background: "var(--echo-ink)",
+              transition: "width 220ms cubic-bezier(0.22, 1, 0.36, 1)",
+            }}
+          />
+        </div>
+        <span
+          className="font-mono"
+          style={{
+            fontSize: 10,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "var(--echo-mut)",
+            minWidth: 40,
+            textAlign: "right",
+          }}
+        >
+          {Math.round(pct)}%
+        </span>
+      </div>
     </div>
   );
 }
@@ -1413,41 +3397,113 @@ function FooterChrome({
   onNext: () => void;
 }) {
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 flex items-end justify-between gap-3 px-4 pb-4 sm:px-6 sm:pb-6">
-      <Link
-        href="/"
-        className="pointer-events-auto rounded-full bg-zinc-900/80 px-3 py-1.5 text-[11px] font-medium text-zinc-400 backdrop-blur transition hover:bg-zinc-800 hover:text-zinc-200"
+    <footer
+      style={{
+        background: "var(--echo-paper)",
+        borderTop: "1px solid var(--echo-rail)",
+      }}
+    >
+      <div
+        className="mx-auto flex items-center justify-between gap-3 px-6 py-3"
+        style={{ maxWidth: 1200 }}
       >
-        Powered by <span className="text-zinc-200">Echo</span>
-      </Link>
-      <div className="pointer-events-auto flex overflow-hidden rounded-full bg-blue-500 shadow-lg shadow-blue-500/20">
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={!canGoBack}
-          className="px-3 py-2 text-white transition hover:bg-blue-400 disabled:opacity-40"
-          aria-label="Previous question"
+        <span
+          className="font-mono inline-flex items-center gap-2"
+          style={{
+            fontSize: 10,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "var(--echo-mut)",
+          }}
         >
-          <ChevronUp size={18} />
-        </button>
-        <span className="w-px bg-blue-400/40" />
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={!canGoNext}
-          className="px-3 py-2 text-white transition hover:bg-blue-400 disabled:opacity-40"
-          aria-label="Next question"
-        >
-          <ChevronDown size={18} />
-        </button>
+          <span>powered by</span>
+          <Link
+            href="/"
+            style={{
+              fontWeight: 600,
+              color: "var(--echo-ink)",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            echo
+          </Link>
+          <span style={{ color: "var(--echo-mut-2)", margin: "0 4px" }}>·</span>
+          <span>walrus storage · sui object</span>
+        </span>
+        <div className="flex items-center gap-2">
+          <ArrowButton
+            disabled={!canGoBack}
+            onClick={onBack}
+            ariaLabel="Previous question"
+          >
+            <ArrowUp size={16} />
+          </ArrowButton>
+          <ArrowButton
+            disabled={!canGoNext}
+            onClick={onNext}
+            ariaLabel="Next question"
+            primary
+          >
+            <ArrowDown size={16} />
+          </ArrowButton>
+        </div>
       </div>
-    </div>
+    </footer>
+  );
+}
+
+function ArrowButton({
+  children,
+  disabled,
+  onClick,
+  ariaLabel,
+  primary,
+}: {
+  children: React.ReactNode;
+  disabled: boolean;
+  onClick: () => void;
+  ariaLabel: string;
+  primary?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      style={{
+        width: 36,
+        height: 36,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: "1.5px solid var(--echo-ink)",
+        background: primary ? "var(--echo-ink)" : "var(--echo-paper)",
+        color: primary ? "var(--echo-paper)" : "var(--echo-ink)",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.35 : 1,
+        borderRadius: 6,
+        transition: "transform 120ms ease",
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
 function KeyHint({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="rounded-md bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-300">
+    <kbd
+      className="font-mono"
+      style={{
+        padding: "1px 6px",
+        fontSize: 10,
+        border: "1px solid var(--echo-rail)",
+        background: "var(--echo-rail-2)",
+        color: "var(--echo-mut)",
+        borderRadius: 4,
+      }}
+    >
       {children}
     </kbd>
   );

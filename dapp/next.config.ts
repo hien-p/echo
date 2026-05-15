@@ -16,6 +16,12 @@ import type { NextConfig } from "next";
  */
 const isWalrusBuild = process.env.WALRUS_BUILD === "1";
 
+// Walrus aggregators occasionally 503 on JS/CSS chunks → users see
+// "ChunkLoadError" / "Application error". For the Walrus build we point
+// every static asset URL at the Cloudflare Pages origin (single-digit-ms
+// p99, no aggregator 503s). The HTML still lives on Walrus.
+const WALRUS_ASSET_PREFIX = "https://staging.echo-20u.pages.dev";
+
 const nextConfig: NextConfig = {
   // Walrus Sites needs a fully static, file-extension-aware bundle.
   ...(isWalrusBuild
@@ -30,6 +36,18 @@ const nextConfig: NextConfig = {
         trailingSlash: true,
         // next/image's default optimizer needs a server. Disable for export.
         images: { unoptimized: true },
+        // Rewrite every <script src="/_next/static/…">, stylesheet, font,
+        // and image fetch to the Cloudflare Pages CDN. HTML still ships
+        // from Walrus, but chunks come from CF — bypasses aggregator 503s.
+        assetPrefix: WALRUS_ASSET_PREFIX,
+        // Inline above-the-fold CSS via critters so first paint is correct
+        // even if the deferred stylesheet fetch 503s. Critical-CSS work is
+        // a no-op for the CF Pages build (same-origin asset fetches), so
+        // we only enable it for the Walrus target. Next 15.5 still wires
+        // optimizeCss to the legacy `critters` (not the `beasties` fork).
+        experimental: {
+          optimizeCss: true,
+        },
       }
     : {
         async rewrites() {

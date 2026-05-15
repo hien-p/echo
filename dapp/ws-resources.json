@@ -1,14 +1,41 @@
 {
   "headers": {
+    "/*.html": {
+      "Cache-Control": "public, max-age=300, must-revalidate"
+    },
     "/_next/static/chunks/*": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    },
+    "/_next/static/css/*": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    },
+    "/_next/static/media/*": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    },
+    "/assets/*": {
       "Cache-Control": "public, max-age=31536000, immutable"
     }
   },
   "routes": {
+    "/*": "/index.html",
+    "/dashboard": "/dashboard/index.html",
+    "/dashboard/": "/dashboard/index.html",
+    "/docs": "/docs/index.html",
+    "/docs/": "/docs/index.html",
+    "/docs/embed": "/docs/embed/index.html",
+    "/docs/embed/": "/docs/embed/index.html",
+    "/forms": "/forms/index.html",
+    "/forms/": "/forms/index.html",
     "/forms/*": "/forms/_/index.html",
     "/forms/*/": "/forms/_/index.html",
     "/forms/*/admin": "/forms/_/admin/index.html",
-    "/forms/*/admin/": "/forms/_/admin/index.html"
+    "/forms/*/admin/": "/forms/_/admin/index.html",
+    "/insights": "/insights/index.html",
+    "/insights/": "/insights/index.html",
+    "/logs": "/logs/index.html",
+    "/logs/": "/logs/index.html",
+    "/reputation": "/reputation/index.html",
+    "/reputation/": "/reputation/index.html"
   },
   "metadata": {
     "link": "https://github.com/hien-p/echo",
@@ -17,6 +44,6 @@
     "project_url": null,
     "creator": null
   },
-  "site_name": "My Walrus Site",
-  "object_id": "0x1be8f3fe5dc456cfd69c4c6a6f714608da770af551f34d6164d062583af43627"
+  "site_name": "Echo · forms on sui",
+  "object_id": "0x103168e5928e61a0add0f786885b2a4702e8219315ca30047320cd1cc67bf66d"
 }

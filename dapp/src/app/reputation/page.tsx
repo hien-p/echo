@@ -1,21 +1,12 @@
 import type { Metadata } from "next";
-import { AppShell } from "@/components/shell";
-import { ReputationDashboard } from "./ReputationClient";
+import { EchoReputationRedesign } from "./EchoReputationRedesign";
 
 export const metadata: Metadata = {
   title: "Reputation · Echo",
-  description: "Your soulbound reputation score and unclaimed credit tickets.",
+  description:
+    "Preview of the Soulbound reputation badges respondents earn on Echo — non-transferable, on-chain, queryable by other dapps.",
 };
 
 export default function ReputationPage() {
-  return (
-    <AppShell
-      kicker="Reputation"
-      title="Soulbound badges"
-      subtitle="Mint your reputation badge once, then claim credit tickets that form owners issue you for quality submissions."
-      width="narrow"
-    >
-      <ReputationDashboard />
-    </AppShell>
-  );
+  return <EchoReputationRedesign />;
 }

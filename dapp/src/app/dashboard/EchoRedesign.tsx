@@ -1510,11 +1510,21 @@ function TriageRow({ row, index }: { row: TriageRowData; index: number }) {
       : row.status === "flagged"
         ? "#E8A540"
         : null;
+  // Deep-link to the admin for this submission's form. Falls back to
+  // /forms when the row is a demo placeholder without a real formId.
+  const rowHref = row.formId
+    ? `/forms/${row.formId}/admin?focus=${row.id}`
+    : null;
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.03 }}
+      onClick={() => {
+        if (rowHref && typeof window !== "undefined") {
+          window.location.assign(rowHref);
+        }
+      }}
       style={{
         display: "grid",
         gridTemplateColumns: "minmax(0,1fr) 160px 100px 130px",
@@ -1523,6 +1533,7 @@ function TriageRow({ row, index }: { row: TriageRowData; index: number }) {
         alignItems: "center",
         borderBottom: "1px solid var(--echo-rail)",
         position: "relative",
+        cursor: rowHref ? "pointer" : "default",
       }}
       whileHover={{ background: "var(--echo-rail-2)" }}
     >

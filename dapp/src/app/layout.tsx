@@ -9,6 +9,8 @@ import { SuiProvider } from "@/contexts/SuiProvider";
 import { SkipToContent } from "@/components/shell";
 import { Toaster } from "@/components/general/Toaster";
 import { ExtensionAttrStripper } from "@/components/general/ExtensionAttrStripper";
+import { ErrorReporter } from "@/components/general/ErrorReporter";
+import { ServiceWorkerRegister } from "@/components/general/ServiceWorkerRegister";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -56,6 +58,69 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Chunk retry shim — Walrus aggregators occasionally 503 a
+            specific JS chunk on first hit, which Next surfaces as
+            "ChunkLoadError" and crashes the whole app. This inline
+            script (a) patches window.fetch so failed fetches of
+            /_next/static/chunks/*.js retry up to 3× with backoff,
+            and (b) listens for <script>-tag onerror events and
+            re-injects the same src with a cache-buster after a
+            short delay. Both layers are belt-and-braces; either one
+            alone would catch most cases.
+            Must run BEFORE webpack init, so it lives in <head>. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(() => {
+              if (typeof window === 'undefined') return;
+              var CHUNK_RE = /\\/_next\\/static\\/chunks\\//;
+              var MAX = 3;
+              // (a) fetch retry
+              var origFetch = window.fetch.bind(window);
+              window.fetch = function(input, init) {
+                var url = typeof input === 'string' ? input : (input && input.url) || '';
+                if (!CHUNK_RE.test(url)) return origFetch(input, init);
+                var attempt = 0;
+                var tryFetch = function() {
+                  return origFetch(input, init).then(function(res) {
+                    if (res.ok || attempt >= MAX) return res;
+                    attempt++;
+                    return new Promise(function(r) {
+                      setTimeout(function(){ r(tryFetch()); }, 250 * attempt);
+                    });
+                  }).catch(function(err) {
+                    if (attempt >= MAX) throw err;
+                    attempt++;
+                    return new Promise(function(r) {
+                      setTimeout(function(){ r(tryFetch()); }, 250 * attempt);
+                    });
+                  });
+                };
+                return tryFetch();
+              };
+              // (b) script tag onerror retry
+              window.addEventListener('error', function(e) {
+                var t = e.target;
+                if (!t || t.tagName !== 'SCRIPT') return;
+                var src = t.src || '';
+                if (!CHUNK_RE.test(src)) return;
+                var retries = parseInt(t.getAttribute('data-echo-retry') || '0', 10);
+                if (retries >= MAX) return;
+                e.preventDefault();
+                setTimeout(function() {
+                  var s = document.createElement('script');
+                  s.src = src + (src.indexOf('?') >= 0 ? '&' : '?') + '_r=' + (retries + 1);
+                  s.async = t.async;
+                  s.defer = t.defer;
+                  s.crossOrigin = t.crossOrigin;
+                  s.setAttribute('data-echo-retry', String(retries + 1));
+                  document.head.appendChild(s);
+                }, 200 * (retries + 1));
+              }, true);
+            })();`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${interTight.variable} antialiased min-h-[100dvh] flex flex-col`}
         suppressHydrationWarning
@@ -69,7 +134,16 @@ export default function RootLayout({
             MutationObserver from a "use client" useEffect avoids any
             SSR-vs-client diff on the script element. */}
         <ExtensionAttrStripper />
+        {/* Best-effort client error telemetry — POSTs ChunkLoadError +
+            other client crashes to /api/error-log so we can measure
+            failure rates by build + aggregator. No PII, no SDK. */}
+        <ErrorReporter />
         <SuiProvider>
+          {/* SW registration — caches /_next/static, /assets, fonts,
+              CSS, and HTML pages so Walrus aggregator 503s on
+              echo-forms.wal.app become invisible to the user. /api/*
+              is never cached. Production only. */}
+          <ServiceWorkerRegister />
           <SkipToContent />
           {/* Headers are now per-page: marketing uses MarketingHeader,
               app surfaces use EchoNavRail. The legacy NavPill was
