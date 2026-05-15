@@ -9,11 +9,12 @@
 |                                                                                       |                                                                                                           |
 | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | **App**                                                                               | https://echo-20u.pages.dev                                                                                |
-| **Leave us feedback**                                                                 | https://echo-20u.pages.dev/forms/0x1f461854bdf96c46c54610a1c1a6bb3062033ce27ac3aa8755534b8aeaa132d8       |
-| **Demo AdminOnly form** (toggle "Demo admin" in header to read encrypted submissions) | https://echo-20u.pages.dev/forms/0x1f7c0af08411366f712f8b69998fce1c61463c44c4d403c2857ff2aaf8dd7b5d/admin |
+| **Leave us feedback**                                                                 | https://echo-20u.pages.dev/forms/0xfa5dce34f093b9eb42d098d0fbb747eb97b6a37bf20af370735db7c1c6163d73       |
+| **Demo AdminOnly form** (toggle "Demo admin" in header to read encrypted submissions) | https://echo-20u.pages.dev/forms/0xf8927c63514fd018305ca1911737d3cdd7d00fd787db9a1503352b6eed2eaa31/admin |
+| **Multisig demo form** (real 2-of-2 m-of-n threshold)                                 | https://echo-20u.pages.dev/forms/0x7536009392a40ca0e468b9ed10a080e3008f132a5df758c884aea3a3e92b8fb3/admin |
 | **Insights / RAG**                                                                    | https://echo-20u.pages.dev/insights                                                                       |
 | **Devlog**                                                                            | https://echo-20u.pages.dev/logs                                                                           |
-| **Move package** (Sui testnet)                                                        | `0xf7e9261724da6c6ae4869bbf623ead796ea31f6a90ea8dcdb30d35568870763c`                                      |
+| **Move package** (Sui testnet, audit-patched 2026-05-15)                              | `0x3df32d4afc11ba3ada2caf8a3c4edcd21076915e5da31877dedec0a520c7754a`                                      |
 
 ## 🏗️ What's actually built
 
@@ -172,17 +173,44 @@ site-builder publish ./dapp/out --epochs 30 \
 ## 🧪 Tests
 
 ```bash
-sui move test --path move/echo            # 18 Move tests
+sui move test --path move/echo            # 26 Move tests (22 baseline + 4 audit regressions)
 cd dapp && pnpm test                      # 21 dapp tests
 cd integration-tests && pnpm test         # full e2e (needs Docker)
 ```
+
+## 🛡️ Trust model
+
+| Tier              | On-chain guarantee                                                                   | Trusts                                       |
+| ----------------- | ------------------------------------------------------------------------------------ | -------------------------------------------- |
+| Public            | none — plaintext on Walrus                                                           | Walrus availability                          |
+| AdminOnly         | only the `FormOwnerCap` holder decrypts                                              | Cap-holder key custody, Seal key servers     |
+| Threshold OR-of-N | any one of N caps decrypts (`threshold_n == 1`)                                      | Any cap holder, Seal key servers             |
+| Threshold m-of-n  | k unique `ApprovalWitness` objects required (real cryptographic primitive)           | k cap holders coordinating, Seal key servers |
+| TimeLocked        | permissionless decrypt after `unlock_ms`; create-time guard against `unlock_ms == 0` | Sui clock, Seal time-lock servers            |
+| Conditional       | currently collapses to AdminOnly semantics — see "Known limitations"                 | Same as AdminOnly                            |
+
+Walletless respondents: ephemeral Ed25519 keypair held in browser, gas sponsored by Enoki. Trust set = the dapp origin + Enoki. Submission ciphertext is content-addressed on Walrus; chain stores the blob id + a `tier_hint` (audit fix F-04) so a misbehaving client can't claim a tier they didn't encrypt under.
+
+## ⚠️ Known limitations (v1 disclosures)
+
+This package was hardened after a third-pass security audit on 2026-05-15 (see `plans/reports/security-audit-260515-move-contracts.md`). The audit's must-fix and should-fix patches all landed in package `0x3df32d4a…0c7754a`. **Two items intentionally deferred to v1.1:**
+
+- **F-01 — Threshold m-of-n witnesses authorize one Seal identity permanently.** `seal_approve_threshold_m_of_n` consumes a `vector<ApprovalWitness>` inside Seal's dry-run, so `object::delete` never actually persists. The shared witnesses remain on chain and the same set re-decrypts forever. Semantics is "k of n voted to release this Seal identity once" — not "k of n per read". v1.1 will bind each witness set to a single `SubmissionRef.id` (or add `expires_ms` with a `Clock` check) so a quorum decrypts exactly one submission. See `form.move:259-268` for the documented file-header note.
+- **F-08 — Conditional tier policy is a stub.** `seal_approve_conditional` enforces the same predicate as `seal_approve_admin_only`; `conditional_policy_id` is stored but unread. v1.1 will ship a `ConditionalPolicyWitness` pattern mirroring `ApprovalWitness` so an off-chain oracle posts a witness when conditions are met.
+
+The audit's full finding list (F-01 through F-15) and per-tier threat model are in the audit report. Highlighted regressions are covered by 4 new Move tests:
+
+- `seal_approve_threshold_aborts_when_k_above_one` (F-02 — was a complete m-of-n bypass)
+- `create_time_locked_with_zero_unlock_aborts` (F-07)
+- `submit_with_wrong_tier_hint_aborts` (F-04)
+- `seal_approve_admin_only_aborts_when_archived` (F-03)
 
 ## 📝 Submission
 
 - **App**: https://echo-20u.pages.dev
 - **Source**: this repo
 - **Devlog**: https://echo-20u.pages.dev/logs
-- **Real feedback collected on Echo itself** (please leave one!): https://echo-20u.pages.dev/forms/0x1f461854bdf96c46c54610a1c1a6bb3062033ce27ac3aa8755534b8aeaa132d8
+- **Real feedback collected on Echo itself** (please leave one!): https://echo-20u.pages.dev/forms/0xfa5dce34f093b9eb42d098d0fbb747eb97b6a37bf20af370735db7c1c6163d73
 
 ---
 

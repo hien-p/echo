@@ -159,6 +159,33 @@
         Tag values: feat | fix | chore | docs | refactor
       -->
 
+        <article class="log-card" data-date="2026-05-15">
+          <header>
+            <time datetime="2026-05-15">2026-05-15</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Security audit patches landed — Move package redeployed</h3>
+          <p>
+            Third-pass audit flagged two CRITICAL findings on the live package.
+            <strong>F-02:</strong> <code>seal_approve_threshold</code> never
+            checked <code>threshold_n == 1</code>, so the OR-of-N entry silently
+            bypassed every k-of-n form. <strong>F-04:</strong>
+            <code>submit</code> accepted plaintext blobs on encrypted tiers
+            without any cross-check. Plus three HIGHs (archived forms still
+            yielded Seal approvals; <code>record_commitment</code> /
+            <code>bump_submission_count</code> lacked <code>assert_open</code>)
+            and one MEDIUM (TimeLocked accepted <code>unlock_ms == 0</code>).
+            All patched, four new regression tests added (26 Move tests total,
+            22 baseline + 4 audit). New package id:
+            <code
+              >0x3df32d4afc11ba3ada2caf8a3c4edcd21076915e5da31877dedec0a520c7754a</code
+            >. F-01 (witnesses authorize one Seal identity forever)
+            intentionally deferred to v1.1 with a documented note in the README
+            — needs a per-submission identity binding which is a couple-hour
+            change, not a one-line patch.
+          </p>
+        </article>
+
         <article class="log-card" data-date="2026-05-09">
           <header>
             <time datetime="2026-05-09">2026-05-09</time>

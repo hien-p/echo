@@ -336,11 +336,13 @@ function SubmitForm({
             formId,
             payloadBlobId: blobId,
             commitment: commitment!,
+            tierHint: privacyTier,
           })
         : buildSubmitTx({
             packageId,
             formId,
             payloadBlobId: blobId,
+            tierHint: privacyTier,
           });
 
       const { digest } = await executeSponsored({
