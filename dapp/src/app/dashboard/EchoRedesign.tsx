@@ -81,6 +81,11 @@ interface FormCard {
 type TriageStatus = "new" | "read" | "flagged" | "archived";
 interface TriageRowData {
   id: string;
+  // Optional on the type so fallback demo rows (which never had a real
+  // on-chain form id) don't need to fabricate one. The hook always
+  // populates this for live rows; the row UI falls back to /forms when
+  // it's missing.
+  formId?: string | null;
   form: string;
   submitter: string;
   submitterNs: string | null;
@@ -271,6 +276,7 @@ function useEchoDashboardData() {
         const tierName = TIER_NAMES[s.formTier] ?? "Public";
         return {
           id: s.submissionId,
+          formId: s.formId,
           form: s.formTitle,
           submitter: s.anonymous ? "anon" : shortAddr(s.submitter),
           submitterNs: null as string | null,
@@ -1666,10 +1672,15 @@ function TriageRow({ row, index }: { row: TriageRowData; index: number }) {
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         {row.encrypted ? (
-          <BrutalistInk size="sm">decrypt</BrutalistInk>
+          <BrutalistInk
+            size="sm"
+            href={row.formId ? `/forms/${row.formId}/admin` : "/forms"}
+          >
+            decrypt
+          </BrutalistInk>
         ) : (
           <Link
-            href="#"
+            href={row.formId ? `/forms/${row.formId}/admin` : "/forms"}
             style={{
               fontFamily: "JetBrains Mono, monospace",
               fontSize: 11,
