@@ -42,6 +42,48 @@ async function waitForObjects(
   }
 }
 
+/**
+ * Localnet read-after-write race: `executeTransaction` returns at commit,
+ * but the GRPC node's object index can still serve the pre-mutation
+ * version for a checkpoint or two. A tx built against that stale version
+ * is rejected by validators with "object ... is unavailable for
+ * consumption ... needs to be rebuilt" (an RpcError thrown *before*
+ * execution — distinct from a Move abort, which resolves normally with
+ * `FailedTransaction` set). Rebuild a fresh Transaction (re-resolving
+ * object versions) and retry only on that specific staleness error.
+ */
+async function buildSignExecuteWithRetry(
+  client: SuiGrpcClient,
+  signer: ReturnType<typeof loadAccountKeypair>,
+  makeTx: () => Transaction,
+  {
+    retries = 8,
+    intervalMs = 250,
+  }: { retries?: number; intervalMs?: number } = {},
+) {
+  for (let attempt = 0; ; attempt++) {
+    const built = await makeTx().build({ client });
+    const { signature } = await signer.signTransaction(built);
+    try {
+      return await client.executeTransaction({
+        transaction: built,
+        signatures: [signature],
+        include: { effects: true },
+      });
+    } catch (err) {
+      const msg = decodeURIComponent(
+        String(err instanceof Error ? err.message : err),
+      );
+      const stale =
+        /unavailable for consumption|needs to be rebuilt|not available for consumption/i.test(
+          msg,
+        );
+      if (!stale || attempt >= retries) throw err;
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+  }
+}
+
 describe("echo e2e flow", () => {
   let packageId: string;
   let formId: string;
@@ -139,25 +181,28 @@ describe("echo e2e flow", () => {
   });
 
   it("rejects submit on a closed form", async () => {
-    const tx = new Transaction();
-    tx.moveCall({
-      target: `${packageId}::submission::submit`,
-      arguments: [
-        tx.object(formId),
-        tx.pure.string("payload-blob-test"),
-        tx.pure.u8(0), // tier_hint = Public — matches form.privacy_tier
-        tx.object(SUI_CLOCK_OBJECT_ID),
-      ],
-    });
-    tx.setSender(admin.address);
-
-    const built = await tx.build({ client: suiClient });
-    const { signature } = await adminKeypair.signTransaction(built);
-    const resp = await suiClient.executeTransaction({
-      transaction: built,
-      signatures: [signature],
-      include: { effects: true },
-    });
+    // close_form (previous test) bumped the shared form's version; the
+    // GRPC index may still serve the old one. buildSignExecuteWithRetry
+    // rebuilds against the current version until validators accept it,
+    // so the only remaining failure is the Move abort we're asserting.
+    const resp = await buildSignExecuteWithRetry(
+      suiClient,
+      adminKeypair,
+      () => {
+        const tx = new Transaction();
+        tx.moveCall({
+          target: `${packageId}::submission::submit`,
+          arguments: [
+            tx.object(formId),
+            tx.pure.string("payload-blob-test"),
+            tx.pure.u8(0), // tier_hint = Public — matches form.privacy_tier
+            tx.object(SUI_CLOCK_OBJECT_ID),
+          ],
+        });
+        tx.setSender(admin.address);
+        return tx;
+      },
+    );
     // form::EFormNotOpen (abort 1) — submission must fail.
     expect(resp.FailedTransaction).toBeDefined();
   });
