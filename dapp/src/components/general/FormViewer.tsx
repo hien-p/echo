@@ -1168,9 +1168,18 @@ function Takeover({
         }
       }
 
+      // Enoki only sponsors networks its API key is provisioned for
+      // (testnet here). On mainnet createSponsoredTransaction returns a
+      // 400, so skip the sponsor round-trip entirely: the connected
+      // wallet self-pays (~0.004 SUI). A walletless ephemeral key holds
+      // no SUI and has no self-pay path, so it can't submit on mainnet.
+      const gasSponsored = clientConfig.SUI_NETWORK !== "mainnet";
+
       setStatus({
         kind: "submitting",
-        step: "Submitting on chain (gas sponsored)…",
+        step: gasSponsored
+          ? "Submitting on chain (gas sponsored)…"
+          : "Submitting on chain (you pay ≈0.004 SUI gas)…",
       });
       const tx = anonymous
         ? buildSubmitAnonymousTx({
@@ -1187,19 +1196,46 @@ function Takeover({
             tierHint: privacyTier,
           });
 
-      const { digest } =
-        mode === "walletless" && ephemeralKeypair
-          ? await executeSponsoredWithKeypair({
-              tx,
-              keypair: ephemeralKeypair,
-              suiClient,
-            })
-          : await executeSponsored({
-              tx,
-              sender: accountAddress!,
-              suiClient,
-              dAppKit,
-            });
+      let digest: string;
+      if (mode === "walletless" && ephemeralKeypair) {
+        if (!gasSponsored) {
+          throw new Error(
+            "Gas-free submission isn't available on this network — sponsorship is testnet-only. Connect a wallet to submit (you'll pay ≈0.004 SUI in gas).",
+          );
+        }
+        ({ digest } = await executeSponsoredWithKeypair({
+          tx,
+          keypair: ephemeralKeypair,
+          suiClient,
+        }));
+      } else if (gasSponsored) {
+        try {
+          ({ digest } = await executeSponsored({
+            tx,
+            sender: accountAddress!,
+            suiClient,
+            dAppKit,
+          }));
+        } catch {
+          // Sponsorship dropped mid-flight — fall back to a normal
+          // self-paid tx so the submission still lands.
+          const result = await dAppKit.signAndExecuteTransaction({
+            transaction: tx,
+          });
+          if (result.$kind === "FailedTransaction") {
+            throw new Error("Submission transaction failed on chain.");
+          }
+          digest = result.Transaction.digest;
+        }
+      } else {
+        const result = await dAppKit.signAndExecuteTransaction({
+          transaction: tx,
+        });
+        if (result.$kind === "FailedTransaction") {
+          throw new Error("Submission transaction failed on chain.");
+        }
+        digest = result.Transaction.digest;
+      }
       void ephemeralAddress;
       setStatus({ kind: "submitted", digest });
     } catch (e) {
@@ -1793,8 +1829,14 @@ function ReviewStep({
   answers: Record<string, SubmissionAnswer>;
 }) {
   const submitting = status.kind === "submitting";
+  // Walletless submit relies entirely on Enoki gas sponsorship, which is
+  // testnet-only. On mainnet an ephemeral key has no SUI to pay gas, so
+  // don't offer the path — the user must connect a wallet and self-pay.
   const canWalletless =
-    !accountAddress && privacyTier === PrivacyTier.Public && !submitting;
+    !accountAddress &&
+    privacyTier === PrivacyTier.Public &&
+    !submitting &&
+    clientConfig.SUI_NETWORK !== "mainnet";
   return (
     <section
       className="grid gap-10 sm:gap-14 items-start"
@@ -2050,7 +2092,13 @@ function ReviewStep({
           <TxRow
             label="fee"
             value={
-              <span style={{ color: "var(--echo-success)" }}>sponsored ✓</span>
+              clientConfig.SUI_NETWORK === "mainnet" ? (
+                "≈ 0.0042 SUI · you pay"
+              ) : (
+                <span style={{ color: "var(--echo-success)" }}>
+                  sponsored ✓
+                </span>
+              )
             }
           />
         </div>
