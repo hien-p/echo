@@ -42,6 +42,70 @@ async function waitForObjects(
   }
 }
 
+/**
+ * Assert that submitting to a just-closed form is rejected by
+ * `form::assert_open` (EFormNotOpen, abort code 1). Two localnet
+ * realities make a one-shot execute flaky:
+ *
+ *  - **Read-after-write lag**: the GRPC index can still serve the
+ *    pre-close (open) form for a checkpoint or two, so an early attempt
+ *    either succeeds (stale-open view) or is rejected with "object ...
+ *    unavailable for consumption ... needs to be rebuilt" once the
+ *    version moves under it.
+ *  - **Abort surfacing**: with this GRPC client the Move abort surfaces
+ *    *thrown* from build/resolution ("Transaction resolution failed:
+ *    MoveAbort ... assert_open"), not as a returned `FailedTransaction`.
+ *
+ * So: rebuild a fresh tx each attempt and poll until we actually observe
+ * the EFormNotOpen abort (thrown or returned). Treat "succeeded" /
+ * "stale-version" as not-yet-visible and retry; only the abort passes.
+ */
+async function expectSubmitRejectedOnClosedForm(
+  client: SuiGrpcClient,
+  signer: ReturnType<typeof loadAccountKeypair>,
+  makeTx: () => Transaction,
+  {
+    timeoutMs = 15_000,
+    intervalMs = 300,
+  }: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  const isClosedAbort = (s: string) =>
+    /assert_open|EFormNotOpen|abort code: 1\b|abortCode['":\s]+1\b/i.test(s);
+  const isStale = (s: string) =>
+    /unavailable for consumption|needs to be rebuilt|not available for consumption/i.test(
+      s,
+    );
+  let last = "";
+  while (Date.now() < deadline) {
+    try {
+      const built = await makeTx().build({ client });
+      const { signature } = await signer.signTransaction(built);
+      const resp = await client.executeTransaction({
+        transaction: built,
+        signatures: [signature],
+        include: { effects: true },
+      });
+      // Some SDK paths return the abort instead of throwing it.
+      const serialized = JSON.stringify(resp);
+      if (resp.FailedTransaction !== undefined && isClosedAbort(serialized))
+        return;
+      // Submitted against the stale-open view — close not visible yet.
+      last = `unexpected success / non-abort failure: ${serialized.slice(0, 200)}`;
+    } catch (err) {
+      const msg = decodeURIComponent(
+        String(err instanceof Error ? err.message : err),
+      );
+      if (isClosedAbort(msg)) return; // the assertion we want
+      if (!isStale(msg)) last = msg; // keep last non-stale error for context
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(
+    `submit on closed form never produced EFormNotOpen within ${timeoutMs}ms. last: ${last}`,
+  );
+}
+
 describe("echo e2e flow", () => {
   let packageId: string;
   let formId: string;
@@ -139,26 +203,22 @@ describe("echo e2e flow", () => {
   });
 
   it("rejects submit on a closed form", async () => {
-    const tx = new Transaction();
-    tx.moveCall({
-      target: `${packageId}::submission::submit`,
-      arguments: [
-        tx.object(formId),
-        tx.pure.string("payload-blob-test"),
-        tx.pure.u8(0), // tier_hint = Public — matches form.privacy_tier
-        tx.object(SUI_CLOCK_OBJECT_ID),
-      ],
+    // close_form (previous test) bumped the shared form's version. Poll
+    // (rebuilding each attempt) until the close is visible and submit is
+    // rejected by form::assert_open with EFormNotOpen (abort code 1).
+    await expectSubmitRejectedOnClosedForm(suiClient, adminKeypair, () => {
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${packageId}::submission::submit`,
+        arguments: [
+          tx.object(formId),
+          tx.pure.string("payload-blob-test"),
+          tx.pure.u8(0), // tier_hint = Public — matches form.privacy_tier
+          tx.object(SUI_CLOCK_OBJECT_ID),
+        ],
+      });
+      tx.setSender(admin.address);
+      return tx;
     });
-    tx.setSender(admin.address);
-
-    const built = await tx.build({ client: suiClient });
-    const { signature } = await adminKeypair.signTransaction(built);
-    const resp = await suiClient.executeTransaction({
-      transaction: built,
-      signatures: [signature],
-      include: { effects: true },
-    });
-    // form::EFormNotOpen (abort 1) — submission must fail.
-    expect(resp.FailedTransaction).toBeDefined();
   });
 });
