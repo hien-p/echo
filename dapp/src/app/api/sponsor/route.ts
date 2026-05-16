@@ -70,10 +70,34 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ bytes: result.bytes, digest: result.digest });
   } catch (err) {
+    // Enoki collapses several distinct failures into HTTP 400 (bad tx
+    // bytes, network not provisioned for the key, Move call target not
+    // allowlisted in the Enoki portal, signature/sender issues). Surface
+    // every detail we can so the real cause is visible instead of an
+    // opaque "Request to Enoki API failed".
+    const e = err as { message?: string; status?: unknown; cause?: unknown };
+    let detail: string | undefined;
+    if (e?.cause != null) {
+      try {
+        detail =
+          typeof e.cause === "string" ? e.cause : JSON.stringify(e.cause);
+      } catch {
+        detail = String(e.cause);
+      }
+    } else if (e?.status != null) {
+      detail = `status ${String(e.status)}`;
+    }
+    const message =
+      err instanceof Error ? err.message : "Sponsor creation failed.";
+    // Visible in `wrangler pages deployment tail` / CF function logs.
+    console.error("[sponsor] Enoki createSponsoredTransaction failed", {
+      network: NETWORK,
+      packageId: ECHO_PACKAGE_ID,
+      message,
+      detail,
+    });
     return NextResponse.json(
-      {
-        error: err instanceof Error ? err.message : "Sponsor creation failed.",
-      },
+      { error: message, detail, network: NETWORK },
       { status: 502 },
     );
   }

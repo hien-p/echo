@@ -1168,18 +1168,15 @@ function Takeover({
         }
       }
 
-      // Enoki only sponsors networks its API key is provisioned for
-      // (testnet here). On mainnet createSponsoredTransaction returns a
-      // 400, so skip the sponsor round-trip entirely: the connected
-      // wallet self-pays (~0.004 SUI). A walletless ephemeral key holds
-      // no SUI and has no self-pay path, so it can't submit on mainnet.
-      const gasSponsored = clientConfig.SUI_NETWORK !== "mainnet";
-
+      // Submissions go through Enoki gas sponsorship (the backend
+      // ENOKI_PRIVATE_KEY is provisioned for this network). If the
+      // sponsor call fails for any reason, a connected wallet falls
+      // back to a normal self-paid tx so the submission still lands.
+      // A walletless ephemeral key has no SUI and no self-pay path,
+      // so it depends entirely on sponsorship.
       setStatus({
         kind: "submitting",
-        step: gasSponsored
-          ? "Submitting on chain (gas sponsored)…"
-          : "Submitting on chain (you pay ≈0.004 SUI gas)…",
+        step: "Submitting on chain (gas sponsored)…",
       });
       const tx = anonymous
         ? buildSubmitAnonymousTx({
@@ -1198,17 +1195,18 @@ function Takeover({
 
       let digest: string;
       if (mode === "walletless" && ephemeralKeypair) {
-        if (!gasSponsored) {
+        try {
+          ({ digest } = await executeSponsoredWithKeypair({
+            tx,
+            keypair: ephemeralKeypair,
+            suiClient,
+          }));
+        } catch {
           throw new Error(
-            "Gas-free submission isn't available on this network — sponsorship is testnet-only. Connect a wallet to submit (you'll pay ≈0.004 SUI in gas).",
+            "Gas-free submission failed — the sponsor service is unavailable. Connect a wallet to submit (you'll pay ≈0.004 SUI in gas).",
           );
         }
-        ({ digest } = await executeSponsoredWithKeypair({
-          tx,
-          keypair: ephemeralKeypair,
-          suiClient,
-        }));
-      } else if (gasSponsored) {
+      } else {
         try {
           ({ digest } = await executeSponsored({
             tx,
@@ -1217,8 +1215,12 @@ function Takeover({
             dAppKit,
           }));
         } catch {
-          // Sponsorship dropped mid-flight — fall back to a normal
-          // self-paid tx so the submission still lands.
+          // Sponsorship unavailable — fall back to a normal self-paid
+          // tx so the submission still lands.
+          setStatus({
+            kind: "submitting",
+            step: "Submitting on chain (you pay ≈0.004 SUI gas)…",
+          });
           const result = await dAppKit.signAndExecuteTransaction({
             transaction: tx,
           });
@@ -1227,14 +1229,6 @@ function Takeover({
           }
           digest = result.Transaction.digest;
         }
-      } else {
-        const result = await dAppKit.signAndExecuteTransaction({
-          transaction: tx,
-        });
-        if (result.$kind === "FailedTransaction") {
-          throw new Error("Submission transaction failed on chain.");
-        }
-        digest = result.Transaction.digest;
       }
       void ephemeralAddress;
       setStatus({ kind: "submitted", digest });
@@ -1829,14 +1823,8 @@ function ReviewStep({
   answers: Record<string, SubmissionAnswer>;
 }) {
   const submitting = status.kind === "submitting";
-  // Walletless submit relies entirely on Enoki gas sponsorship, which is
-  // testnet-only. On mainnet an ephemeral key has no SUI to pay gas, so
-  // don't offer the path — the user must connect a wallet and self-pay.
   const canWalletless =
-    !accountAddress &&
-    privacyTier === PrivacyTier.Public &&
-    !submitting &&
-    clientConfig.SUI_NETWORK !== "mainnet";
+    !accountAddress && privacyTier === PrivacyTier.Public && !submitting;
   return (
     <section
       className="grid gap-10 sm:gap-14 items-start"
@@ -2092,13 +2080,7 @@ function ReviewStep({
           <TxRow
             label="fee"
             value={
-              clientConfig.SUI_NETWORK === "mainnet" ? (
-                "≈ 0.0042 SUI · you pay"
-              ) : (
-                <span style={{ color: "var(--echo-success)" }}>
-                  sponsored ✓
-                </span>
-              )
+              <span style={{ color: "var(--echo-success)" }}>sponsored ✓</span>
             }
           />
         </div>
