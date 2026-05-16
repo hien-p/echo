@@ -29,8 +29,14 @@ const PUBLISHER =
 const AGGREGATOR =
   process.env.NEXT_PUBLIC_WALRUS_AGGREGATOR_URL ??
   "https://aggregator.walrus-testnet.walrus.space";
+const SUI_NETWORK = (process.env.SUI_NETWORK ?? "testnet") as
+  | "testnet"
+  | "mainnet";
 const FULLNODE =
-  process.env.SUI_FULLNODE_URL ?? "https://fullnode.testnet.sui.io:443";
+  process.env.SUI_FULLNODE_URL ??
+  (SUI_NETWORK === "mainnet"
+    ? "https://fullnode.mainnet.sui.io:443"
+    : "https://fullnode.testnet.sui.io:443");
 const FORM_ID = process.env.FORM_ID ?? "";
 const COUNT = Number(process.env.COUNT ?? "3");
 
@@ -327,9 +333,7 @@ async function main() {
     console.error("ADMIN_SECRET_KEY not set in publish/.env");
     process.exit(1);
   }
-  const adminKp = Ed25519Keypair.fromSecretKey(
-    fromBase64(adminSecret).slice(1),
-  );
+  const adminKp = loadOneKey(adminSecret);
   const adminAddr = adminKp.getPublicKey().toSuiAddress();
 
   // Build the rotating signer pool. Sources, in priority:
@@ -368,7 +372,7 @@ async function main() {
     console.log(`  [${i}] ${signers[i].getPublicKey().toSuiAddress()}`);
   }
 
-  const client = new SuiGrpcClient({ network: "testnet", baseUrl: FULLNODE });
+  const client = new SuiGrpcClient({ network: SUI_NETWORK, baseUrl: FULLNODE });
 
   // Top up any signer with < 200M mist so submission gas selection succeeds.
   // Skips the admin (assumed funded). Sleeps 4s after topup so the new coin
