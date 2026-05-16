@@ -89,12 +89,24 @@ echo "✓ Deployed. Look for the 'New site object ID' in the output above —"
 echo "  that's your site anchor. Portal URL is https://<base36(objectId)>.wal.app."
 echo "  Bind a SuiNS name with: walgo domain   (or do it manually in the SuiNS dapp)"
 
-# 4. Pre-warm aggregator caches for the new site. Best-effort.
-if [ "${SKIP_PREWARM:-0}" = "1" ] || [ "${DRY_RUN:-0}" = "1" ]; then
+# 4. Pre-warm aggregator caches for the new site.
+#
+# DISABLED BY DEFAULT (opt in with RUN_PREWARM=1). Field test showed the
+# `<base36>.<host>` fan-out is ineffective and counterproductive:
+#   - wal.app returned HTTP 520 for all 50 burst requests (it rate-limits
+#     bursts; hammering it can degrade the site for a concurrent real
+#     user — the opposite of the intent).
+#   - The other hardcoded aggregator hostnames return curl 000 (they are
+#     not Walrus Sites portals; only wal.app is, and you can't path-GET
+#     a site's blobs off a raw aggregator domain).
+# Real resilience is the in-<head> chunk-retry shim + error.tsx boundary.
+# Kept behind a flag so a corrected portal-aware warm can be re-enabled
+# later without re-plumbing the script.
+if [ "${RUN_PREWARM:-0}" != "1" ] || [ "${DRY_RUN:-0}" = "1" ]; then
   if [ "${DRY_RUN:-0}" = "1" ]; then
     echo "→ pre-warm skipped (DRY_RUN=1)"
   else
-    echo "→ pre-warm skipped (SKIP_PREWARM=1)"
+    echo "→ pre-warm skipped (disabled by default — set RUN_PREWARM=1 to force; see header note)"
   fi
   exit 0
 fi
