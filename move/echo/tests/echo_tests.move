@@ -58,6 +58,7 @@ fun submit_increments_count_and_records_submitter() {
   let _sid = submission::submit(
     &mut form_obj,
     string::utf8(b"payload-blob-1"),
+    form::privacy_public(),
     &clock,
     ctx,
   );
@@ -88,6 +89,7 @@ fun submit_anonymous_records_zero_address_and_commitment() {
     &mut form_obj,
     string::utf8(b"payload-anon"),
     commitment,
+    form::privacy_public(),
     &clock,
     ctx,
   );
@@ -140,6 +142,7 @@ fun submit_to_closed_form_aborts() {
   let _sid = submission::submit(
     &mut form_obj,
     string::utf8(b"should-fail"),
+    form::privacy_public(),
     &clock,
     ctx,
   );
@@ -358,6 +361,7 @@ fun anonymous_distinct_commitments_both_succeed() {
     &mut form_obj,
     string::utf8(b"p1"),
     vector[1, 2, 3, 4],
+    form::privacy_public(),
     &clock,
     ctx,
   );
@@ -365,6 +369,7 @@ fun anonymous_distinct_commitments_both_succeed() {
     &mut form_obj,
     string::utf8(b"p2"),
     vector[5, 6, 7, 8],
+    form::privacy_public(),
     &clock,
     ctx,
   );
@@ -390,6 +395,7 @@ fun anonymous_double_submit_with_same_commitment_aborts() {
     &mut form_obj,
     string::utf8(b"p1"),
     vector[1, 2, 3, 4],
+    form::privacy_public(),
     &clock,
     ctx,
   );
@@ -398,6 +404,7 @@ fun anonymous_double_submit_with_same_commitment_aborts() {
     &mut form_obj,
     string::utf8(b"p2"),
     vector[1, 2, 3, 4],
+    form::privacy_public(),
     &clock,
     ctx,
   );
@@ -606,3 +613,135 @@ fun seal_approve_m_of_n_aborts_on_duplicate_signer() {
 // the existing seal_approve_admin_only_aborts_on_wrong_id pattern, since
 // post_approval shares the same EWrongOwnerCap branch. Skipped here to
 // keep the test surface tight.
+
+// ---- Security-audit regression tests (260515) ---------------------------
+
+/// F-02 regression. A Threshold form with k>=2 must not be decryptable via
+/// the OR-of-N entry — only via seal_approve_threshold_m_of_n with k witnesses.
+#[test, expected_failure(abort_code = 3, location = echo::form)]
+fun seal_approve_threshold_aborts_when_k_above_one() {
+  let mut scenario = ts::begin(ADMIN);
+  {
+    let ctx = ts::ctx(&mut scenario);
+    let clock = clock::create_for_testing(ctx);
+    let cap = form::create_form(
+      string::utf8(b"s"),
+      string::utf8(b"m"),
+      form::privacy_threshold(),
+      2,
+      3,
+      0,
+      string::utf8(b""),
+      vector::empty<address>(),
+      &clock,
+      ctx,
+    );
+    clock::destroy_for_testing(clock);
+    transfer::public_transfer(cap, ADMIN);
+  };
+
+  ts::next_tx(&mut scenario, ADMIN);
+  let cap = ts::take_from_sender<FormOwnerCap>(&scenario);
+  let form_obj = ts::take_shared<form::Form>(&scenario);
+
+  let mut id = sui::object::id_to_bytes(&form::id(&form_obj));
+  vector::push_back(&mut id, form::privacy_threshold());
+
+  // Must abort with EThresholdInvalid (3).
+  form::seal_approve_threshold(id, &form_obj, &cap);
+
+  ts::return_shared(form_obj);
+  ts::return_to_sender(&scenario, cap);
+  ts::end(scenario);
+}
+
+/// F-07 regression. TimeLocked tier with unlock_ms == 0 must abort at create
+/// time so a misconfigured form cannot pretend to be time-locked while being
+/// instantly readable.
+#[test, expected_failure(abort_code = 12, location = echo::form)]
+fun create_time_locked_with_zero_unlock_aborts() {
+  let mut scenario = ts::begin(ADMIN);
+  let ctx = ts::ctx(&mut scenario);
+  let clock = clock::create_for_testing(ctx);
+  let cap = form::create_form(
+    string::utf8(b"s"),
+    string::utf8(b"m"),
+    form::privacy_time_locked(),
+    0,
+    0,
+    0,
+    string::utf8(b""),
+    vector::empty<address>(),
+    &clock,
+    ctx,
+  );
+  clock::destroy_for_testing(clock);
+  transfer::public_transfer(cap, ADMIN);
+  ts::end(scenario);
+}
+
+/// F-04 regression. submit() must reject a tier_hint that disagrees with the
+/// on-chain form.privacy_tier — clients cannot claim a tier they didn't encrypt
+/// under.
+#[test, expected_failure(abort_code = 200, location = echo::submission)]
+fun submit_with_wrong_tier_hint_aborts() {
+  let mut scenario = ts::begin(ADMIN);
+  new_public_form_in_scenario(&mut scenario);
+
+  ts::next_tx(&mut scenario, USER);
+  let mut form_obj = ts::take_shared<form::Form>(&scenario);
+  let ctx = ts::ctx(&mut scenario);
+  let clock = clock::create_for_testing(ctx);
+  // Public form, but client claims admin-only → ETierMismatch (200).
+  let _sid = submission::submit(
+    &mut form_obj,
+    string::utf8(b"plaintext-claimed-as-encrypted"),
+    form::privacy_admin_only(),
+    &clock,
+    ctx,
+  );
+  clock::destroy_for_testing(clock);
+  ts::return_shared(form_obj);
+  ts::end(scenario);
+}
+
+/// F-03 regression. Archived forms must not yield Seal approvals — the
+/// submission-side flow is already gated by assert_open, the read-side now
+/// matches.
+#[test, expected_failure(abort_code = 13, location = echo::form)]
+fun seal_approve_admin_only_aborts_when_archived() {
+  let mut scenario = ts::begin(ADMIN);
+  {
+    let ctx = ts::ctx(&mut scenario);
+    let clock = clock::create_for_testing(ctx);
+    let cap = form::create_form(
+      string::utf8(b"s"),
+      string::utf8(b"m"),
+      form::privacy_admin_only(),
+      0,
+      0,
+      0,
+      string::utf8(b""),
+      vector::empty<address>(),
+      &clock,
+      ctx,
+    );
+    clock::destroy_for_testing(clock);
+    transfer::public_transfer(cap, ADMIN);
+  };
+
+  ts::next_tx(&mut scenario, ADMIN);
+  let cap = ts::take_from_sender<FormOwnerCap>(&scenario);
+  let mut form_obj = ts::take_shared<form::Form>(&scenario);
+  form::archive_form(&cap, &mut form_obj);
+
+  let mut id = sui::object::id_to_bytes(&form::id(&form_obj));
+  vector::push_back(&mut id, form::privacy_admin_only());
+
+  // Archived form → must abort with EFormArchived (13).
+  form::seal_approve_admin_only(id, &form_obj, &cap);
+
+  ts::return_shared(form_obj);
+  ts::return_to_sender(&scenario, cap);
+  ts::end(scenario);
+}

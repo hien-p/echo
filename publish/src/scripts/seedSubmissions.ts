@@ -506,6 +506,7 @@ async function main() {
       arguments: [
         tx.object(FORM_ID),
         tx.pure.string(blobId),
+        tx.pure.u8(tier),
         tx.object(SUI_CLOCK_OBJECT_ID),
       ],
     });

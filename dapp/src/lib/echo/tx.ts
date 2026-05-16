@@ -59,6 +59,8 @@ export interface SubmitArgs {
   packageId: string;
   formId: string;
   payloadBlobId: string;
+  /** Must match the on-chain form.privacy_tier — see F-04 in the audit. */
+  tierHint: number;
 }
 
 export function buildSubmitTx(args: SubmitArgs): Transaction {
@@ -68,6 +70,7 @@ export function buildSubmitTx(args: SubmitArgs): Transaction {
     arguments: [
       tx.object(args.formId),
       tx.pure.string(args.payloadBlobId),
+      tx.pure.u8(args.tierHint),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
   });
@@ -87,6 +90,7 @@ export function buildSubmitAnonymousTx(args: SubmitAnonymousArgs): Transaction {
       tx.object(args.formId),
       tx.pure.string(args.payloadBlobId),
       tx.pure.vector("u8", Array.from(args.commitment)),
+      tx.pure.u8(args.tierHint),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
   });

@@ -159,6 +159,27 @@
         Tag values: feat | fix | chore | docs | refactor
       -->
 
+        <article class="log-card" data-date="2026-05-16">
+          <header>
+            <time datetime="2026-05-16">2026-05-16</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
+          <h3>Audit patches land on staging; package re-pointed</h3>
+          <p>
+            Five Move audit findings patched and the testnet package re-pointed
+            to the hardened build
+            <code>0x3df3…0c7754a</code>: m-of-n bypass closed (F-02),
+            <code>tier_hint</code> mismatch abort added to
+            <code>submit</code>/<code>submit_anonymous</code> (F-04),
+            <code>assert_open</code> on commitment/count writes (F-05),
+            archived-form decrypt blocked (F-03), and a zero-unlock TimeLocked
+            guard (F-07). The dapp, seed script, and e2e test now plumb the tier
+            hint through, fixing the <code>ArityMismatch</code> the integration
+            suite was hitting. F-01 and F-08 are disclosed in the README as v1.1
+            deferrals.
+          </p>
+        </article>
+
         <article class="log-card" data-date="2026-05-14">
           <header>
             <time datetime="2026-05-14">2026-05-14</time>

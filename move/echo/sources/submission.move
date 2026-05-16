@@ -11,6 +11,8 @@ use echo::form::{Self, Form};
 use std::string::String;
 use sui::{clock::Clock, event};
 
+const ETierMismatch: u64 = 200;
+
 public struct SubmissionRef has key {
   id: UID,
   form_id: ID,
@@ -34,10 +36,15 @@ public struct SubmissionMade has copy, drop {
 public fun submit(
   form: &mut Form,
   payload_blob_id: String,
+  // F-04: clients must commit to which privacy tier they encrypted under.
+  // The chain cannot verify the blob is encrypted, but it can refuse to
+  // record a "Threshold submission" if the client says it's plaintext.
+  tier_hint: u8,
   clock: &Clock,
   ctx: &mut TxContext,
 ): ID {
   form::assert_open(form);
+  assert!(tier_hint == form::privacy_tier(form), ETierMismatch);
   let s = SubmissionRef {
     id: object::new(ctx),
     form_id: form::id(form),
@@ -66,10 +73,12 @@ public fun submit_anonymous(
   form: &mut Form,
   payload_blob_id: String,
   commitment: vector<u8>,
+  tier_hint: u8,
   clock: &Clock,
   ctx: &mut TxContext,
 ): ID {
   form::assert_open(form);
+  assert!(tier_hint == form::privacy_tier(form), ETierMismatch);
   // Aborts ECommitmentAlreadyUsed if this nullifier was already used.
   // Frontend derives the commitment deterministically from (wallet, form),
   // so the same wallet attempting a second anonymous submit gets rejected
