@@ -60,16 +60,23 @@ export interface SubmitArgs {
   payloadBlobId: string;
   /** Must match the on-chain form.privacy_tier — see F-04 in the audit. */
   tierHint: number;
+  /** Whether THIS form's package's `submit`/`submit_anonymous` takes the
+   *  u8 tierHint arg. Older Echo packages don't (signature is just
+   *  Form,String,Clock); the current one does. Derived per-form from the
+   *  package ABI so forms from any version submit with the right args.
+   *  Defaults true (current package) when omitted. */
+  takesTierHint?: boolean;
 }
 
 export function buildSubmitTx(args: SubmitArgs): Transaction {
   const tx = new Transaction();
+  const withHint = args.takesTierHint !== false;
   tx.moveCall({
     target: `${args.packageId}::submission::submit`,
     arguments: [
       tx.object(args.formId),
       tx.pure.string(args.payloadBlobId),
-      tx.pure.u8(args.tierHint),
+      ...(withHint ? [tx.pure.u8(args.tierHint)] : []),
       tx.object.clock(),
     ],
   });
@@ -83,13 +90,14 @@ export interface SubmitAnonymousArgs extends SubmitArgs {
 
 export function buildSubmitAnonymousTx(args: SubmitAnonymousArgs): Transaction {
   const tx = new Transaction();
+  const withHint = args.takesTierHint !== false;
   tx.moveCall({
     target: `${args.packageId}::submission::submit_anonymous`,
     arguments: [
       tx.object(args.formId),
       tx.pure.string(args.payloadBlobId),
       tx.pure.vector("u8", Array.from(args.commitment)),
-      tx.pure.u8(args.tierHint),
+      ...(withHint ? [tx.pure.u8(args.tierHint)] : []),
       tx.object.clock(),
     ],
   });

@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 import { EnokiClient } from "@mysten/enoki";
+import { contentLengthExceeds, rateLimit } from "@/lib/server/rateLimit";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
+const MAX_BODY_BYTES = 512_000;
+const MAX_TX_KIND_BYTES_B64 = 256_000;
+
 interface CreateSponsorRequest {
   transactionKindBytes: string; // base64
   sender: string;
+  /** The form's own Echo package id (derived client-side from the form's
+   *  on-chain `0x<pkg>::form::Form` type). Lets the allowlist match forms
+   *  created by any Echo package version, not just the configured one. */
+  packageId?: string;
 }
 
 /**
@@ -26,6 +34,20 @@ interface CreateSponsorRequest {
  * route kept calling Enoki with "testnet").
  */
 export async function POST(request: Request) {
+  const limited = rateLimit({
+    key: "sponsor:create",
+    limit: 60,
+    request,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (limited) return limited;
+  if (contentLengthExceeds(request, MAX_BODY_BYTES)) {
+    return NextResponse.json(
+      { error: "Request body too large." },
+      { status: 413 },
+    );
+  }
+
   const apiKey = process.env.ENOKI_PRIVATE_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -59,12 +81,42 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
   }
-  if (!body.transactionKindBytes || !body.sender?.startsWith("0x")) {
+  if (
+    !body.transactionKindBytes ||
+    body.transactionKindBytes.length > MAX_TX_KIND_BYTES_B64 ||
+    !/^0x[0-9a-fA-F]{1,64}$/.test(body.sender ?? "")
+  ) {
     return NextResponse.json(
-      { error: "Missing transactionKindBytes or sender." },
+      { error: "Missing or invalid transactionKindBytes or sender." },
       { status: 400 },
     );
   }
+
+  // Allowlist the specific Echo functions for the configured package AND
+  // (if the client supplied one) the form's own package. Forms are bound
+  // to the package that created them, so a form from an older Echo
+  // deployment must be sponsored against THAT package's functions. Still
+  // restricted to these exact function names — never an arbitrary call.
+  const ECHO_FNS = [
+    "form::create_form",
+    "form::close_form",
+    "form::archive_form",
+    "form::update_schema",
+    "submission::submit",
+    "submission::submit_anonymous",
+    "reputation::mint",
+    "reputation::claim_credit",
+  ];
+  const pkgs = new Set<string>([ECHO_PACKAGE_ID]);
+  if (
+    typeof body.packageId === "string" &&
+    /^0x[0-9a-fA-F]{1,64}$/.test(body.packageId)
+  ) {
+    pkgs.add(body.packageId);
+  }
+  const allowedMoveCallTargets = Array.from(pkgs).flatMap((p) =>
+    ECHO_FNS.map((fn) => `${p}::${fn}`),
+  );
 
   const enoki = new EnokiClient({ apiKey });
   try {
@@ -72,16 +124,7 @@ export async function POST(request: Request) {
       network: NETWORK,
       transactionKindBytes: body.transactionKindBytes,
       sender: body.sender,
-      allowedMoveCallTargets: [
-        `${ECHO_PACKAGE_ID}::form::create_form`,
-        `${ECHO_PACKAGE_ID}::form::close_form`,
-        `${ECHO_PACKAGE_ID}::form::archive_form`,
-        `${ECHO_PACKAGE_ID}::form::update_schema`,
-        `${ECHO_PACKAGE_ID}::submission::submit`,
-        `${ECHO_PACKAGE_ID}::submission::submit_anonymous`,
-        `${ECHO_PACKAGE_ID}::reputation::mint`,
-        `${ECHO_PACKAGE_ID}::reputation::claim_credit`,
-      ],
+      allowedMoveCallTargets,
     });
     return NextResponse.json({ bytes: result.bytes, digest: result.digest });
   } catch (err) {

@@ -78,7 +78,6 @@ export const FormViewer = ({ formId }: { formId: string }) => {
   const account = useCurrentAccount();
   const dAppKit = useDAppKit();
   const suiClient = dAppKit.getClient();
-  const packageId = clientConfig.ECHO_PACKAGE_ID;
 
   const formQuery = useQuery({
     queryKey: ["echo", "form", formId],
@@ -89,6 +88,39 @@ export const FormViewer = ({ formId }: { formId: string }) => {
       });
       const onChain = resp.object.json as OnChainForm | null;
       if (!onChain) throw new Error("Form has no JSON content; bad object id?");
+      // Derive the Echo package from THIS form's own on-chain type
+      // (`0x<pkg>::form::Form`). Forms are immutable and bound to the
+      // package that created them, so submit/admin calls MUST target
+      // that package — not the build-time clientConfig.ECHO_PACKAGE_ID,
+      // which only matches forms from one deployment. This makes forms
+      // created by older/other package versions submit correctly too.
+      let formPackageId = clientConfig.ECHO_PACKAGE_ID;
+      const t0 = (resp.object as { type?: string }).type;
+      if (typeof t0 === "string" && t0.includes("::form::")) {
+        formPackageId = t0.split("::")[0];
+      } else {
+        try {
+          const r = await fetch(clientConfig.SUI_FULLNODE_URL, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 1,
+              method: "sui_getObject",
+              params: [formId, { showType: true }],
+            }),
+          });
+          const j = (await r.json()) as {
+            result?: { data?: { type?: string } };
+          };
+          const tt = j?.result?.data?.type;
+          if (typeof tt === "string" && tt.includes("::form::")) {
+            formPackageId = tt.split("::")[0];
+          }
+        } catch {
+          /* keep clientConfig fallback */
+        }
+      }
       const network = clientConfig.WALRUS_NETWORK;
       const [schema, metadata] = await Promise.all([
         readJsonViaAggregator<FormSchema>(onChain.schema_blob_id, { network }),
@@ -96,7 +128,7 @@ export const FormViewer = ({ formId }: { formId: string }) => {
           network,
         }),
       ]);
-      return { onChain, schema, metadata };
+      return { onChain, schema, metadata, formPackageId };
     },
     enabled: formId.startsWith("0x"),
     retry: 1,
@@ -118,7 +150,7 @@ export const FormViewer = ({ formId }: { formId: string }) => {
   }
   if (!formQuery.data) return null;
 
-  const { onChain, schema, metadata } = formQuery.data;
+  const { onChain, schema, metadata, formPackageId } = formQuery.data;
   const isOpen = onChain.status === 1;
 
   return (
@@ -131,7 +163,7 @@ export const FormViewer = ({ formId }: { formId: string }) => {
       ) : (
         <GatedTakeover
           formId={formId}
-          packageId={packageId}
+          packageId={formPackageId}
           schema={schema}
           metadata={metadata}
           schemaVersion={Number(onChain.schema_version)}
@@ -1184,6 +1216,30 @@ function Takeover({
         kind: "submitting",
         step: "Submitting on chain (gas sponsored)…",
       });
+      // This form's package may be an older Echo version whose
+      // submit/submit_anonymous has no u8 tierHint arg. Introspect the
+      // package ABI so the tx args match exactly (otherwise the chain
+      // rejects with CommandArgumentError TypeMismatch).
+      let takesTierHint = true;
+      try {
+        const fnResp = await fetch(clientConfig.SUI_FULLNODE_URL, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "sui_getNormalizedMoveFunction",
+            params: [packageId, "submission", "submit"],
+          }),
+        });
+        const fnJson = (await fnResp.json()) as {
+          result?: { parameters?: unknown[] };
+        };
+        const params = fnJson?.result?.parameters ?? [];
+        takesTierHint = params.some((p) => JSON.stringify(p) === '"U8"');
+      } catch {
+        /* default true (current package) */
+      }
       const tx = anonymous
         ? buildSubmitAnonymousTx({
             packageId,
@@ -1191,12 +1247,14 @@ function Takeover({
             payloadBlobId: blobId,
             commitment: commitment!,
             tierHint: privacyTier,
+            takesTierHint,
           })
         : buildSubmitTx({
             packageId,
             formId,
             payloadBlobId: blobId,
             tierHint: privacyTier,
+            takesTierHint,
           });
 
       let digest: string;
@@ -1206,6 +1264,7 @@ function Takeover({
             tx,
             keypair: ephemeralKeypair,
             suiClient,
+            packageId,
           }));
         } catch {
           throw new Error(
@@ -1219,6 +1278,7 @@ function Takeover({
             sender: accountAddress!,
             suiClient,
             dAppKit,
+            packageId,
           }));
         } catch {
           // Sponsorship unavailable — fall back to a normal self-paid
@@ -2466,7 +2526,7 @@ function SubmittedTakeover({
             <ReceiptRow
               label="transaction"
               value={digest}
-              link={`https://suiscan.xyz/testnet/tx/${digest}`}
+              link={`https://suiscan.xyz/mainnet/tx/${digest}`}
             />
             <ReceiptRow label="storage" value="walrus aggregator" />
             <ReceiptRow label="settled" value="sui object updated" />

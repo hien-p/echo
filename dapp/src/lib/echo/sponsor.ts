@@ -35,6 +35,9 @@ export async function executeSponsored(args: {
   sender: string;
   suiClient: ClientWithCoreApi;
   dAppKit: DAppKitLike;
+  /** The form's own Echo package id (derived from its on-chain type) so
+   *  the sponsor allowlist matches forms from any package version. */
+  packageId?: string;
   /** Polls getTransaction after execute to surface effects. Default false. */
   waitForEffects?: boolean;
 }): Promise<SponsoredResult> {
@@ -50,6 +53,7 @@ export async function executeSponsored(args: {
     body: JSON.stringify({
       transactionKindBytes,
       sender: args.sender,
+      packageId: args.packageId,
     }),
   });
   if (!createResp.ok) {
@@ -127,6 +131,8 @@ export async function executeSponsoredWithKeypair(args: {
   tx: Transaction;
   keypair: import("@mysten/sui/keypairs/ed25519").Ed25519Keypair;
   suiClient: ClientWithCoreApi;
+  /** The form's own Echo package id (see executeSponsored). */
+  packageId?: string;
   waitForEffects?: boolean;
 }): Promise<SponsoredResult> {
   const senderAddress = args.keypair.getPublicKey().toSuiAddress();
@@ -142,6 +148,7 @@ export async function executeSponsoredWithKeypair(args: {
     body: JSON.stringify({
       transactionKindBytes,
       sender: senderAddress,
+      packageId: args.packageId,
     }),
   });
   if (!createResp.ok) {
