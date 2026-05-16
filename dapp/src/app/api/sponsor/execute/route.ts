@@ -52,10 +52,13 @@ export async function POST(request: Request) {
     }
     const message =
       err instanceof Error ? err.message : "Sponsor execution failed.";
-    console.error("[sponsor/execute] Enoki executeSponsoredTransaction failed", {
-      message,
-      detail,
-    });
+    console.error(
+      "[sponsor/execute] Enoki executeSponsoredTransaction failed",
+      {
+        message,
+        detail,
+      },
+    );
     return NextResponse.json({ error: message, detail }, { status: 502 });
   }
 }
