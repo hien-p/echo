@@ -7,22 +7,25 @@
 #   3. Publish dapp/out/ to Walrus mainnet via site-builder
 #   4. Pre-warm Walrus aggregator caches for the new site (best-effort)
 #
-# Aggregator pre-warm (step 4):
-#   After site-builder reports a "New site object ID" the site's blobs are on
-#   Walrus storage nodes but each aggregator's local cache is cold. The
-#   `wal.app` portal load-balances across a pool of ~10 aggregators, so the
-#   first user to hit a given aggregator typically gets a 503 while it
-#   back-fills. Pre-warm fans out a GET per (aggregator × top-N file) so the
-#   pool is hot before anyone clicks the link. The step is best-effort —
-#   any failure logs a warning and the script still exits 0. Set
-#   `SKIP_PREWARM=1` to skip entirely (useful for tight dev iteration).
+# Pre-warm (step 4):
+#   After site-builder publishes, the new blobs are on Walrus storage
+#   nodes but the aggregator pool behind the wal.app portal is cold —
+#   the first ~5 min of visitors can hit a 503 / ChunkLoadError. This
+#   step GETs every HTML route + the shared JS/CSS assets on the REAL
+#   bound domain (echo-forms.wal.app), sequentially with a small gap,
+#   two passes. That drives the portal + aggregators to backfill from
+#   storage before users arrive. Light + sequential + same domain a
+#   user hits → no rate-limit risk (the old 50-burst-at-fake-hosts
+#   version is gone — see the step-4 comment block below). Best-effort;
+#   any failure just logs a warning and the deploy still exits 0.
 #
 # Usage:
 #   pnpm deploy:walrus:mainnet                       # 200 epochs (default)
 #   EPOCHS=53 pnpm deploy:walrus:mainnet
 #   FORCE_NEW=1 pnpm deploy:walrus:mainnet           # ignore any prior site object
 #   EPOCHS=53 SKIP_PREWARM=1 pnpm deploy:walrus:mainnet
-#   PREWARM_MAX_FILES=80 pnpm deploy:walrus:mainnet  # tune the warm budget
+#   PREWARM_DOMAIN=foo.wal.app pnpm deploy:walrus:mainnet  # warm a different bound name
+#   PREWARM_DELAY=0.2 pnpm deploy:walrus:mainnet     # tune inter-request gap
 #
 # Prereqs (one-time, see scripts/deploy-mainnet.md):
 #   - walrus + site-builder CLIs installed via suiup
@@ -89,188 +92,94 @@ echo "✓ Deployed. Look for the 'New site object ID' in the output above —"
 echo "  that's your site anchor. Portal URL is https://<base36(objectId)>.wal.app."
 echo "  Bind a SuiNS name with: walgo domain   (or do it manually in the SuiNS dapp)"
 
-# 4. Pre-warm aggregator caches for the new site.
+
+# 4. Pre-warm the live site so the first real visitor after a deploy
+#    doesn't hit the cold-aggregator window.
 #
-# DISABLED BY DEFAULT (opt in with RUN_PREWARM=1). Field test showed the
-# `<base36>.<host>` fan-out is ineffective and counterproductive:
-#   - wal.app returned HTTP 520 for all 50 burst requests (it rate-limits
-#     bursts; hammering it can degrade the site for a concurrent real
-#     user — the opposite of the intent).
-#   - The other hardcoded aggregator hostnames return curl 000 (they are
-#     not Walrus Sites portals; only wal.app is, and you can't path-GET
-#     a site's blobs off a raw aggregator domain).
-# Real resilience is the in-<head> chunk-retry shim + error.tsx boundary.
-# Kept behind a flag so a corrected portal-aware warm can be re-enabled
-# later without re-plumbing the script.
-if [ "${RUN_PREWARM:-0}" != "1" ] || [ "${DRY_RUN:-0}" = "1" ]; then
+# History: the original implementation fanned 50 parallel requests at
+# <base36>.<hardcoded-aggregator> hostnames. That was wrong — those
+# hosts aren't Walrus Sites portals (curl 000), and the 50-burst at
+# wal.app tripped its rate limiter (HTTP 520), which can *degrade* the
+# site for a concurrent real user.
+#
+# Correct approach (this version): hit the real bound domain
+# (PREWARM_DOMAIN, default echo-forms.wal.app) for every HTML route
+# plus the JS/CSS assets each route references, SEQUENTIALLY with a
+# small inter-request delay. That drives the wal.app portal — and the
+# aggregator pool behind it — to backfill the new blobs from storage
+# nodes before users arrive. Light, sequential, same domain a user
+# would hit: no rate-limit risk. Two passes (warm, then verify).
+#
+# Safe enough to run by default. Opt out with SKIP_PREWARM=1.
+PREWARM_DOMAIN="${PREWARM_DOMAIN:-echo-forms.wal.app}"
+PREWARM_DELAY="${PREWARM_DELAY:-0.4}"
+
+if [ "${SKIP_PREWARM:-0}" = "1" ] || [ "${DRY_RUN:-0}" = "1" ]; then
   if [ "${DRY_RUN:-0}" = "1" ]; then
     echo "→ pre-warm skipped (DRY_RUN=1)"
   else
-    echo "→ pre-warm skipped (disabled by default — set RUN_PREWARM=1 to force; see header note)"
+    echo "→ pre-warm skipped (SKIP_PREWARM=1)"
   fi
   exit 0
 fi
 
 prewarm() {
-  # Extract base36 hostname. site-builder prints lines like:
-  #   "Browse the resulting site at: https://<base36>.wal.app"
-  #   "http://<base36>.localhost:3000"
-  # Pull the first base36-looking subdomain we see.
-  local base36
-  base36="$(grep -Eoh '[a-z0-9]{40,}\.(wal\.app|localhost(:[0-9]+)?)' "$PUBLISH_LOG" \
-    | sed -E 's/\.(wal\.app|localhost(:[0-9]+)?)$//' \
-    | head -n 1 || true)"
+  local base="https://${PREWARM_DOMAIN}"
 
-  if [ -z "$base36" ]; then
-    echo "⚠ pre-warm: could not extract base36 hostname from site-builder output — skipping" >&2
-    return 0
-  fi
-  echo "→ pre-warm base36: $base36"
+  # Route list: every HTML page emitted into out/ becomes a URL path.
+  #   out/index.html              -> /
+  #   out/dashboard/index.html    -> /dashboard/
+  #   out/forms/_/index.html      -> /forms/_/  (SPA fallback)
+  local -a routes=()
+  while IFS= read -r f; do
+    local rel="${f#"$OUT_DIR"/}"
+    rel="${rel%index.html}"
+    routes+=("/${rel}")
+  done < <(find "$OUT_DIR" -type f -name "index.html" | sort)
 
-  # Aggregator portal list. Prefer aggregator URLs defined in
-  # ~/.config/walrus/client_config.yaml under the mainnet context
-  # (keys: aggregators / aggregator_urls / public_aggregator_urls).
-  local cfg="${WALRUS_CLIENT_CONFIG:-$HOME/.config/walrus/client_config.yaml}"
-  local -a aggregators=()
-  if [ -f "$cfg" ]; then
-    # Naive YAML scrape — pulls any `https://…` URL that lives under a
-    # mainnet aggregator-looking key. Safe even if no such key exists.
-    while IFS= read -r url; do
-      [ -n "$url" ] && aggregators+=("$url")
-    done < <(
-      awk '
-        function indent(s,   t) { match(s, /^[[:space:]]*/); return RLENGTH }
-        /^[[:space:]]*mainnet:/  { ctx=1; ctx_indent=indent($0); agg=0; next }
-        /^[[:space:]]*testnet:/  { ctx=0; agg=0; next }
-        ctx && /^[[:space:]]*[a-zA-Z_]+:/ {
-          key=$0; sub(/:.*$/, "", key); sub(/^[[:space:]]+/, "", key)
-          if (key ~ /aggregator/) { agg=1; agg_indent=indent($0); next }
-          else if (agg && indent($0) <= agg_indent) { agg=0 }
-        }
-        ctx && agg && /^[[:space:]]*-[[:space:]]*"?https?:\/\// {
-          line=$0
-          sub(/^[[:space:]]*-[[:space:]]*"?/, "", line)
-          sub(/"?[[:space:]]*$/, "", line)
-          print line
-        }
-        ctx && /^[^[:space:]-]/   { ctx=0; agg=0 }
-      ' "$cfg" 2>/dev/null
-    )
-  fi
-
-  # Fallback: well-known mainnet wal.app-style portals. These each terminate
-  # at a different aggregator pool, so hitting <base36>.<portal> primes that
-  # pool's cache for the new site's blobs.
-  if [ "${#aggregators[@]}" -eq 0 ]; then
-    aggregators=(
-      "https://wal.app"
-      "https://blob.store"
-      "https://agg.walrus.eosusa.io"
-      "https://aggregator.walrus.mirai.cloud"
-      "https://aggregator.mainnet.walrus.mirai.cloud"
-      "https://walrus-mainnet-aggregator.nodes.guru"
-      "https://walrus-mainnet-aggregator.staketab.org"
-      "https://walrus-mainnet-aggregator.everstake.one"
-      "https://walrus-mainnet-aggregator.chainode.tech"
-      "https://walrus-mainnet-aggregator.starduststaking.com"
-    )
-  fi
-
-  # Pick the top-N files to warm. Strategy:
-  #   - Always include HTML pages (every route the user can land on).
-  #   - Then the largest JS chunks (initial-paint critical).
-  #   - Skip fonts and media (browser cache + lazy loaded).
-  local file_list
-  file_list="$(mktemp -t echo-prewarm-files.XXXXXX)"
-  # shellcheck disable=SC2064
-  trap "rm -f '$PUBLISH_LOG' '$file_list'" EXIT
-
-  # HTML pages first
-  ( cd "$OUT_DIR" && find . -type f -name "*.html" | sed 's|^\./||' ) > "$file_list"
-  # Then biggest JS chunks (du -k is portable; sort numeric desc)
-  ( cd "$OUT_DIR" && find . -type f -name "*.js" -exec du -k {} + \
-      | sort -rn \
-      | awk '{ $1=""; sub(/^ /, ""); print }' \
-      | sed 's|^\./||' ) >> "$file_list"
-
-  # Dedup + cap
-  local capped
-  capped="$(mktemp -t echo-prewarm-capped.XXXXXX)"
-  # shellcheck disable=SC2064
-  trap "rm -f '$PUBLISH_LOG' '$file_list' '$capped'" EXIT
-  awk '!seen[$0]++' "$file_list" | head -n "$PREWARM_MAX_FILES" > "$capped"
-
-  local file_count agg_count total_reqs
-  file_count="$(wc -l < "$capped" | tr -d ' ')"
-  agg_count="${#aggregators[@]}"
-  total_reqs=$((file_count * agg_count))
-  if [ "$file_count" -eq 0 ] || [ "$agg_count" -eq 0 ]; then
-    echo "⚠ pre-warm: nothing to warm (files=$file_count, aggregators=$agg_count) — skipping" >&2
+  if [ "${#routes[@]}" -eq 0 ]; then
+    echo "⚠ pre-warm: no HTML routes found in $OUT_DIR — skipping" >&2
     return 0
   fi
 
-  echo "→ pre-warm: $file_count files × $agg_count aggregators = $total_reqs requests (parallel=$PREWARM_PARALLEL, timeout=${PREWARM_TIMEOUT}s)"
-
-  # Results file: "<agg>\t<status>" per line.
-  local results
-  results="$(mktemp -t echo-prewarm-results.XXXXXX)"
+  # Collect the asset URLs referenced by the homepage + dashboard (the
+  # two heaviest first-paint surfaces). One representative HTML is
+  # enough — Next shares the framework/main chunks across routes.
+  local assets_file
+  assets_file="$(mktemp -t echo-prewarm-assets.XXXXXX)"
   # shellcheck disable=SC2064
-  trap "rm -f '$PUBLISH_LOG' '$file_list' '$capped' '$results'" EXIT
+  trap "rm -f '$PUBLISH_LOG' '$assets_file'" EXIT
+  for r in "/" "/dashboard/"; do
+    curl -s --max-time 15 "${base}${r}" 2>/dev/null \
+      | grep -oE '/_next/static/(chunks|css)/[a-zA-Z0-9_./-]+\.(js|css)'
+  done | sort -u > "$assets_file"
 
-  # Build the request list (agg<TAB>url) then xargs -P for parallelism.
-  local reqs
-  reqs="$(mktemp -t echo-prewarm-reqs.XXXXXX)"
-  # shellcheck disable=SC2064
-  trap "rm -f '$PUBLISH_LOG' '$file_list' '$capped' '$results' '$reqs'" EXIT
+  local n_routes n_assets
+  n_routes="${#routes[@]}"
+  n_assets="$(wc -l < "$assets_file" | tr -d ' ')"
+  echo "→ pre-warm: $n_routes routes + $n_assets shared assets on $PREWARM_DOMAIN (sequential, ${PREWARM_DELAY}s gap, 2 passes)"
 
-  while IFS= read -r path; do
-    [ -z "$path" ] && continue
-    # Encode spaces — Next.js output rarely has them but be safe.
-    local enc_path
-    enc_path="${path// /%20}"
-    for agg in "${aggregators[@]}"; do
-      # Derive host portion of the portal so we can produce <base36>.<host>.
-      local proto host portal_host
-      proto="${agg%%://*}"
-      host="${agg#*://}"
-      host="${host%%/*}"
-      portal_host="${base36}.${host}"
-      printf '%s\t%s://%s/%s\n' "$host" "$proto" "$portal_host" "$enc_path" >> "$reqs"
+  local pass code ok total
+  for pass in 1 2; do
+    ok=0
+    total=0
+    # HTML routes
+    for r in "${routes[@]}"; do
+      code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${base}${r}" 2>/dev/null || echo 000)"
+      total=$((total + 1))
+      [ "$code" = "200" ] && ok=$((ok + 1))
+      sleep "$PREWARM_DELAY"
     done
-  done < "$capped"
-
-  # Fire requests. Use a helper inline; -P for parallelism. We swallow errors
-  # so a slow/broken aggregator can't kill the whole batch.
-  : > "$results"
-  # shellcheck disable=SC2016
-  xargs -P "$PREWARM_PARALLEL" -I{} -n 1 bash -c '
-    line="$1"
-    host="${line%%	*}"
-    url="${line#*	}"
-    code="$(curl -k -s -o /dev/null \
-      --connect-timeout 5 --max-time '"$PREWARM_TIMEOUT"' \
-      -w "%{http_code}" "$url" || echo "000")"
-    printf "%s\t%s\n" "$host" "$code"
-  ' _ {} < "$reqs" >> "$results" 2>/dev/null || true
-
-  # Summary: total fired, per-aggregator status histogram. Portable: avoids
-  # gawk-only asorti by piping through sort + uniq in shell.
-  local fired
-  fired="$(wc -l < "$results" | tr -d ' ')"
-  echo "→ pre-warm summary: $fired/$total_reqs requests completed"
-
-  # For each aggregator host, print "    <host>  (n=N)  <code>=K <code>=K …"
-  local hosts_uniq
-  hosts_uniq="$(awk -F'\t' '{ print $1 }' "$results" | sort -u)"
-  while IFS= read -r host; do
-    [ -z "$host" ] && continue
-    local n histogram
-    n="$(awk -F'\t' -v h="$host" '$1 == h { c++ } END { print c+0 }' "$results")"
-    histogram="$(awk -F'\t' -v h="$host" '$1 == h { print $2 }' "$results" \
-      | sort | uniq -c \
-      | awk '{ printf "%s=%d ", $2, $1 }')"
-    echo "    $host  (n=$n)  $histogram"
-  done <<< "$hosts_uniq"
+    # Shared assets
+    while IFS= read -r a; do
+      [ -z "$a" ] && continue
+      code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${base}${a}" 2>/dev/null || echo 000)"
+      total=$((total + 1))
+      [ "$code" = "200" ] && ok=$((ok + 1))
+      sleep "$PREWARM_DELAY"
+    done < "$assets_file"
+    echo "    pass $pass: $ok/$total returned 200"
+  done
 }
 
 # Best-effort: never fail the deploy because of pre-warm.
