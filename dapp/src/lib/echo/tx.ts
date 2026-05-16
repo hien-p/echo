@@ -7,7 +7,6 @@
  */
 
 import { Transaction } from "@mysten/sui/transactions";
-import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { PrivacyTier } from "./types";
 
 export interface CreateFormArgs {
@@ -48,7 +47,7 @@ export function buildCreateFormTx(args: CreateFormArgs): Transaction {
       tx.pure.u64(args.unlockMs ?? BigInt(0)),
       tx.pure.string(args.conditionalPolicyId ?? ""),
       tx.pure.vector("address", extraAdmins),
-      tx.object(SUI_CLOCK_OBJECT_ID),
+      tx.object.clock(),
     ],
   });
   tx.transferObjects([cap], tx.pure.address(args.senderAddress));
@@ -70,8 +69,7 @@ export function buildSubmitTx(args: SubmitArgs): Transaction {
     arguments: [
       tx.object(args.formId),
       tx.pure.string(args.payloadBlobId),
-      tx.pure.u8(args.tierHint),
-      tx.object(SUI_CLOCK_OBJECT_ID),
+      tx.object.clock(),
     ],
   });
   return tx;
@@ -90,8 +88,7 @@ export function buildSubmitAnonymousTx(args: SubmitAnonymousArgs): Transaction {
       tx.object(args.formId),
       tx.pure.string(args.payloadBlobId),
       tx.pure.vector("u8", Array.from(args.commitment)),
-      tx.pure.u8(args.tierHint),
-      tx.object(SUI_CLOCK_OBJECT_ID),
+      tx.object.clock(),
     ],
   });
   return tx;
