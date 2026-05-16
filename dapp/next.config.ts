@@ -16,11 +16,16 @@ import type { NextConfig } from "next";
  */
 const isWalrusBuild = process.env.WALRUS_BUILD === "1";
 
-// Walrus aggregators occasionally 503 on JS/CSS chunks → users see
-// "ChunkLoadError" / "Application error". For the Walrus build we point
-// every static asset URL at the Cloudflare Pages origin (single-digit-ms
-// p99, no aggregator 503s). The HTML still lives on Walrus.
-const WALRUS_ASSET_PREFIX = "https://staging.echo-20u.pages.dev";
+// NOTE: assetPrefix → Cloudflare was tried and reverted. The Walrus
+// static export and the CF Pages `next build` are SEPARATE builds with
+// DIFFERENT content hashes, so the Walrus HTML ended up referencing
+// `staging.echo-20u.pages.dev/_next/static/css/<walrus-hash>.css`
+// which 404s on CF (CF only has its own <cf-hash>.css). Result: every
+// page rendered unstyled — strictly worse than the occasional 503.
+// Resilience now relies on the in-<head> chunk-retry shim + error.tsx
+// boundary + deploy-time aggregator pre-warm instead. A real
+// "assets-on-CDN" fix would require building ONCE and deploying the
+// identical artifact to both hosts (CI change, not done here).
 
 const nextConfig: NextConfig = {
   // Walrus Sites needs a fully static, file-extension-aware bundle.
@@ -36,15 +41,10 @@ const nextConfig: NextConfig = {
         trailingSlash: true,
         // next/image's default optimizer needs a server. Disable for export.
         images: { unoptimized: true },
-        // Rewrite every <script src="/_next/static/…">, stylesheet, font,
-        // and image fetch to the Cloudflare Pages CDN. HTML still ships
-        // from Walrus, but chunks come from CF — bypasses aggregator 503s.
-        assetPrefix: WALRUS_ASSET_PREFIX,
-        // Inline above-the-fold CSS via critters so first paint is correct
-        // even if the deferred stylesheet fetch 503s. Critical-CSS work is
-        // a no-op for the CF Pages build (same-origin asset fetches), so
-        // we only enable it for the Walrus target. Next 15.5 still wires
-        // optimizeCss to the legacy `critters` (not the `beasties` fork).
+        // Inline above-the-fold CSS via critters/beasties so the first
+        // paint is correct even if the deferred Walrus stylesheet fetch
+        // 503s. Same-origin assets again (no assetPrefix) so a 503 just
+        // delays the tail, not the critical paint.
         experimental: {
           optimizeCss: true,
         },
