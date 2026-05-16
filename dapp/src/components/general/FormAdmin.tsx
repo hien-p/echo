@@ -309,14 +309,22 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       const baseRows = submissionEventsQuery.data ?? [];
       const isPublic = formQuery.data?.onChain.privacy_tier === 0;
       const network = clientConfig.WALRUS_NETWORK;
-      if (!isPublic) {
+      // When no Seal key servers are configured the submit path uploaded
+      // PLAINTEXT for every tier (see FormViewer's `sealAvailable`). In
+      // that deployment the tier byte is a label only — the payload is
+      // readable JSON, so treat non-Public forms as plaintext too and
+      // never trigger a Seal SessionKey / signPersonalMessage (which has
+      // nothing to decrypt and fails on wallets that reject it).
+      const sealConfigured =
+        parseSealServers(clientConfig.SEAL_KEY_SERVERS).length > 0;
+      if (!isPublic && sealConfigured) {
         return baseRows.map((r) => ({
           ...r,
           payload: null,
           encrypted: true,
         }));
       }
-      // Public — fetch payload bytes in parallel.
+      // Public, or Seal not configured (plaintext) — fetch payload bytes.
       return Promise.all(
         baseRows.map(async (r): Promise<SubmissionRow> => {
           let payload: SubmissionPayload | null = null;
