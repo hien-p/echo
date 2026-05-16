@@ -1,22 +1,23 @@
 "use client";
 
 /**
- * /reputation -- Echo preview surface for soulbound reputation badges.
+ * /reputation -- Echo surface for tx-backed soulbound reputation badges.
  *
- * The cards use generated walrus-only companion artwork while the live
- * FormOwnerCap-backed badge query is still being wired in.
+ * The cards use generated walrus-only companion artwork, and the evidence rail
+ * reads the deployed reputation module's Sui events directly.
  */
 
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
 import { motion } from "motion/react";
+import { Activity, ExternalLink } from "lucide-react";
+import { clientConfig } from "@/config/clientConfig";
 import { EchoNavRail } from "@/components/general/EchoNavRail";
 
 interface BadgeSample {
   id: string;
   name: string;
-  earnedOn: string;
   tone: "ink" | "sea" | "violet" | "walrus" | "yellow" | "warn";
   rarity: string;
   proof: string;
@@ -31,13 +32,40 @@ interface ToneTheme {
   glow: string;
 }
 
+type ReputationEventKind = "minted" | "issued" | "claimed";
+
+interface ReputationEventJson {
+  holder?: string;
+  recipient?: string;
+  rep_id?: string;
+  ticket_id?: string;
+  form_id?: string;
+  score_delta?: string;
+  new_score?: string;
+}
+
+interface ReputationChainEvent {
+  kind: ReputationEventKind;
+  txDigest: string;
+  timestampMs: string | null;
+  parsedJson: ReputationEventJson;
+}
+
+interface ReputationEvidence {
+  loading: boolean;
+  error: string | null;
+  minted: ReputationChainEvent[];
+  issued: ReputationChainEvent[];
+  claimed: ReputationChainEvent[];
+  latest: ReputationChainEvent[];
+}
+
 const COMPANION_BASE = "/assets/reputation/companions";
 
 const BADGES: BadgeSample[] = [
   {
     id: "bug-bounty-top-1",
     name: "Bug bounty · top 1%",
-    earnedOn: "2026-03-22",
     tone: "violet",
     rarity: "top 1%",
     proof: "owner signed",
@@ -50,7 +78,6 @@ const BADGES: BadgeSample[] = [
   {
     id: "validator-pulse-12",
     name: "Validator pulse · 12 streak",
-    earnedOn: "2026-04-08",
     tone: "sea",
     rarity: "streak · 12",
     proof: "window proof",
@@ -63,7 +90,6 @@ const BADGES: BadgeSample[] = [
   {
     id: "quality-respondent-100",
     name: "Quality respondent · 100+",
-    earnedOn: "2026-04-18",
     tone: "walrus",
     rarity: "veteran",
     proof: "quality score",
@@ -76,7 +102,6 @@ const BADGES: BadgeSample[] = [
   {
     id: "early-echoer",
     name: "Early echoer",
-    earnedOn: "2026-01-04",
     tone: "ink",
     rarity: "genesis",
     proof: "launch era",
@@ -88,7 +113,6 @@ const BADGES: BadgeSample[] = [
   {
     id: "threshold-approver",
     name: "Threshold approver",
-    earnedOn: "2026-02-15",
     tone: "violet",
     rarity: "k-of-n",
     proof: "quorum proof",
@@ -101,7 +125,6 @@ const BADGES: BadgeSample[] = [
   {
     id: "time-lock-witness",
     name: "Time-lock witness",
-    earnedOn: "2026-03-01",
     tone: "yellow",
     rarity: "patient",
     proof: "time proof",
@@ -114,7 +137,6 @@ const BADGES: BadgeSample[] = [
   {
     id: "sybil-cleared",
     name: "Sybil-cleared respondent",
-    earnedOn: "2026-02-28",
     tone: "sea",
     rarity: "verified",
     proof: "provenance",
@@ -127,7 +149,6 @@ const BADGES: BadgeSample[] = [
   {
     id: "insight-source",
     name: "Insight source · cited 10x",
-    earnedOn: "2026-04-30",
     tone: "walrus",
     rarity: "cited",
     proof: "cited source",
@@ -140,7 +161,6 @@ const BADGES: BadgeSample[] = [
   {
     id: "founding-builder",
     name: "Founding builder",
-    earnedOn: "2026-01-12",
     tone: "warn",
     rarity: "1 of 50",
     proof: "cap backed",
@@ -183,6 +203,156 @@ const TONE_THEME: Record<BadgeSample["tone"], ToneTheme> = {
     glow: "rgba(180,83,9,0.16)",
   },
 };
+
+const EVENT_LABELS: Record<ReputationEventKind, string> = {
+  minted: "ReputationMinted",
+  issued: "CreditIssued",
+  claimed: "CreditClaimed",
+};
+
+function useReputationEvidence(): ReputationEvidence {
+  const [evidence, setEvidence] = React.useState<ReputationEvidence>({
+    loading: true,
+    error: null,
+    minted: [],
+    issued: [],
+    claimed: [],
+    latest: [],
+  });
+
+  React.useEffect(() => {
+    let alive = true;
+
+    async function load() {
+      if (!clientConfig.ECHO_PACKAGE_ID.startsWith("0x")) {
+        setEvidence({
+          loading: false,
+          error: "Echo package id is not configured.",
+          minted: [],
+          issued: [],
+          claimed: [],
+          latest: [],
+        });
+        return;
+      }
+
+      try {
+        const [minted, issued, claimed] = await Promise.all([
+          queryReputationEvents("minted"),
+          queryReputationEvents("issued"),
+          queryReputationEvents("claimed"),
+        ]);
+        if (!alive) return;
+        const latest = [...minted, ...issued, ...claimed]
+          .sort(
+            (a, b) => Number(b.timestampMs ?? 0) - Number(a.timestampMs ?? 0),
+          )
+          .slice(0, 6);
+        setEvidence({
+          loading: false,
+          error: null,
+          minted,
+          issued,
+          claimed,
+          latest,
+        });
+      } catch (err) {
+        if (!alive) return;
+        setEvidence({
+          loading: false,
+          error: err instanceof Error ? err.message : String(err),
+          minted: [],
+          issued: [],
+          claimed: [],
+          latest: [],
+        });
+      }
+    }
+
+    load();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  return evidence;
+}
+
+async function queryReputationEvents(
+  kind: ReputationEventKind,
+): Promise<ReputationChainEvent[]> {
+  const eventType = `${clientConfig.ECHO_PACKAGE_ID}::reputation::${EVENT_LABELS[kind]}`;
+  const resp = await fetch(clientConfig.SUI_FULLNODE_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "suix_queryEvents",
+      params: [{ MoveEventType: eventType }, null, 25, true],
+    }),
+  });
+  const data = (await resp.json()) as {
+    error?: { message?: string };
+    result?: {
+      data?: Array<{
+        id?: { txDigest?: string };
+        timestampMs?: string | null;
+        parsedJson?: ReputationEventJson;
+      }>;
+    };
+  };
+  if (data.error) {
+    throw new Error(data.error.message ?? `Failed to query ${eventType}`);
+  }
+  return (data.result?.data ?? [])
+    .filter((event) => event.id?.txDigest)
+    .map((event) => ({
+      kind,
+      txDigest: event.id!.txDigest!,
+      timestampMs: event.timestampMs ?? null,
+      parsedJson: event.parsedJson ?? {},
+    }));
+}
+
+function txUrl(digest: string) {
+  return `https://suiscan.xyz/${chainNetwork()}/tx/${digest}`;
+}
+
+function objectUrl(objectId: string) {
+  return `https://suiscan.xyz/${chainNetwork()}/object/${objectId}`;
+}
+
+function chainNetwork() {
+  const fullnode = clientConfig.SUI_FULLNODE_URL.toLowerCase();
+  if (fullnode.includes("testnet")) return "testnet";
+  if (fullnode.includes("devnet")) return "devnet";
+  return clientConfig.SUI_NETWORK;
+}
+
+function shortId(value: string, head = 8, tail = 6) {
+  if (value.length <= head + tail + 1) return value;
+  return `${value.slice(0, head)}…${value.slice(-tail)}`;
+}
+
+function formatChainTime(timestampMs: string | null) {
+  if (!timestampMs) return "indexed";
+  const date = new Date(Number(timestampMs));
+  if (Number.isNaN(date.getTime())) return "indexed";
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function totalClaimedScore(evidence: ReputationEvidence) {
+  return evidence.claimed.reduce(
+    (sum, event) => sum + Number(event.parsedJson.score_delta ?? 0),
+    0,
+  );
+}
 
 function MonoLabel({
   children,
@@ -241,22 +411,24 @@ function BrutalistInk({
   );
 }
 
-function PreviewChip() {
+function ChainStatusChip({ evidence }: { evidence: ReputationEvidence }) {
+  const total =
+    evidence.minted.length + evidence.issued.length + evidence.claimed.length;
+  const label = evidence.loading
+    ? "checking chain"
+    : evidence.error
+      ? "chain query offline"
+      : `${chainNetwork()} · ${total} reputation tx`;
+
   return (
     <span className="echo-mono rep-preview-chip">
       <span aria-hidden="true" className="rep-preview-dot" />
-      staging preview · sample badges
+      {label}
     </span>
   );
 }
 
-function formatDate(iso: string) {
-  const d = new Date(iso + "T00:00:00Z");
-  const m = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
-  return `${m.toUpperCase()} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
-}
-
-function HeroShelf() {
+function HeroShelf({ evidence }: { evidence: ReputationEvidence }) {
   return (
     <section
       className="echo-section"
@@ -270,7 +442,7 @@ function HeroShelf() {
             </MonoLabel>
             <span className="rep-muted-sep">·</span>
             <MonoLabel size={11}>non-transferable · on-chain</MonoLabel>
-            <PreviewChip />
+            <ChainStatusChip evidence={evidence} />
           </div>
           <motion.h1
             initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
@@ -289,26 +461,83 @@ function HeroShelf() {
             form provenance that earned it.
           </p>
           <p className="rep-preview-note">
-            This staging page uses generated walrus-only companion artwork and
-            sample badge data while the live FormOwnerCap event query is being
-            wired in.
+            The art is the credential skin; the proof comes from the deployed
+            Move package. This page reads live Sui events for{" "}
+            <code>ReputationMinted</code>, <code>CreditIssued</code>, and{" "}
+            <code>CreditClaimed</code> instead of pretending the badges are
+            already earned.
           </p>
+          <ChainProofStrip evidence={evidence} />
           <div className="rep-hero-actions">
             <BrutalistInk size="lg" href="#gallery">
-              browse companions ↓
+              view tx-backed badges ↓
             </BrutalistInk>
             <Link href="/dashboard" className="rep-text-link">
               back to dashboard
             </Link>
           </div>
         </div>
-        <HeroCredential />
+        <HeroCredential evidence={evidence} />
       </div>
     </section>
   );
 }
 
-function HeroCredential() {
+function ChainProofStrip({ evidence }: { evidence: ReputationEvidence }) {
+  return (
+    <div className="rep-chain-strip" aria-label="live reputation chain stats">
+      <ChainStat
+        label="package"
+        value={shortId(clientConfig.ECHO_PACKAGE_ID, 10, 6)}
+        href={objectUrl(clientConfig.ECHO_PACKAGE_ID)}
+      />
+      <ChainStat label="minted" value={String(evidence.minted.length)} />
+      <ChainStat label="issued" value={String(evidence.issued.length)} />
+      <ChainStat
+        label="claimed score"
+        value={String(totalClaimedScore(evidence))}
+      />
+    </div>
+  );
+}
+
+function ChainStat({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: string;
+  href?: string;
+}) {
+  const body = (
+    <>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="rep-chain-stat"
+      >
+        {body}
+        <ExternalLink size={12} />
+      </a>
+    );
+  }
+
+  return <div className="rep-chain-stat">{body}</div>;
+}
+
+function HeroCredential({ evidence }: { evidence: ReputationEvidence }) {
+  const total =
+    evidence.minted.length + evidence.issued.length + evidence.claimed.length;
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96, y: 12 }}
@@ -318,9 +547,9 @@ function HeroCredential() {
     >
       <div className="rep-hero-art-header">
         <MonoLabel size={9} color="#faf8f5">
-          generated companion
+          live package
         </MonoLabel>
-        <span>0xECHO...SBT</span>
+        <span>{shortId(clientConfig.ECHO_PACKAGE_ID, 10, 6)}</span>
       </div>
       <div className="rep-hero-companion">
         <Image
@@ -333,13 +562,13 @@ function HeroCredential() {
         />
       </div>
       <div className="rep-hero-stamp">
-        <span>9</span>
-        <strong>new companions</strong>
+        <span>{evidence.loading ? "…" : total}</span>
+        <strong>reputation events</strong>
       </div>
       <div className="rep-hero-metrics">
-        <Metric label="transfer" value="locked" />
-        <Metric label="proof" value="on-chain" />
-        <Metric label="signal" value="queryable" />
+        <Metric label="minted" value={String(evidence.minted.length)} />
+        <Metric label="issued" value={String(evidence.issued.length)} />
+        <Metric label="claimed" value={String(evidence.claimed.length)} />
       </div>
     </motion.div>
   );
@@ -369,10 +598,12 @@ function BadgeCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] }}
       className="echo-card rep-badge-card"
-      style={{
-        borderColor: theme.soft,
-        boxShadow: `0 18px 44px ${theme.glow}`,
-      }}
+      style={
+        {
+          "--rep-accent": theme.accent,
+          "--rep-soft": theme.soft,
+        } as React.CSSProperties
+      }
     >
       <span
         aria-hidden="true"
@@ -381,16 +612,13 @@ function BadgeCard({
       />
       <header className="rep-badge-header">
         <MonoLabel size={9} color="var(--echo-mut)">
-          credential
+          proof type
         </MonoLabel>
-        <time dateTime={badge.earnedOn} className="echo-mono rep-earned-date">
-          earned {formatDate(badge.earnedOn)}
-        </time>
+        <span className="echo-mono rep-earned-date">reputation::credit</span>
       </header>
       <div
         className="rep-companion-plate"
         style={{
-          borderColor: theme.soft,
           background: `radial-gradient(circle at 50% 18%, ${theme.soft}, transparent 34%), linear-gradient(160deg, #191b24 0%, #0a0a0a 58%, #111827 100%)`,
         }}
       >
@@ -417,32 +645,31 @@ function BadgeCard({
         <span className="rep-rarity" style={{ background: theme.accent }}>
           {badge.rarity}
         </span>
-        <span className="rep-sbt-chip">soulbound</span>
-        <span className="rep-sbt-chip">queryable</span>
+        <span className="rep-sbt-chip">FormOwnerCap gated</span>
+        <span className="rep-sbt-chip">tx traceable</span>
       </footer>
     </motion.article>
   );
 }
 
-function GalleryAndRail() {
+function GalleryAndRail({ evidence }: { evidence: ReputationEvidence }) {
   return (
     <section className="echo-section" id="gallery">
       <div className="echo-container" style={{ paddingBlock: "48px 64px" }}>
         <header className="rep-gallery-header">
           <div>
-            <MonoLabel>
-              companion gallery · {BADGES.length} generated badges
-            </MonoLabel>
+            <MonoLabel>credential catalog · live reputation module</MonoLabel>
             <h2 className="rep-gallery-title">
               portable proof, not <em>points</em>.
             </h2>
             <p className="rep-gallery-copy">
-              Each production card should be a soulbound Sui object owned by the
-              wallet that earned it. For this staging review, every badge now
-              has a distinct original walrus-only companion scene.
+              These are UI treatments for real chain facts: admins issue
+              FormOwnerCap-gated credit tickets, respondents claim them into a
+              soulbound reputation object, and every step leaves a Sui tx digest
+              the page can link to.
             </p>
           </div>
-          <PreviewChip />
+          <ChainStatusChip evidence={evidence} />
         </header>
 
         <div className="rep-gallery-shell">
@@ -453,42 +680,96 @@ function GalleryAndRail() {
           </div>
 
           <aside className="echo-card rep-side-rail">
+            <ChainEvidencePanel evidence={evidence} />
             <div>
               <MonoLabel size={10}>ABOUT SOULBOUND</MonoLabel>
-              <h3 className="rep-side-title">
-                what a badge proves after it leaves Echo.
-              </h3>
+              <h3 className="rep-side-title">what the transaction proves.</h3>
             </div>
             <ul className="rep-fact-list">
               <RailFact
-                title="non-transferable"
-                body="Minted to one wallet. The Move module rejects transfer, so reputation cannot be sold."
+                title="FormOwnerCap gated"
+                body="Only a form owner capability can issue a CreditTicket, so the score is tied to a real form owner action."
               />
               <RailFact
-                title="provenance attached"
-                body="The badge points back to the form event, owner cap, and quality threshold that produced it."
+                title="claim consumes ticket"
+                body="The respondent claims the ticket into their Reputation object. The ticket is deleted and the new score is emitted."
               />
               <RailFact
-                title="readable by any dapp"
-                body="Other apps can query the object and weight the signal without asking Echo for permission."
+                title="soulbound object"
+                body="The Reputation object has key only, no store ability, so it is owned by the wallet instead of transferable inventory."
               />
               <RailFact
-                title="generated companions"
-                body="These staging images are original walrus-only Echo assets, not crawled or found artwork."
+                title="queryable by anyone"
+                body="Any dapp can read the object and event feed from Sui without asking Echo for a private server score."
               />
             </ul>
             <div className="rep-side-footer">
               <MonoLabel size={9} color="var(--echo-mut)">
-                live on-chain query · soon
+                real event query · {chainNetwork()}
               </MonoLabel>
-              <Link href="/forms" className="rep-side-link">
-                see forms →
-              </Link>
+              <a
+                href={objectUrl(clientConfig.ECHO_PACKAGE_ID)}
+                target="_blank"
+                rel="noreferrer"
+                className="rep-side-link"
+              >
+                package ↗
+              </a>
             </div>
           </aside>
         </div>
       </div>
     </section>
+  );
+}
+
+function ChainEvidencePanel({ evidence }: { evidence: ReputationEvidence }) {
+  const total =
+    evidence.minted.length + evidence.issued.length + evidence.claimed.length;
+
+  return (
+    <div className="rep-chain-panel">
+      <div className="rep-chain-panel-head">
+        <span className="rep-chain-icon" aria-hidden="true">
+          <Activity size={15} />
+        </span>
+        <div>
+          <MonoLabel size={10}>LIVE SUI EVIDENCE</MonoLabel>
+          <h3>tx feed, not placeholder traction.</h3>
+        </div>
+      </div>
+
+      <div className="rep-chain-counts">
+        <Metric label="minted" value={String(evidence.minted.length)} />
+        <Metric label="issued" value={String(evidence.issued.length)} />
+        <Metric label="score" value={String(totalClaimedScore(evidence))} />
+      </div>
+
+      {evidence.loading ? (
+        <p className="rep-chain-muted">Querying Sui events…</p>
+      ) : evidence.error ? (
+        <p className="rep-chain-muted">Event query failed: {evidence.error}</p>
+      ) : total === 0 ? (
+        <p className="rep-chain-muted">
+          No reputation events indexed yet for this package.
+        </p>
+      ) : (
+        <ol className="rep-tx-list">
+          {evidence.latest.map((event) => (
+            <li key={`${event.txDigest}-${event.kind}`}>
+              <a href={txUrl(event.txDigest)} target="_blank" rel="noreferrer">
+                <span>
+                  <strong>{EVENT_LABELS[event.kind]}</strong>
+                  <small>{formatChainTime(event.timestampMs)}</small>
+                </span>
+                <code>{shortId(event.txDigest, 7, 5)}</code>
+                <ExternalLink size={12} />
+              </a>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 
@@ -549,12 +830,12 @@ function ReputationStyles() {
         align-items: center;
         gap: 8px;
         font-size: 10px;
-        letter-spacing: 0.14em;
+        letter-spacing: 0.08em;
         padding: 6px 12px;
         border-radius: 999px;
-        background: var(--echo-warn-bg);
-        color: var(--echo-warn);
-        border: 1px solid #f4d58a;
+        background: rgba(53, 191, 197, 0.12);
+        color: var(--echo-ink);
+        border: 1px solid rgba(53, 191, 197, 0.34);
         font-weight: 700;
       }
 
@@ -562,7 +843,7 @@ function ReputationStyles() {
         width: 6px;
         height: 6px;
         border-radius: 999px;
-        background: var(--echo-warn);
+        background: var(--echo-mw-walrus);
         display: inline-block;
       }
 
@@ -631,7 +912,59 @@ function ReputationStyles() {
       .rep-preview-note {
         font-size: 14px;
         line-height: 1.55;
-        margin: 14px 0 30px;
+        margin: 14px 0 18px;
+      }
+
+      .rep-preview-note code {
+        color: var(--echo-ink);
+        background: var(--echo-rail-2);
+        border-radius: 4px;
+        padding: 1px 5px;
+      }
+
+      .rep-chain-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        max-width: 640px;
+        margin: 0 0 30px;
+      }
+
+      .rep-chain-stat {
+        min-width: 0;
+        border: 1px solid rgba(10, 10, 10, 0.1);
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 10px 11px;
+        display: grid;
+        gap: 4px;
+        color: var(--echo-ink);
+        text-decoration: none;
+      }
+
+      .rep-chain-stat span,
+      .rep-chain-stat strong {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        text-transform: uppercase;
+      }
+
+      .rep-chain-stat span {
+        font-size: 9px;
+        letter-spacing: 0.08em;
+        color: var(--echo-mut);
+      }
+
+      .rep-chain-stat strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+        letter-spacing: 0.02em;
+      }
+
+      .rep-chain-stat svg {
+        justify-self: end;
+        color: var(--echo-mut);
       }
 
       .rep-hero-actions {
@@ -828,14 +1161,16 @@ function ReputationStyles() {
       }
 
       .rep-badge-card {
-        min-height: 408px;
-        padding: 18px;
+        min-height: 396px;
+        padding: 16px;
         display: flex;
         flex-direction: column;
-        gap: 14px;
+        gap: 13px;
         position: relative;
         overflow: hidden;
+        border: 1px solid rgba(10, 10, 10, 0.08);
         border-radius: 8px;
+        box-shadow: 0 10px 28px rgba(10, 10, 10, 0.04);
         transition:
           border-color 180ms ease,
           transform 180ms ease,
@@ -844,6 +1179,8 @@ function ReputationStyles() {
 
       .rep-badge-card:hover {
         transform: translateY(-2px);
+        border-color: rgba(10, 10, 10, 0.16);
+        box-shadow: 0 16px 34px rgba(10, 10, 10, 0.08);
       }
 
       .rep-badge-card:hover .rep-companion-image {
@@ -852,10 +1189,12 @@ function ReputationStyles() {
 
       .rep-badge-accent {
         position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
+        top: 23px;
+        left: 18px;
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--rep-accent);
       }
 
       .rep-badge-header {
@@ -863,22 +1202,23 @@ function ReputationStyles() {
         align-items: center;
         justify-content: space-between;
         gap: 10px;
+        padding-left: 18px;
       }
 
       .rep-earned-date {
-        font-size: 9px;
+        font-size: 9.5px;
         color: var(--echo-mut);
-        letter-spacing: 0.12em;
+        letter-spacing: 0.06em;
       }
 
       .rep-companion-plate {
         position: relative;
-        height: 238px;
-        min-height: 238px;
+        height: 226px;
+        min-height: 226px;
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid;
+        border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 8px;
         overflow: hidden;
         box-shadow:
@@ -890,7 +1230,7 @@ function ReputationStyles() {
         content: "";
         position: absolute;
         inset: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.11);
         border-radius: 7px;
         pointer-events: none;
         z-index: 2;
@@ -931,9 +1271,9 @@ function ReputationStyles() {
         color: var(--echo-ink);
         border: 1px solid rgba(10, 10, 10, 0.1);
         font-family: "JetBrains Mono", ui-monospace, monospace;
-        font-size: 8.5px;
+        font-size: 9px;
         font-weight: 800;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
         backdrop-filter: blur(10px);
       }
@@ -945,19 +1285,19 @@ function ReputationStyles() {
 
       .rep-badge-copy h3 {
         font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-        font-weight: 620;
-        font-size: 19px;
+        font-weight: 640;
+        font-size: 21px;
         letter-spacing: 0;
         margin: 0;
-        line-height: 1.2;
+        line-height: 1.16;
         color: var(--echo-ink);
       }
 
       .rep-badge-copy p {
         margin: 0;
         color: var(--echo-mut);
-        font-size: 13px;
-        line-height: 1.45;
+        font-size: 14px;
+        line-height: 1.5;
       }
 
       .rep-badge-footer {
@@ -973,9 +1313,9 @@ function ReputationStyles() {
       .rep-rarity,
       .rep-sbt-chip {
         font-family: "JetBrains Mono", ui-monospace, monospace;
-        font-size: 9px;
+        font-size: 8.5px;
         font-weight: 800;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
         border-radius: 999px;
         line-height: 1;
@@ -992,6 +1332,121 @@ function ReputationStyles() {
         padding: 6px 8px;
         color: var(--echo-mut);
         background: var(--echo-rail-2);
+      }
+
+      .rep-chain-panel {
+        border: 1px solid rgba(10, 10, 10, 0.1);
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 18% 0%, rgba(53, 191, 197, 0.16), transparent 34%),
+          #ffffff;
+        padding: 16px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .rep-chain-panel-head {
+        display: grid;
+        grid-template-columns: 30px 1fr;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .rep-chain-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        background: #0a0a0a;
+        color: #faf8f5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .rep-chain-panel h3 {
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        margin: 4px 0 0;
+        font-size: 20px;
+        line-height: 1.16;
+        font-weight: 640;
+        letter-spacing: 0;
+      }
+
+      .rep-chain-counts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .rep-chain-counts .rep-metric {
+        background: rgba(250, 250, 249, 0.9);
+        border-color: rgba(10, 10, 10, 0.08);
+      }
+
+      .rep-chain-counts .rep-metric span {
+        color: var(--echo-mut);
+      }
+
+      .rep-chain-counts .rep-metric strong {
+        color: var(--echo-ink);
+      }
+
+      .rep-chain-muted {
+        margin: 0;
+        color: var(--echo-mut);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .rep-tx-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 8px;
+      }
+
+      .rep-tx-list a {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(10, 10, 10, 0.08);
+        color: var(--echo-ink);
+        background: rgba(255, 255, 255, 0.78);
+        text-decoration: none;
+      }
+
+      .rep-tx-list span {
+        display: grid;
+        min-width: 0;
+      }
+
+      .rep-tx-list strong,
+      .rep-tx-list code,
+      .rep-tx-list small {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+      }
+
+      .rep-tx-list strong {
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .rep-tx-list small {
+        font-size: 10px;
+        color: var(--echo-mut);
+        margin-top: 2px;
+      }
+
+      .rep-tx-list code {
+        font-size: 10px;
+        background: var(--echo-rail-2);
+        border-radius: 999px;
+        padding: 5px 7px;
       }
 
       .rep-side-rail {
@@ -1184,6 +1639,10 @@ function ReputationStyles() {
           font-size: 16px;
         }
 
+        .rep-chain-strip {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .rep-hero-art {
           min-height: 360px;
         }
@@ -1203,6 +1662,19 @@ function ReputationStyles() {
         }
 
         .rep-card-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .rep-badge-card {
+          padding: 14px;
+        }
+
+        .rep-companion-plate {
+          height: 214px;
+          min-height: 214px;
+        }
+
+        .rep-chain-counts {
           grid-template-columns: 1fr;
         }
 
@@ -1238,12 +1710,14 @@ function ReputationStyles() {
 }
 
 export function EchoReputationRedesign() {
+  const evidence = useReputationEvidence();
+
   return (
     <div className="echo-dashboard echo-builder">
       <ReputationStyles />
       <EchoNavRail active="reputation" />
-      <HeroShelf />
-      <GalleryAndRail />
+      <HeroShelf evidence={evidence} />
+      <GalleryAndRail evidence={evidence} />
       <FooterRail />
       <Floater />
     </div>
