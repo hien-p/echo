@@ -112,9 +112,7 @@ export default function RootError({
           margin: 0,
         }}
       >
-        {isChunkError
-          ? "Walrus is warming up…"
-          : "Something went wrong."}
+        {isChunkError ? "Walrus is warming up…" : "Something went wrong."}
       </h2>
       <p
         style={{

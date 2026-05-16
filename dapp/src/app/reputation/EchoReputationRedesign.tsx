@@ -418,7 +418,13 @@ function HeroShelf() {
   );
 }
 
-function BadgeCard({ badge, delay = 0 }: { badge: BadgeSample; delay?: number }) {
+function BadgeCard({
+  badge,
+  delay = 0,
+}: {
+  badge: BadgeSample;
+  delay?: number;
+}) {
   const accent = TONE_COLOR[badge.tone];
   return (
     <motion.article
@@ -577,8 +583,8 @@ function GalleryAndRail() {
               }}
             >
               Every card below would be a soulbound object on Sui, owned by the
-              wallet that earned it. For now, these are illustrative — wired
-              to live FormOwnerCap badge events in a follow-up.
+              wallet that earned it. For now, these are illustrative — wired to
+              live FormOwnerCap badge events in a follow-up.
             </p>
           </div>
           <PreviewChip />
