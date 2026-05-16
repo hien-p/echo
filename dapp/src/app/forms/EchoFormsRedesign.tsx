@@ -102,8 +102,14 @@ function useFormsData() {
           if ("error" in asUnknown) return null;
           const fobj = obj as unknown as {
             objectId: string;
-            json: OnChainForm;
+            json?: OnChainForm;
           };
+          // Drop objects with no usable json payload (wrapped/deleted/
+          // indexer lag) — a form whose onChain is missing crashes
+          // every downstream f.onChain.status / .privacy_tier read.
+          if (!fobj.json || typeof fobj.json.privacy_tier !== "number") {
+            return null;
+          }
           let title = "(metadata unavailable)";
           try {
             const meta = await readJsonViaAggregator<FormMetadata>(
@@ -289,6 +295,18 @@ function humanAgo(ms: number): string {
   if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
   if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
   return `${Math.floor(ms / 86_400_000)}d`;
+}
+
+// Sui object id sanity check — must be 0x + 64 hex chars exactly. The
+// FALLBACK rows below carry display-only ids with ellipses (0x3a02fe…44ab)
+// for the design-spec look; clicking through to /forms/{id}/admin with
+// such an id makes the SPA fire a Sui call that returns
+// "invalid object_id: Unable to parse Address". formHref() returns the
+// admin URL for real ids and falls back to /forms for demo placeholders
+// so the user never lands on a broken admin page from a fallback card.
+const FULL_SUI_ID = /^0x[0-9a-fA-F]{64}$/;
+function formHref(id: string, suffix: "" | "/admin" = ""): string {
+  return FULL_SUI_ID.test(id) ? `/forms/${id}${suffix}` : "/forms";
 }
 
 // Fallback for the design-spec look before a wallet is connected.
@@ -1138,7 +1156,7 @@ function PinnedFormCard({ form }: { form: FormRow }) {
           <StatusTag status={form.status} />
         </div>
         <Link
-          href={`/forms/${form.id}/admin`}
+          href={formHref(form.id, "/admin")}
           style={{
             fontFamily: "JetBrains Mono, monospace",
             fontSize: 11,
@@ -1247,7 +1265,7 @@ function FormCardTile({ form, delay = 0 }: { form: FormRow; delay?: number }) {
       transition={{ duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] }}
     >
       <Link
-        href={`/forms/${form.id}/admin`}
+        href={formHref(form.id, "/admin")}
         className="echo-card"
         style={{
           padding: 18,

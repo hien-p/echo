@@ -147,8 +147,15 @@ function useEchoDashboardData() {
           if ("error" in asUnknown) return null;
           const fobj = obj as unknown as {
             objectId: string;
-            json: OnChainForm;
+            json?: OnChainForm;
           };
+          // An object can come back without an `error` key yet still
+          // have no usable `json` (wrapped/deleted/indexer lag). Drop
+          // it — a form whose onChain payload is missing would crash
+          // every downstream `f.onChain.status` / `.privacy_tier` read.
+          if (!fobj.json || typeof fobj.json.privacy_tier !== "number") {
+            return null;
+          }
           let title = "(metadata unavailable)";
           try {
             const meta = await readJsonViaAggregator<FormMetadata>(
