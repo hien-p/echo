@@ -9,10 +9,19 @@ interface CreateSponsorRequest {
   sender: string;
 }
 
-const ECHO_PACKAGE_ID = process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID ?? "";
-const NETWORK = (process.env.NEXT_PUBLIC_SUI_NETWORK ?? "testnet") as
-  | "testnet"
-  | "mainnet";
+const ECHO_PACKAGE_ID =
+  process.env.ENOKI_SPONSOR_PACKAGE_ID ??
+  process.env.NEXT_PUBLIC_ECHO_PACKAGE_ID ??
+  "";
+// The Walrus mainnet site uses this CF Pages deployment purely as a
+// sponsor proxy, but the project itself may be built for testnet
+// (NEXT_PUBLIC_SUI_NETWORK=testnet). Enoki must be called with the
+// network the *transaction* targets, so allow a dedicated override:
+// set ENOKI_SPONSOR_NETWORK=mainnet (+ a mainnet ENOKI_PRIVATE_KEY and
+// ENOKI_SPONSOR_PACKAGE_ID) without flipping the whole project.
+const NETWORK = (process.env.ENOKI_SPONSOR_NETWORK ??
+  process.env.NEXT_PUBLIC_SUI_NETWORK ??
+  "testnet") as "testnet" | "mainnet";
 
 /**
  * Echo gas-sponsorship endpoint.
