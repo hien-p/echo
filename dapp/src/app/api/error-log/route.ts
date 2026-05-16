@@ -33,7 +33,9 @@ function corsHeadersFor(origin: string | null): HeadersInit {
     (ALLOWED_ORIGINS.has(origin) ||
       /^https:\/\/[a-z0-9-]+\.echo-20u\.pages\.dev$/i.test(origin));
   return {
-    "Access-Control-Allow-Origin": allowed ? origin! : "https://echo-forms.wal.app",
+    "Access-Control-Allow-Origin": allowed
+      ? origin!
+      : "https://echo-forms.wal.app",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "600",

@@ -74,14 +74,8 @@ export default function EmbedDocsPage() {
     >
       <div className="echo-container">
         {/* Hero */}
-        <section
-          className="echo-section"
-          style={{ padding: "120px 0 56px" }}
-        >
-          <span
-            className="echo-mono"
-            style={{ fontSize: 11, opacity: 0.7 }}
-          >
+        <section className="echo-section" style={{ padding: "120px 0 56px" }}>
+          <span className="echo-mono" style={{ fontSize: 11, opacity: 0.7 }}>
             <span aria-hidden>◐</span> Docs · Embed
           </span>
           <h1
@@ -115,14 +109,8 @@ export default function EmbedDocsPage() {
         </section>
 
         {/* Minimal snippet */}
-        <section
-          className="echo-section"
-          style={{ padding: "48px 0" }}
-        >
-          <span
-            className="echo-mono"
-            style={{ fontSize: 11, opacity: 0.7 }}
-          >
+        <section className="echo-section" style={{ padding: "48px 0" }}>
+          <span className="echo-mono" style={{ fontSize: 11, opacity: 0.7 }}>
             01 · Drop in
           </span>
           <h2
@@ -149,21 +137,14 @@ export default function EmbedDocsPage() {
             your own form&apos;s on-chain object id (the value after{" "}
             <code className="echo-mono">/forms/</code> in the Echo viewer URL).
             Order doesn&apos;t matter — the script auto-mounts every matching
-            element on{" "}
-            <code className="echo-mono">DOMContentLoaded</code>.
+            element on <code className="echo-mono">DOMContentLoaded</code>.
           </p>
           <CodeBlock language="html" code={EMBED_SNIPPET} />
         </section>
 
         {/* Live preview */}
-        <section
-          className="echo-section"
-          style={{ padding: "48px 0" }}
-        >
-          <span
-            className="echo-mono"
-            style={{ fontSize: 11, opacity: 0.7 }}
-          >
+        <section className="echo-section" style={{ padding: "48px 0" }}>
+          <span className="echo-mono" style={{ fontSize: 11, opacity: 0.7 }}>
             02 · Live preview
           </span>
           <h2
@@ -195,10 +176,7 @@ export default function EmbedDocsPage() {
               {DEMO_FORM_ID}
             </code>
           </p>
-          <div
-            className="echo-card"
-            style={{ overflow: "hidden", padding: 0 }}
-          >
+          <div className="echo-card" style={{ overflow: "hidden", padding: 0 }}>
             <iframe
               src={`/forms/${DEMO_FORM_ID}`}
               title="Echo embed live preview"
@@ -215,14 +193,8 @@ export default function EmbedDocsPage() {
         </section>
 
         {/* Configuration */}
-        <section
-          className="echo-section"
-          style={{ padding: "48px 0" }}
-        >
-          <span
-            className="echo-mono"
-            style={{ fontSize: 11, opacity: 0.7 }}
-          >
+        <section className="echo-section" style={{ padding: "48px 0" }}>
+          <span className="echo-mono" style={{ fontSize: 11, opacity: 0.7 }}>
             03 · Configuration
           </span>
           <h2
@@ -245,15 +217,12 @@ export default function EmbedDocsPage() {
               marginBottom: 24,
             }}
           >
-            <code className="echo-mono">embed.js</code> reads two attributes
-            off the mount element. There are no window globals, no init call,
-            and no per-instance JS API — the script is fully declarative.
+            <code className="echo-mono">embed.js</code> reads two attributes off
+            the mount element. There are no window globals, no init call, and no
+            per-instance JS API — the script is fully declarative.
           </p>
 
-          <div
-            className="echo-card"
-            style={{ overflow: "hidden", padding: 0 }}
-          >
+          <div className="echo-card" style={{ overflow: "hidden", padding: 0 }}>
             <table
               style={{
                 width: "100%",
@@ -287,10 +256,7 @@ export default function EmbedDocsPage() {
                     }}
                   >
                     <Td>
-                      <code
-                        className="echo-mono"
-                        style={{ fontSize: 12 }}
-                      >
+                      <code className="echo-mono" style={{ fontSize: 12 }}>
                         {row.name}
                       </code>
                       {row.required && (
@@ -349,14 +315,8 @@ export default function EmbedDocsPage() {
         </section>
 
         {/* Iframe details */}
-        <section
-          className="echo-section"
-          style={{ padding: "48px 0" }}
-        >
-          <span
-            className="echo-mono"
-            style={{ fontSize: 11, opacity: 0.7 }}
-          >
+        <section className="echo-section" style={{ padding: "48px 0" }}>
+          <span className="echo-mono" style={{ fontSize: 11, opacity: 0.7 }}>
             04 · Rendered iframe
           </span>
           <h2
@@ -383,10 +343,7 @@ export default function EmbedDocsPage() {
             iframe with these properties. Useful to know if you&apos;re styling
             the host container or auditing CSP.
           </p>
-          <div
-            className="echo-card"
-            style={{ overflow: "hidden", padding: 0 }}
-          >
+          <div className="echo-card" style={{ overflow: "hidden", padding: 0 }}>
             <table
               style={{
                 width: "100%",
@@ -407,10 +364,7 @@ export default function EmbedDocsPage() {
                     }}
                   >
                     <Td>
-                      <code
-                        className="echo-mono"
-                        style={{ fontSize: 12 }}
-                      >
+                      <code className="echo-mono" style={{ fontSize: 12 }}>
                         {p.key}
                       </code>
                     </Td>
@@ -430,14 +384,8 @@ export default function EmbedDocsPage() {
         </section>
 
         {/* Footer / errors */}
-        <section
-          className="echo-section"
-          style={{ padding: "48px 0 96px" }}
-        >
-          <span
-            className="echo-mono"
-            style={{ fontSize: 11, opacity: 0.7 }}
-          >
+        <section className="echo-section" style={{ padding: "48px 0 96px" }}>
+          <span className="echo-mono" style={{ fontSize: 11, opacity: 0.7 }}>
             05 · Failure mode
           </span>
           <h2
@@ -460,8 +408,8 @@ export default function EmbedDocsPage() {
             }}
           >
             If <code className="echo-mono">data-form-id</code> is missing or
-            isn&apos;t a valid <code className="echo-mono">0x</code>-hex
-            string, the script replaces the element&apos;s text content with{" "}
+            isn&apos;t a valid <code className="echo-mono">0x</code>-hex string,
+            the script replaces the element&apos;s text content with{" "}
             <code className="echo-mono">
               [Echo embed: missing or invalid data-form-id]
             </code>{" "}
@@ -513,10 +461,7 @@ function Td({ children }: { children: React.ReactNode }) {
 
 function CodeBlock({ code, language }: { code: string; language: string }) {
   return (
-    <div
-      className="echo-card"
-      style={{ overflow: "hidden", padding: 0 }}
-    >
+    <div className="echo-card" style={{ overflow: "hidden", padding: 0 }}>
       <div
         style={{
           display: "flex",
@@ -527,10 +472,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
           background: "var(--echo-paper-2)",
         }}
       >
-        <span
-          className="echo-mono"
-          style={{ fontSize: 10, opacity: 0.7 }}
-        >
+        <span className="echo-mono" style={{ fontSize: 10, opacity: 0.7 }}>
           {language}
         </span>
       </div>
