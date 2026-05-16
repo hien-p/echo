@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   useCallback,
@@ -39,6 +40,11 @@ import {
   type RatingField,
   type ChoiceField,
 } from "@/lib/echo";
+
+const ConnectButton = dynamic(
+  () => import("@mysten/dapp-kit-react/ui").then((mod) => mod.ConnectButton),
+  { ssr: false },
+);
 
 interface OnChainForm {
   schema_blob_id: string;
@@ -1825,6 +1831,15 @@ function ReviewStep({
   const submitting = status.kind === "submitting";
   const canWalletless =
     !accountAddress && privacyTier === PrivacyTier.Public && !submitting;
+  const needsWalletForAnonymous = anonymous && !accountAddress;
+  const anonymousHint = anonymous
+    ? accountAddress
+      ? "wallet signs one nullifier · submission stores 0x0"
+      : "connect a wallet to make the one-per-form anonymous proof"
+    : canWalletless
+      ? "walletless submit uses a one-time key · no wallet required"
+      : "submit with wallet identity · gas can still be sponsored";
+
   return (
     <section
       className="grid gap-10 sm:gap-14 items-start"
@@ -1936,61 +1951,98 @@ function ReviewStep({
                 color: "var(--echo-mut)",
               }}
             >
-              uses an ephemeral key · your wallet address is not stored
+              {anonymousHint}
             </span>
           </span>
         </button>
 
         <div className="flex items-center gap-3 flex-wrap pt-1">
-          <button
-            type="button"
-            onClick={() => onSubmit("wallet")}
-            disabled={(!accountAddress && !canWalletless) || submitting}
-            style={{
-              fontFamily:
-                "var(--echo-mono, ui-monospace, SFMono-Regular, Menlo, monospace)",
-              fontSize: 13,
-              fontWeight: 600,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              padding: "16px 24px",
-              border: "2px solid var(--echo-ink)",
-              background:
-                accountAddress && !submitting
+          {accountAddress ? (
+            <button
+              type="button"
+              onClick={() => onSubmit("wallet")}
+              disabled={submitting}
+              style={{
+                fontFamily:
+                  "var(--echo-mono, ui-monospace, SFMono-Regular, Menlo, monospace)",
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                padding: "16px 24px",
+                border: "2px solid var(--echo-ink)",
+                background: submitting
+                  ? "var(--echo-rail-2)"
+                  : "var(--echo-ink)",
+                color: submitting ? "var(--echo-mut-2)" : "var(--echo-paper)",
+                boxShadow: submitting ? "none" : "var(--echo-brut-shadow)",
+                cursor: submitting ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              {submitting
+                ? "submitting…"
+                : anonymous
+                  ? "sign anonymous proof"
+                  : "sign & publish"}
+              {!submitting && <span style={{ fontSize: "1.1em" }}>→</span>}
+            </button>
+          ) : (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+                padding: "10px 12px 10px 16px",
+                minHeight: 56,
+                border: "2px solid var(--echo-ink)",
+                background: needsWalletForAnonymous
                   ? "var(--echo-ink)"
-                  : "var(--echo-rail-2)",
-              color:
-                accountAddress && !submitting
+                  : "var(--echo-paper)",
+                color: needsWalletForAnonymous
                   ? "var(--echo-paper)"
-                  : "var(--echo-mut-2)",
-              boxShadow:
-                accountAddress && !submitting
+                  : "var(--echo-ink)",
+                boxShadow: needsWalletForAnonymous
                   ? "var(--echo-brut-shadow)"
                   : "none",
-              cursor: accountAddress && !submitting ? "pointer" : "not-allowed",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            {submitting
-              ? "submitting…"
-              : accountAddress
-                ? "sign & publish"
-                : "connect wallet to sign"}
-            {!submitting && accountAddress && (
-              <span style={{ fontSize: "1.1em" }}>→</span>
-            )}
-          </button>
+              }}
+            >
+              <span
+                className="font-mono"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {needsWalletForAnonymous
+                  ? "connect wallet for anonymous"
+                  : "connect wallet to sign"}
+              </span>
+              <span className="bld-wallet-pill bld-wallet-pill--connect">
+                <ConnectButton />
+              </span>
+            </div>
+          )}
           {canWalletless && (
             <button
               type="button"
-              onClick={() => onSubmit("walletless")}
-              disabled={anonymous || submitting}
+              onClick={() => {
+                if (anonymous) {
+                  onAnonymousChange(false);
+                  return;
+                }
+                onSubmit("walletless");
+              }}
+              disabled={submitting}
               className="font-mono"
               title={
                 anonymous
-                  ? "Anonymous mode needs a persistent wallet so the one-per-person nullifier can't be bypassed. Turn off “Submit anonymously” to submit without a wallet."
+                  ? "Walletless submit already uses a one-time key. Switch anonymous mode off to use it."
                   : "Echo generates a one-time keypair locally, signs the sponsored tx, and discards it. No wallet needed."
               }
               style={{
@@ -1998,16 +2050,33 @@ function ReviewStep({
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
                 padding: "12px 16px",
-                border: "1.5px solid var(--echo-rail)",
-                background: anonymous
-                  ? "var(--echo-rail-2)"
-                  : "var(--echo-paper)",
-                color: anonymous ? "var(--echo-mut-2)" : "var(--echo-ink)",
-                cursor: anonymous ? "not-allowed" : "pointer",
+                border: anonymous
+                  ? "1.5px dashed var(--echo-ink)"
+                  : "1.5px solid var(--echo-rail)",
+                background: "var(--echo-paper)",
+                color: "var(--echo-ink)",
+                cursor: submitting ? "not-allowed" : "pointer",
+                opacity: submitting ? 0.55 : 1,
               }}
             >
-              submit without wallet ↗
+              {anonymous
+                ? "switch to walletless submit"
+                : "submit without wallet ↗"}
             </button>
+          )}
+          {needsWalletForAnonymous && (
+            <span
+              className="font-mono"
+              style={{
+                flexBasis: "100%",
+                fontSize: 10,
+                letterSpacing: "0.1em",
+                color: "var(--echo-mut)",
+              }}
+            >
+              anonymous mode needs a connected wallet so the nullifier cannot be
+              bypassed
+            </span>
           )}
         </div>
 
