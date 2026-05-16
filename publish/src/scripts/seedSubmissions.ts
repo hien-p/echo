@@ -438,16 +438,39 @@ async function main() {
   const schema = await fetchJson<FormSchema>(onChain.schema_blob_id);
   console.log(`schema fields: ${schema.fields.map((f) => f.id).join(", ")}`);
 
-  // 3. Build a Seal client only if needed.
+  // 3. Build a Seal client only if Seal is actually configured.
+  //
+  // Mirrors the dapp's `sealAvailable` logic (FormViewer): when
+  // NEXT_PUBLIC_SEAL_KEY_SERVERS is empty the deployed app uploads
+  // every tier as PLAINTEXT (tiers are labels only on that deploy).
+  // The seed must match so the admin view reads back what the real
+  // submit path would have produced. SEAL_KEY_SERVERS, when set, is a
+  // JSON array [{objectId,weight}] — the same shape the dapp parses.
   let seal: SealClient | null = null;
-  if (tier !== PRIVACY_PUBLIC) {
+  const sealEnv = (process.env.SEAL_KEY_SERVERS ?? "").trim();
+  let sealServers: { objectId: string; weight: number }[] = [];
+  if (sealEnv) {
+    try {
+      sealServers = (
+        JSON.parse(sealEnv) as Array<{ objectId: string; weight?: number }>
+      ).map((x) => ({ objectId: x.objectId, weight: x.weight ?? 1 }));
+    } catch {
+      sealServers = [];
+    }
+  }
+  if (tier !== PRIVACY_PUBLIC && sealServers.length > 0) {
     seal = new SealClient({
       suiClient: client as unknown as ConstructorParameters<
         typeof SealClient
       >[0]["suiClient"],
-      serverConfigs: TESTNET_KEY_SERVERS,
+      serverConfigs: sealServers,
       verifyKeyServers: false,
     });
+  } else if (tier !== PRIVACY_PUBLIC) {
+    console.log(
+      "  (no SEAL_KEY_SERVERS set — uploading plaintext, matching the " +
+        "deployed dapp's sealAvailable=false behavior for this tier)",
+    );
   }
 
   // Seal threshold = number of key servers needed to release shares.
@@ -510,7 +533,6 @@ async function main() {
       arguments: [
         tx.object(FORM_ID),
         tx.pure.string(blobId),
-        tx.pure.u8(tier),
         tx.object(SUI_CLOCK_OBJECT_ID),
       ],
     });
