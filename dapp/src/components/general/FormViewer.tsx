@@ -1061,6 +1061,19 @@ function Takeover({
       setStatus({ kind: "error", message: "Connect a wallet first." });
       return;
     }
+    // Anonymous Sybil resistance relies on the on-chain commitments_used
+    // table rejecting a repeat nullifier. Walletless mode mints a fresh
+    // ephemeral keypair on every submission, so the nullifier would be
+    // unique each time and the one-per-person guarantee silently breaks.
+    // Require a persistent wallet identity to anchor the commitment.
+    if (mode === "walletless" && anonymous) {
+      setStatus({
+        kind: "error",
+        message:
+          "Anonymous submission needs a connected wallet. A walletless key is generated fresh each time, so the one-submission-per-person check can't bind to it — connect a wallet, or turn off “Submit anonymously”.",
+      });
+      return;
+    }
     const err = validateAll();
     if (err) {
       setStatus({ kind: "error", message: err });
@@ -1943,17 +1956,24 @@ function ReviewStep({
             <button
               type="button"
               onClick={() => onSubmit("walletless")}
+              disabled={anonymous || submitting}
               className="font-mono"
-              title="Echo generates a one-time keypair locally, signs the sponsored tx, and discards it. No wallet needed."
+              title={
+                anonymous
+                  ? "Anonymous mode needs a persistent wallet so the one-per-person nullifier can't be bypassed. Turn off “Submit anonymously” to submit without a wallet."
+                  : "Echo generates a one-time keypair locally, signs the sponsored tx, and discards it. No wallet needed."
+              }
               style={{
                 fontSize: 11,
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
                 padding: "12px 16px",
                 border: "1.5px solid var(--echo-rail)",
-                background: "var(--echo-paper)",
-                color: "var(--echo-ink)",
-                cursor: "pointer",
+                background: anonymous
+                  ? "var(--echo-rail-2)"
+                  : "var(--echo-paper)",
+                color: anonymous ? "var(--echo-mut-2)" : "var(--echo-ink)",
+                cursor: anonymous ? "not-allowed" : "pointer",
               }}
             >
               submit without wallet ↗
