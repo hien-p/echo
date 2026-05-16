@@ -128,42 +128,53 @@ export function InsightAnswer({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
       className={cn(
-        "mx-4 mb-16 mt-4 rounded-3xl border bg-card p-8 shadow-xl shadow-foreground/[0.04] sm:mx-8 sm:p-10 lg:mx-12",
-        isCounter ? "border-amber-500/30 bg-amber-500/[0.02]" : "border-border",
+        "mx-4 mb-16 mt-6 overflow-hidden rounded-[28px] border bg-card/90 shadow-2xl shadow-foreground/[0.05] backdrop-blur sm:mx-8 lg:mx-auto lg:max-w-[1280px]",
+        isCounter
+          ? "border-amber-500/30 bg-amber-500/[0.03]"
+          : "border-border/80",
       )}
     >
-      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        {isCounter ? (
-          <>
-            <Scale size={12} />
-            Opposing view
-          </>
-        ) : (
-          <>
-            <Sparkles size={12} />
-            {isEmpty ? "No data yet" : "Answer"}
-          </>
-        )}
+      <div className="flex flex-wrap items-center gap-3 border-b border-border/70 px-6 py-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground sm:px-8">
+        <span className="inline-flex items-center gap-2">
+          {isCounter ? (
+            <>
+              <Scale size={12} />
+              Opposing view
+            </>
+          ) : (
+            <>
+              <Sparkles size={12} />
+              {isEmpty ? "No data yet" : "Insight report"}
+            </>
+          )}
+        </span>
         {confidence && !isEmpty && <ConfidenceBadge level={confidence} />}
+        {data.question && (
+          <span className="min-w-0 flex-1 truncate normal-case tracking-normal text-foreground/70">
+            {data.question}
+          </span>
+        )}
         {data.formTitle && (
-          <span className="ml-auto truncate normal-case tracking-normal text-foreground/60">
+          <span className="truncate normal-case tracking-normal text-foreground/50">
             {data.formTitle}
           </span>
         )}
       </div>
 
-      {isEmpty ? (
-        <EmptyAnswer data={data} />
-      ) : data.structured && data.structured.themes !== undefined ? (
-        <StructuredAnswer
-          data={data}
-          onCounterArgument={isCounter ? undefined : onCounterArgument}
-          onPin={isCounter ? undefined : onPin}
-          isPinned={isPinned}
-        />
-      ) : (
-        <PlainAnswer answer={data.answer ?? ""} />
-      )}
+      <div className="p-6 sm:p-8">
+        {isEmpty ? (
+          <EmptyAnswer data={data} />
+        ) : data.structured && data.structured.themes !== undefined ? (
+          <StructuredAnswer
+            data={data}
+            onCounterArgument={isCounter ? undefined : onCounterArgument}
+            onPin={isCounter ? undefined : onPin}
+            isPinned={isPinned}
+          />
+        ) : (
+          <PlainAnswer answer={data.answer ?? ""} />
+        )}
+      </div>
     </motion.section>
   );
 }
@@ -373,7 +384,10 @@ function StructuredAnswer({
   onPin?: () => void;
   isPinned?: boolean;
 }) {
-  const themes = data.structured?.themes ?? [];
+  const themes = useMemo(
+    () => data.structured?.themes ?? [],
+    [data.structured?.themes],
+  );
   const rawCitations = data.structured?.citations;
   const rawMemories = data.memories;
   const gaps = data.structured?.gaps ?? [];
@@ -394,6 +408,10 @@ function StructuredAnswer({
   const citationRefs = useRef<Map<string, HTMLLIElement>>(new Map());
 
   const citations = useMemo(() => rawCitations ?? [], [rawCitations]);
+  const topTheme = useMemo(() => {
+    return [...themes].sort((a, b) => b.count - a.count)[0] ?? null;
+  }, [themes]);
+  const answerLead = getAnswerLead(data.answer);
   const citationMap = useMemo(() => {
     const m = new Map<string, Citation>();
     for (const c of citations) m.set(normalizeId(c.submissionId), c);
@@ -430,37 +448,94 @@ function StructuredAnswer({
 
   return (
     <>
-      <div className="mt-5 space-y-8">
-        {headlineQuote && (
-          <figure className="relative rounded-2xl border-l-4 border-foreground/30 bg-muted/40 px-6 py-5">
-            <Quote
-              size={20}
-              strokeWidth={1.5}
-              className="absolute -left-2 top-3 text-foreground/20"
-            />
-            <blockquote className="font-serif text-lg italic leading-snug text-foreground/90">
-              &ldquo;{headlineQuote.text}&rdquo;
-            </blockquote>
-            <figcaption className="mt-2 text-[11px] uppercase tracking-widest text-muted-foreground">
-              — submission{" "}
-              <code className="font-mono text-foreground/60">
-                {headlineQuote.submissionId}
-              </code>
-            </figcaption>
-          </figure>
-        )}
-
-        {/* Sentiment overview — derived from themes[].sentiment counts.
-          One-glance read of the room before the user dives into prose. */}
-        {themes.length > 0 && <SentimentOverview themes={themes} />}
-
-        <article className="text-base leading-relaxed text-foreground">
-          <ProseWithCitations
-            text={data.answer ?? ""}
-            knownIds={new Set(citationMap.keys())}
-            onCitationClick={scrollToCitation}
+      <div className="space-y-7">
+        <div className="grid gap-4 md:grid-cols-4">
+          <InsightMetric
+            label="Submissions"
+            value={String(data.memoriesUsed ?? 0)}
+            detail="used for this synthesis"
           />
-        </article>
+          <InsightMetric
+            label="Themes"
+            value={String(themes.length)}
+            detail={topTheme ? `top: ${topTheme.label}` : "none detected"}
+          />
+          <InsightMetric
+            label="Evidence"
+            value={String(citations.length)}
+            detail="citation rows"
+          />
+          <InsightMetric
+            label="Source"
+            value={data.memoriesSource === "direct-decrypt" ? "Direct" : "RAG"}
+            detail={data.modelUsed ?? "model hidden"}
+          />
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-5">
+            <section className="rounded-3xl border border-border/70 bg-background/45 p-5 sm:p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Top finding
+              </p>
+              <p className="mt-3 text-balance text-2xl font-semibold leading-snug tracking-tight text-foreground sm:text-3xl">
+                {topTheme
+                  ? `${topTheme.label} is the strongest signal.`
+                  : "The clearest signal is in the submitted evidence."}
+              </p>
+              {answerLead && (
+                <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+                  {answerLead}
+                </p>
+              )}
+            </section>
+
+            <article className="rounded-3xl border border-border/70 bg-background/35 p-5 sm:p-6">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  Readout
+                </h4>
+                {data.structured?.confidence && (
+                  <ConfidenceBadge level={data.structured.confidence} />
+                )}
+              </div>
+              <ProseWithCitations
+                text={data.answer ?? ""}
+                knownIds={new Set(citationMap.keys())}
+                onCitationClick={scrollToCitation}
+              />
+            </article>
+          </div>
+
+          <aside className="space-y-4">
+            {headlineQuote && (
+              <figure className="relative rounded-3xl border border-border/70 bg-muted/35 px-5 py-5">
+                <Quote
+                  size={18}
+                  strokeWidth={1.5}
+                  className="text-foreground/25"
+                />
+                <blockquote className="mt-3 font-serif text-lg italic leading-snug text-foreground/90">
+                  &ldquo;{headlineQuote.text}&rdquo;
+                </blockquote>
+                <figcaption className="mt-3 text-[11px] uppercase tracking-widest text-muted-foreground">
+                  Submission{" "}
+                  <code className="font-mono text-foreground/60">
+                    {headlineQuote.submissionId}
+                  </code>
+                </figcaption>
+              </figure>
+            )}
+
+            {/* Sentiment overview — derived from themes[].sentiment counts.
+              One-glance read of the room before the user dives into prose. */}
+            {themes.length > 0 && (
+              <div className="rounded-3xl border border-border/70 bg-background/35 p-5">
+                <SentimentOverview themes={themes} />
+              </div>
+            )}
+          </aside>
+        </div>
 
         {outlier && (
           <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/[0.04] p-4">
@@ -945,6 +1020,28 @@ function PlainAnswer({ answer }: { answer: string }) {
   );
 }
 
+function InsightMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background/35 p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+        {value}
+      </p>
+      <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Prose with clickable citation tokens
 // ─────────────────────────────────────────────────────────────────────
@@ -962,50 +1059,86 @@ function ProseWithCitations({
   knownIds: Set<string>;
   onCitationClick: (id: string) => void;
 }) {
-  // Split the answer into text + citation token nodes. Citations that don't
-  // match any returned citation row degrade to plain text so we don't
-  // render dead buttons.
-  const parts: Array<
-    { type: "text"; value: string } | { type: "cite"; raw: string; id: string }
-  > = [];
-  let lastIndex = 0;
-  for (const match of text.matchAll(CITATION_RE)) {
-    const start = match.index ?? 0;
-    if (start > lastIndex) {
-      parts.push({ type: "text", value: text.slice(lastIndex, start) });
+  const paragraphs = getAnswerParagraphs(text);
+
+  const renderParts = (paragraph: string) => {
+    const parts: Array<
+      | { type: "text"; value: string }
+      | { type: "cite"; raw: string; id: string }
+    > = [];
+    let lastIndex = 0;
+    for (const match of paragraph.matchAll(CITATION_RE)) {
+      const start = match.index ?? 0;
+      if (start > lastIndex) {
+        parts.push({ type: "text", value: paragraph.slice(lastIndex, start) });
+      }
+      parts.push({ type: "cite", raw: match[0], id: match[1].toLowerCase() });
+      lastIndex = start + match[0].length;
     }
-    parts.push({ type: "cite", raw: match[0], id: match[1].toLowerCase() });
-    lastIndex = start + match[0].length;
-  }
-  if (lastIndex < text.length) {
-    parts.push({ type: "text", value: text.slice(lastIndex) });
-  }
+    if (lastIndex < paragraph.length) {
+      parts.push({ type: "text", value: paragraph.slice(lastIndex) });
+    }
+    return parts;
+  };
 
   return (
-    <p className="whitespace-pre-wrap">
-      {parts.map((p, i) => {
-        if (p.type === "text") return <span key={i}>{p.value}</span>;
-        const isKnown = knownIds.has(normalizeId(p.id));
-        if (!isKnown) {
-          return (
-            <span key={i} className="text-muted-foreground">
-              {p.raw}
-            </span>
-          );
-        }
-        return (
-          <button
-            key={i}
-            type="button"
-            onClick={() => onCitationClick(p.id)}
-            className="mx-0.5 inline-flex items-center rounded-md border border-border bg-muted px-1.5 py-px text-[12px] font-mono text-foreground/80 align-baseline transition hover:border-foreground/40 hover:bg-foreground/10"
-          >
-            {p.id}
-          </button>
-        );
-      })}
-    </p>
+    <div className="space-y-4 text-base leading-8 text-foreground/90">
+      {paragraphs.map((paragraph, paragraphIndex) => (
+        <p key={paragraphIndex}>
+          {renderParts(paragraph).map((p, i) => {
+            if (p.type === "text") return <span key={i}>{p.value}</span>;
+            const isKnown = knownIds.has(normalizeId(p.id));
+            if (!isKnown) {
+              return (
+                <span key={i} className="text-muted-foreground">
+                  {p.raw}
+                </span>
+              );
+            }
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => onCitationClick(p.id)}
+                className="mx-1 inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-mono leading-none text-foreground/75 align-middle transition hover:border-foreground/40 hover:bg-foreground/10"
+              >
+                {p.id}
+              </button>
+            );
+          })}
+        </p>
+      ))}
+    </div>
   );
+}
+
+function getAnswerParagraphs(text = ""): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return ["No answer returned."];
+
+  const natural = trimmed
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (natural.length > 1) return natural;
+
+  const sentences = trimmed.match(/[^.!?]+[.!?]+(?:\s|$)/g);
+  if (!sentences || sentences.length < 4) return [trimmed];
+
+  const out: string[] = [];
+  for (let i = 0; i < sentences.length; i += 2) {
+    out.push(
+      sentences
+        .slice(i, i + 2)
+        .join(" ")
+        .trim(),
+    );
+  }
+  return out;
+}
+
+function getAnswerLead(text = ""): string {
+  return getAnswerParagraphs(text)[0]?.replace(CITATION_RE, "").trim() ?? "";
 }
 
 // ─────────────────────────────────────────────────────────────────────

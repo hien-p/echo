@@ -30,6 +30,8 @@
     "/forms/*/": "/forms/_/index.html",
     "/forms/*/admin": "/forms/_/admin/index.html",
     "/forms/*/admin/": "/forms/_/admin/index.html",
+    "/forms/new": "/forms/new/index.html",
+    "/forms/new/": "/forms/new/index.html",
     "/insights": "/insights/index.html",
     "/insights/": "/insights/index.html",
     "/logs": "/logs/index.html",

@@ -131,12 +131,14 @@ export function InsightsGoals({
   scopeKey,
   onPick,
   disabled,
+  compact = false,
 }: {
   /** Form id (or "all" for cross-form). Custom goals are scoped to this. */
   scopeKey: string;
   /** Caller fires the query with the goal's prompt. */
   onPick: (prompt: string) => void;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   const [customGoals, setCustomGoals] = useState<InsightsGoal[]>([]);
   const [adding, setAdding] = useState(false);
@@ -180,23 +182,28 @@ export function InsightsGoals({
   };
 
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className={cn("flex flex-col", compact ? "gap-2" : "gap-2.5")}>
       <div className="flex items-center justify-between gap-3 px-1">
-        <div className="flex flex-col">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Goals
+            Insight goals
           </span>
-          <span className="text-xs text-muted-foreground/80">
-            Click a goal to ask it. Custom goals save per form.
+          <span className="rounded-full border border-border/70 bg-background/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            {allGoals.length}
           </span>
+          {!compact && (
+            <span className="hidden text-xs text-muted-foreground/70 sm:inline">
+              Reusable questions per form
+            </span>
+          )}
         </div>
         <button
           type="button"
           onClick={() => setAdding((v) => !v)}
-          className="inline-flex items-center gap-1 rounded-full border border-border bg-card/60 px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:border-foreground/30 hover:text-foreground"
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-card/70 px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:border-foreground/30 hover:text-foreground"
         >
           <Plus size={12} strokeWidth={2} />
-          {adding ? "Cancel" : "Add goal"}
+          {adding ? "Cancel" : "New goal"}
         </button>
       </div>
 
@@ -244,7 +251,12 @@ export function InsightsGoals({
         </motion.div>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div
+        className={cn(
+          "flex gap-2",
+          compact ? "overflow-x-auto pb-1" : "flex-wrap",
+        )}
+      >
         {allGoals.map((g) => {
           const Icon =
             g.kind === "preset" && g.icon ? PRESET_ICONS[g.icon] : Sparkles;
@@ -262,8 +274,11 @@ export function InsightsGoals({
                 disabled={disabled}
                 title={g.prompt}
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition",
-                  "border-border bg-card/60 text-foreground/85 hover:border-foreground/35 hover:bg-card hover:text-foreground",
+                  "inline-flex whitespace-nowrap rounded-full border font-medium transition",
+                  compact
+                    ? "items-center gap-1.5 px-3 py-1 text-xs"
+                    : "items-center gap-2 px-3.5 py-1.5 text-sm",
+                  "border-border bg-card/65 text-foreground/85 hover:border-foreground/35 hover:bg-card hover:text-foreground",
                   "disabled:opacity-50 disabled:cursor-not-allowed",
                   g.kind === "custom" && "pr-8",
                 )}
