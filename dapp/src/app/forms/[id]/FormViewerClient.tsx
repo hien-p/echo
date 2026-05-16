@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormViewer as FormViewerInner } from "@/components/general/FormViewer";
 import { useResolvedFormId } from "@/lib/echo/useResolvedFormId";
 
@@ -21,8 +22,23 @@ import { useResolvedFormId } from "@/lib/echo/useResolvedFormId";
  */
 export const FormViewer = ({ formId }: { formId: string }) => {
   const resolved = useResolvedFormId(formId);
-  if (!resolved) {
+  if (resolved === null) {
     return <p className="text-sm text-muted-foreground">Loading form…</p>;
+  }
+  if (resolved === "") {
+    // Lit the static SPA-fallback URL directly — no real form id to
+    // query. Don't fire a Sui call with "_"; surface a friendly nudge.
+    return (
+      <div className="mx-auto max-w-md p-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          No form id in the URL. Pick one from your{" "}
+          <Link href="/forms" className="underline">
+            forms list
+          </Link>
+          .
+        </p>
+      </div>
+    );
   }
   return <FormViewerInner formId={resolved} />;
 };

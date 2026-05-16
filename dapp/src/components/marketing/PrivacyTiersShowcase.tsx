@@ -151,8 +151,9 @@ export function PrivacyTiersShowcase(): ReactNode {
 
   return (
     <section
+      id="tiers"
       aria-labelledby={headingId}
-      className="relative border-y border-border bg-background px-6 py-20 sm:px-10 sm:py-24 lg:px-14 lg:py-28"
+      className="relative scroll-mt-32 border-y border-border bg-background px-6 py-20 sm:px-10 sm:py-24 lg:px-14 lg:py-28"
     >
       <div className="mx-auto flex max-w-[1440px] flex-col gap-12 lg:gap-16">
         <motion.div

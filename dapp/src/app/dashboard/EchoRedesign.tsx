@@ -237,6 +237,67 @@ function useEchoDashboardData() {
     [submissionsQuery.data],
   );
 
+  // Bounty TVL = sum of every BountyPool.funds (Balance<SUI>) across the
+  // owner's forms. Pools are discovered via the on-chain BountyCreated
+  // event (same pattern as submissions), then read back as objects.
+  const bountyQuery = useQuery({
+    queryKey: ["echo", "dashboard-bounties", formIdsKey],
+    queryFn: async (): Promise<{ poolId: string; mist: bigint }[]> => {
+      if (forms.length === 0) return [];
+      const eventType = `${packageId}::bounty::BountyCreated`;
+      const fullnodeUrl = clientConfig.SUI_FULLNODE_URL;
+      const poolIds = new Set<string>();
+      await Promise.all(
+        forms.map(async (form) => {
+          const events = await queryEventsByFormId(
+            fullnodeUrl,
+            eventType,
+            form.id,
+          );
+          for (const e of events) {
+            const pid = (e as { pool_id?: string }).pool_id;
+            if (pid) poolIds.add(pid);
+          }
+        }),
+      );
+      if (poolIds.size === 0) return [];
+      const pools = await suiClient.getObjects({
+        objectIds: Array.from(poolIds),
+        include: { json: true },
+      });
+      const out: { poolId: string; mist: bigint }[] = [];
+      for (const obj of pools.objects as unknown as Array<{
+        objectId: string;
+        json?: { funds?: unknown };
+      }>) {
+        if (!obj.json) continue;
+        // Balance<SUI> comes back either as a bare u64 string/number or
+        // as { value: "…" } depending on the indexer.
+        const f = obj.json.funds;
+        const raw =
+          typeof f === "string" || typeof f === "number"
+            ? f
+            : (f as { value?: string | number } | null)?.value;
+        let mist: bigint;
+        try {
+          mist = BigInt(raw ?? 0);
+        } catch {
+          mist = BigInt(0);
+        }
+        out.push({ poolId: obj.objectId, mist });
+      }
+      return out;
+    },
+    enabled: forms.length > 0 && packageId.startsWith("0x"),
+    staleTime: 30_000,
+  });
+
+  const bountyTotals = useMemo(() => {
+    const pools = bountyQuery.data ?? [];
+    const totalMist = pools.reduce((acc, p) => acc + p.mist, BigInt(0));
+    return { sui: Number(totalMist) / 1e9, pools: pools.length };
+  }, [bountyQuery.data]);
+
   // ─── Derive everything the redesign needs ───
   return useMemo(() => {
     // 24h delta
@@ -324,7 +385,10 @@ function useEchoDashboardData() {
     return {
       ownerAddress: ownerAddress ?? null,
       demoMode,
-      isLoading: formsQuery.isLoading || submissionsQuery.isLoading,
+      isLoading:
+        formsQuery.isLoading ||
+        submissionsQuery.isLoading ||
+        bountyQuery.isLoading,
       forms,
       submissions,
       kpis: {
@@ -332,8 +396,8 @@ function useEchoDashboardData() {
         delta24h,
         openForms,
         totalForms,
-        bountySui: 0, // wire bounty totals in a follow-up
-        pools: 0,
+        bountySui: bountyTotals.sui,
+        pools: bountyTotals.pools,
         awaitingDecrypt,
       },
       sparkline,
@@ -344,8 +408,10 @@ function useEchoDashboardData() {
   }, [
     forms,
     submissions,
+    bountyTotals,
     formsQuery.isLoading,
     submissionsQuery.isLoading,
+    bountyQuery.isLoading,
     ownerAddress,
     demoMode,
   ]);
@@ -1174,7 +1240,7 @@ function KpiStrip() {
           value={kpis.bountySui}
           decimals={2}
           suffix=" SUI"
-          sub={`${kpis.pools} pools · 412 mist gas`}
+          sub={`${kpis.pools} ${kpis.pools === 1 ? "pool" : "pools"} on chain`}
         />
         <KpiTile
           label="Awaiting decrypt"

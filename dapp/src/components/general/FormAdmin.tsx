@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import Link from "next/link";
@@ -15,6 +21,10 @@ import {
   ShieldCheck,
   Unlock as UnlockIcon,
   Sparkles,
+  Search,
+  ArrowUpDown,
+  CheckCircle2,
+  CircleAlert,
 } from "lucide-react";
 import { apiUrl, clientConfig } from "@/config/clientConfig";
 import { cn } from "@/lib/utils";
@@ -96,6 +106,79 @@ const STATUS_LABELS: Record<number, string> = {
   2: "closed",
   3: "archived",
 };
+
+function AdminButton({
+  children,
+  className,
+  variant = "quiet",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "quiet" | "primary" | "ghost";
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "adm-button",
+        variant === "primary" && "adm-button--primary",
+        variant === "ghost" && "adm-button--ghost",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+function AdminNotice({
+  tone = "neutral",
+  icon,
+  children,
+}: {
+  tone?: "neutral" | "warn" | "success" | "danger";
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("adm-notice", `adm-notice--${tone}`)}>
+      <span className="adm-notice__icon" aria-hidden="true">
+        {icon}
+      </span>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function AdminStat({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className="adm-stat">
+      <span className="adm-stat__label">{label}</span>
+      <span className="adm-stat__value">{children}</span>
+    </span>
+  );
+}
+
+function AdminTrustPill({
+  icon,
+  children,
+}: {
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <span className="adm-trust-pill">
+      {icon}
+      <span>{children}</span>
+    </span>
+  );
+}
 
 export const FormAdmin = ({ formId }: { formId: string }) => {
   const account = useCurrentAccount();
@@ -462,9 +545,14 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       if (demoToggleOn && onChain.owner.toLowerCase() === demoAdminAddr) {
         const results = await Promise.allSettled(
           targets.map(async (s) => {
+            // text/plain is CORS-safelisted → no preflight. The Walrus
+            // SPA calls this CF Pages route cross-origin and next-on-pages
+            // doesn't route OPTIONS to a [...slug] handler (preflight 404s).
+            // The server reads the body via request.json() regardless of
+            // the content-type, so this is purely a CORS workaround.
             const resp = await fetch(apiUrl("/api/demo/admin/decrypt"), {
               method: "POST",
-              headers: { "content-type": "application/json" },
+              headers: { "content-type": "text/plain" },
               body: JSON.stringify({
                 formId,
                 submissionId: s.submissionId,
@@ -918,93 +1006,113 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       : isConditionalTier
         ? "Reveals when the decrypt predicate passes"
         : "Admin can reveal anytime";
+  const encryptedRemaining = submissions.filter(
+    (s) => s.encrypted && !revealedById[s.submissionId],
+  ).length;
+  const hasFilteredSubmissions =
+    displayedSubmissions.length !== submissions.length;
 
   return (
-    <div className="flex flex-col gap-md">
-      <header className="flex flex-col gap-2">
-        <Link href="/forms" className="text-xs underline text-muted-foreground">
-          ← All forms
-        </Link>
-        <h1 className="text-2xl font-semibold">{metadata.title}</h1>
-
-        {/* G3 — outcome subtitle: the reveal story in one line. */}
-        <p className="text-sm text-foreground/85">{revealCopy}</p>
-
-        {/* G2 — trust hero strip: the pitch that judges register in 1s. */}
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[11px]">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-foreground/80">
-            <Lock size={11} className="opacity-70" />
-            End-to-end encrypted
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-foreground/80">
-            <ShieldCheck size={11} className="opacity-70" />
-            Sealed by Seal
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-foreground/80">
-            <Database size={11} className="opacity-70" />
-            Stored on Walrus
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-foreground/80">
-            <Globe size={11} className="opacity-70" />
-            Settled on Sui
-          </span>
+    <div className="adm-surface">
+      <header className="adm-header">
+        <div className="adm-header__main">
+          <Link href="/forms" className="adm-backlink">
+            ← All forms
+          </Link>
+          <div className="adm-title-row">
+            <h1>{metadata.title}</h1>
+            <span
+              className={cn(
+                "adm-status",
+                onChain.status === 1 && "adm-status--open",
+                onChain.status === 2 && "adm-status--closed",
+                onChain.status === 3 && "adm-status--archived",
+              )}
+            >
+              {STATUS_LABELS[onChain.status] ?? "unknown"}
+            </span>
+          </div>
+          <p className="adm-reveal-copy">{revealCopy}</p>
         </div>
-
-        {/* G8 — Walrus artifact chips: brand-forward, hash hidden in tooltip. */}
-        <div className="flex flex-wrap items-center gap-2 mt-0.5">
-          <WalrusBlobLink
-            variant="pill"
-            label="Schema"
-            blobId={onChain.schema_blob_id}
-          />
-          <WalrusBlobLink
-            variant="pill"
-            label="Metadata"
-            blobId={onChain.metadata_blob_id}
-          />
-        </div>
-
-        {/* Operator info kept compact below the pitch. */}
-        <p className="text-xs text-muted-foreground inline-flex items-center gap-2 flex-wrap mt-1">
-          <span>
-            {STATUS_LABELS[onChain.status] ?? "?"} · {onChain.submission_count}{" "}
-            submissions · by <SuiNSName address={onChain.owner} /> ·{" "}
-            <Link href={`/forms/${formId}`} className="underline">
-              public link
-            </Link>
-          </span>
+        <div className="adm-stats" aria-label="Form admin summary">
+          <AdminStat label="submissions">{onChain.submission_count}</AdminStat>
+          <AdminStat label="owner">
+            <SuiNSName address={onChain.owner} />
+          </AdminStat>
+          <Link href={`/forms/${formId}`} className="adm-public-link">
+            public link
+          </Link>
           {isTimeLockedTier && unlockMs > 0 && (
             <TimeLockBadge unlockMs={unlockMs} />
           )}
-        </p>
+        </div>
       </header>
 
+      <div className="adm-trust-strip" aria-label="Storage and privacy">
+        <AdminTrustPill icon={<Lock size={12} />}>
+          End-to-end encrypted
+        </AdminTrustPill>
+        <AdminTrustPill icon={<ShieldCheck size={12} />}>
+          Sealed by Seal
+        </AdminTrustPill>
+        <AdminTrustPill icon={<Database size={12} />}>
+          Stored on Walrus
+        </AdminTrustPill>
+        <AdminTrustPill icon={<Globe size={12} />}>
+          Settled on Sui
+        </AdminTrustPill>
+      </div>
+
+      <div className="adm-artifacts">
+        <WalrusBlobLink
+          variant="pill"
+          label="Schema"
+          blobId={onChain.schema_blob_id}
+          className="adm-artifact"
+        />
+        <WalrusBlobLink
+          variant="pill"
+          label="Metadata"
+          blobId={onChain.metadata_blob_id}
+          className="adm-artifact"
+        />
+      </div>
+
       {demoMode && (
-        <p className="text-sm text-foreground/80 bg-muted/40 border border-border rounded p-2 inline-flex items-start gap-2">
-          <Sparkles size={14} className="mt-0.5 shrink-0 text-amber-500" />
+        <AdminNotice tone="neutral" icon={<Sparkles size={15} />}>
           <span>
             <strong>Demo mode.</strong> This admin view is intentionally public
             for the showcase — reads decrypt via a shared demo key. Production
             forms gate this page to the form owner&apos;s wallet.
           </span>
-        </p>
+        </AdminNotice>
       )}
       {!isOwner && !demoMode && (
-        <p className="text-sm text-amber-700">
-          You don&apos;t hold the FormOwnerCap. Close/Archive disabled.
-        </p>
+        <AdminNotice tone="warn" icon={<CircleAlert size={15} />}>
+          You don&apos;t hold the FormOwnerCap. Close and archive are disabled.
+        </AdminNotice>
       )}
 
       {isMofNTier && (
-        <div
-          className={cn(
-            "border rounded p-3 flex flex-col sm:flex-row sm:items-center gap-2 text-sm",
-            isMofNUnlocked
-              ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-              : "bg-amber-50 border-amber-200 text-amber-900",
-          )}
-        >
-          <span className="flex-1">
+        <div className="adm-threshold">
+          <div
+            className={cn(
+              "adm-threshold__status",
+              isMofNUnlocked
+                ? "adm-threshold__status--ready"
+                : "adm-threshold__status--waiting",
+            )}
+          >
+            {isMofNUnlocked ? (
+              <CheckCircle2 size={15} />
+            ) : (
+              <CircleAlert size={15} />
+            )}
+            <span>
+              {approvalsCount}/{requiredK}
+            </span>
+          </div>
+          <p>
             <strong>
               Multi-admin threshold · {approvalsCount}/{requiredK} approvals
             </strong>
@@ -1017,108 +1125,80 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
                 {requiredK - approvalsCount === 1 ? "" : "s"}.
               </>
             )}
-          </span>
+          </p>
           {isOwner &&
             !youAlreadyApproved &&
             !isMofNUnlocked &&
             account &&
             !demoMode && (
-              <button
-                type="button"
+              <AdminButton
                 onClick={() => postApprovalMutation.mutate()}
                 disabled={postApprovalMutation.isPending}
-                className={cn(
-                  "border rounded px-3 py-1 text-sm flex items-center gap-1 bg-foreground text-background",
-                  postApprovalMutation.isPending
-                    ? "opacity-60 cursor-not-allowed"
-                    : "hover:opacity-90",
-                )}
+                variant="primary"
               >
                 <Unlock size={12} />
                 {postApprovalMutation.isPending
                   ? "Posting…"
                   : "Approve decrypt"}
-              </button>
+              </AdminButton>
             )}
           {youAlreadyApproved && !isMofNUnlocked && (
-            <span className="text-xs text-emerald-700 inline-flex items-center gap-1">
-              ✓ you approved
+            <span className="adm-inline-ok">
+              <CheckCircle2 size={13} /> you approved
             </span>
           )}
         </div>
       )}
       {postApprovalMutation.error instanceof Error && (
-        <p className="text-xs text-destructive -mt-1">
+        <AdminNotice tone="danger" icon={<CircleAlert size={15} />}>
           {postApprovalMutation.error.message}
-        </p>
+        </AdminNotice>
       )}
 
-      <div className="flex gap-2 flex-wrap">
-        <button
-          type="button"
+      <div className="adm-toolbar">
+        <AdminButton
           disabled={!isOwner || onChain.status !== 1 || closeMutation.isPending}
           onClick={() => closeMutation.mutate()}
-          className={cn(
-            "border rounded px-3 py-1 text-sm flex items-center gap-1",
-            isOwner && onChain.status === 1
-              ? "hover:bg-accent"
-              : "opacity-60 cursor-not-allowed",
-          )}
         >
           <Lock size={14} /> Close
-        </button>
-        <button
-          type="button"
+        </AdminButton>
+        <AdminButton
           disabled={
             !isOwner || onChain.status === 3 || archiveMutation.isPending
           }
           onClick={() => archiveMutation.mutate()}
-          className={cn(
-            "border rounded px-3 py-1 text-sm flex items-center gap-1",
-            isOwner && onChain.status !== 3
-              ? "hover:bg-accent"
-              : "opacity-60 cursor-not-allowed",
-          )}
         >
           <Archive size={14} /> Archive
-        </button>
-        <button
-          type="button"
+        </AdminButton>
+        <AdminButton
           disabled={submissions.length === 0}
           onClick={() => exportCsv(submissions, schema, metadata.title)}
-          className={cn(
-            "border rounded px-3 py-1 text-sm flex items-center gap-1",
-            submissions.length > 0
-              ? "hover:bg-accent"
-              : "opacity-60 cursor-not-allowed",
-          )}
         >
           <Download size={14} /> Export CSV
-        </button>
+        </AdminButton>
       </div>
 
       {(closeMutation.error || archiveMutation.error) && (
-        <p className="text-sm text-destructive">
+        <AdminNotice tone="danger" icon={<CircleAlert size={15} />}>
           {(closeMutation.error || archiveMutation.error)?.message}
-        </p>
+        </AdminNotice>
       )}
 
-      <section>
-        <div className="flex items-baseline justify-between gap-2 mb-2 flex-wrap">
-          <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
-            Submissions ({displayedSubmissions.length}
-            {displayedSubmissions.length !== submissions.length
-              ? ` of ${submissions.length}`
-              : ""}
-            )
-          </h2>
-          {canDecrypt &&
-            !isPublicTier &&
-            submissions.some(
-              (s) => s.encrypted && !revealedById[s.submissionId],
-            ) && (
-              <button
-                type="button"
+      <section className="adm-submissions" aria-labelledby="adm-submissions">
+        <div className="adm-submissions__head">
+          <div>
+            <span className="adm-section-kicker">manage submissions</span>
+            <h2 id="adm-submissions">
+              Submissions{" "}
+              <span>
+                {displayedSubmissions.length}
+                {hasFilteredSubmissions ? ` / ${submissions.length}` : ""}
+              </span>
+            </h2>
+          </div>
+          <div className="adm-submissions__actions">
+            {canDecrypt && !isPublicTier && encryptedRemaining > 0 && (
+              <AdminButton
                 onClick={() => revealAllMutation.mutate()}
                 disabled={revealAllMutation.isPending}
                 title={
@@ -1126,52 +1206,37 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
                     ? "Server decrypts every submission via the demo key — no wallet popup."
                     : "Sign one personal message; this dapp decrypts every encrypted row in parallel locally."
                 }
-                className={cn(
-                  "border rounded px-3 py-1 text-xs flex items-center gap-1",
-                  revealAllMutation.isPending
-                    ? "opacity-60 cursor-not-allowed"
-                    : "bg-foreground text-background hover:opacity-90",
-                )}
+                variant="primary"
               >
                 <Unlock size={12} />
                 {revealAllMutation.isPending
                   ? "Revealing…"
-                  : `Reveal all (${
-                      submissions.filter(
-                        (s) => s.encrypted && !revealedById[s.submissionId],
-                      ).length
-                    })`}
-              </button>
+                  : `Reveal all (${encryptedRemaining})`}
+              </AdminButton>
             )}
-          {canDecrypt &&
-            !isPublicTier &&
-            !demoMode &&
-            isOwner &&
-            submissions.length > 0 && (
-              <button
-                type="button"
-                onClick={() => indexAllMutation.mutate()}
-                disabled={indexAllMutation.isPending}
-                title="Decrypts each submission locally in your browser, then sends only the flattened text to Memwal. Server never sees ciphertext or session keys."
-                className={cn(
-                  "border rounded px-3 py-1 text-xs flex items-center gap-1",
-                  indexAllMutation.isPending
-                    ? "opacity-60 cursor-not-allowed"
-                    : "hover:bg-accent",
-                )}
-              >
-                <Sparkles size={12} />
-                {indexAllMutation.isPending
-                  ? indexProgress
-                    ? `Indexing ${indexProgress.current}/${indexProgress.total}…`
-                    : "Indexing…"
-                  : "Index for Insights"}
-              </button>
-            )}
+            {canDecrypt &&
+              !isPublicTier &&
+              !demoMode &&
+              isOwner &&
+              submissions.length > 0 && (
+                <AdminButton
+                  onClick={() => indexAllMutation.mutate()}
+                  disabled={indexAllMutation.isPending}
+                  title="Decrypts each submission locally in your browser, then sends only the flattened text to Memwal. Server never sees ciphertext or session keys."
+                >
+                  <Sparkles size={12} />
+                  {indexAllMutation.isPending
+                    ? indexProgress
+                      ? `Indexing ${indexProgress.current}/${indexProgress.total}…`
+                      : "Indexing…"
+                    : "Index for Insights"}
+                </AdminButton>
+              )}
+          </div>
         </div>
         {indexProgress && !indexProgress.running && (
-          <p className="text-xs text-muted-foreground mb-2">
-            ✓ Indexed {indexProgress.indexed}/{indexProgress.total} via Memwal.
+          <AdminNotice tone="success" icon={<CheckCircle2 size={15} />}>
+            Indexed {indexProgress.indexed}/{indexProgress.total} via Memwal.
             {indexProgress.errors.length > 0 && (
               <>
                 {" "}
@@ -1186,46 +1251,50 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
               /insights
             </Link>
             .
-          </p>
+          </AdminNotice>
         )}
         {indexAllMutation.error instanceof Error && (
-          <p className="text-xs text-destructive mb-2">
+          <AdminNotice tone="danger" icon={<CircleAlert size={15} />}>
             {indexAllMutation.error.message}
-          </p>
+          </AdminNotice>
         )}
         {revealAllMutation.error instanceof Error && (
-          <p className="text-xs text-destructive mb-2">
+          <AdminNotice tone="danger" icon={<CircleAlert size={15} />}>
             {revealAllMutation.error.message}
-          </p>
+          </AdminNotice>
         )}
         {revealAllMutation.data && revealAllMutation.data.revealed > 0 && (
-          <p className="text-xs text-emerald-700 mb-2">
-            ✓ Revealed {revealAllMutation.data.revealed} submission
+          <AdminNotice tone="success" icon={<CheckCircle2 size={15} />}>
+            Revealed {revealAllMutation.data.revealed} submission
             {revealAllMutation.data.revealed === 1 ? "" : "s"}.
             {revealAllMutation.data.errors.length > 0 &&
               ` ${revealAllMutation.data.errors.length} failed.`}
-          </p>
+          </AdminNotice>
         )}
         {submissions.length > 1 && (
-          <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
-            <input
-              type="text"
-              placeholder="Search…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="border rounded px-2 py-1 flex-1 min-w-[140px] sm:min-w-[220px]"
-            />
-            <select
-              value={sortDir}
-              onChange={(e) =>
-                setSortDir(e.target.value as "newest" | "oldest")
-              }
-              className="border rounded px-2 py-1"
-              title="Sort by submitted_ms"
-            >
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-            </select>
+          <div className="adm-filterbar">
+            <label className="adm-search">
+              <Search size={13} aria-hidden="true" />
+              <input
+                type="text"
+                placeholder="Search submissions"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </label>
+            <label className="adm-sort">
+              <ArrowUpDown size={13} aria-hidden="true" />
+              <select
+                value={sortDir}
+                onChange={(e) =>
+                  setSortDir(e.target.value as "newest" | "oldest")
+                }
+                title="Sort by submitted_ms"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+              </select>
+            </label>
             <FilterChip
               label="All"
               active={submitterFilter === "all"}
@@ -1243,7 +1312,7 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
             />
             {!isPublicTier && (
               <>
-                <span className="text-muted-foreground px-1">·</span>
+                <span className="adm-filterbar__divider" aria-hidden="true" />
                 <FilterChip
                   label="Any state"
                   active={stateFilter === "all"}
@@ -1264,11 +1333,11 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
           </div>
         )}
         {submissionsQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading submissions…</p>
+          <p className="adm-empty">Loading submissions…</p>
         ) : submissions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">None yet.</p>
+          <p className="adm-empty">None yet.</p>
         ) : displayedSubmissions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="adm-empty">
             No submissions match the current filters.{" "}
             <button
               type="button"
@@ -1277,14 +1346,14 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
                 setSubmitterFilter("all");
                 setStateFilter("all");
               }}
-              className="underline"
+              className="adm-link-button"
             >
               Clear filters
             </button>
             .
           </p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className="adm-submission-list">
             {displayedSubmissions.map((s) => (
               <SubmissionRowView
                 key={s.submissionId}
@@ -1334,19 +1403,16 @@ export const FormAdmin = ({ formId }: { formId: string }) => {
       )}
 
       {onChain.status === 2 && (
-        <p className="text-sm text-amber-700 inline-flex items-center gap-1">
-          <Unlock size={14} /> This form is closed. New submissions blocked on
-          chain.
-        </p>
+        <AdminNotice tone="warn" icon={<Unlock size={15} />}>
+          This form is closed. New submissions are blocked on chain.
+        </AdminNotice>
       )}
 
       {/* G4 — Owner-facing wiring lives below the data, collapsed by
           default so judges see submissions + actions first. */}
-      <details className="mt-md border-t border-border pt-md">
-        <summary className="cursor-pointer text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground w-fit">
-          Setup &amp; integrations
-        </summary>
-        <div className="mt-3 flex flex-col gap-2">
+      <details className="adm-integrations">
+        <summary>Setup &amp; integrations</summary>
+        <div className="adm-integrations__body">
           <BrandedShareLink formId={formId} />
           <WebhookConfig formId={formId} />
         </div>
@@ -1434,9 +1500,10 @@ function SubmissionRowView({
     setDecrypting(true);
     try {
       if (demoMode) {
+        // text/plain is CORS-safelisted → no preflight (see note above).
         const resp = await fetch(apiUrl("/api/demo/admin/decrypt"), {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "text/plain" },
           body: JSON.stringify({
             formId,
             submissionId: row.submissionId,
@@ -1558,58 +1625,44 @@ function SubmissionRowView({
     <li
       ref={rowRef}
       id={`sub-${row.submissionId}`}
-      className="border rounded p-3 bg-card flex flex-col gap-1 text-sm"
+      className="adm-submission-row"
       style={{
         transition: "box-shadow 600ms ease-out",
         boxShadow: pulseFocus ? "0 0 0 3px var(--echo-sui-sea)" : undefined,
       }}
     >
-      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+      <div className="adm-submission-row__meta">
         <code>{row.submissionId.slice(0, 10)}…</code>
-        <span>·</span>
         <span>{row.submittedAt}</span>
-        <span>·</span>
         <span>
           {row.anonymous ? "anonymous" : <SuiNSName address={row.submitter} />}
         </span>
         {row.payloadBlobId && (
-          <>
-            <span>·</span>
-            <WalrusBlobLink blobId={row.payloadBlobId} />
-          </>
+          <WalrusBlobLink blobId={row.payloadBlobId} className="adm-row-blob" />
         )}
-        <span className="sm:ml-auto flex items-center gap-2 flex-wrap">
+        <span className="adm-submission-row__badges">
           {canIssueCredit && !credited && (
-            <button
-              type="button"
+            <AdminButton
               onClick={() => onIssueCredit(5)}
               disabled={issuingCredit}
               title="Issue +5 reputation to this submitter (mints a CreditTicket on chain)."
-              className={cn(
-                "border rounded px-2 py-0.5 text-xs flex items-center gap-1",
-                issuingCredit
-                  ? "opacity-60 cursor-not-allowed"
-                  : "hover:bg-accent",
-              )}
+              variant="ghost"
             >
               {issuingCredit ? "Issuing…" : "+5 rep"}
-            </button>
+            </AdminButton>
           )}
           {credited && (
-            <span
-              className="text-xs text-emerald-700 inline-flex items-center gap-1"
-              title={`tx ${credited.digest}`}
-            >
-              ✓ +{credited.delta} issued
+            <span className="adm-inline-ok" title={`tx ${credited.digest}`}>
+              <CheckCircle2 size={13} /> +{credited.delta} issued
             </span>
           )}
           {row.encrypted && !decrypted && (
-            <span className="inline-flex items-center gap-1 text-amber-700">
+            <span className="adm-row-state adm-row-state--locked">
               <Lock size={12} /> encrypted
             </span>
           )}
           {decrypted && (
-            <span className="inline-flex items-center gap-1 text-emerald-700">
+            <span className="adm-row-state adm-row-state--open">
               <UnlockIcon size={12} /> decrypted
             </span>
           )}
@@ -1617,50 +1670,40 @@ function SubmissionRowView({
       </div>
 
       {row.encrypted && !decrypted ? (
-        <div className="flex flex-col gap-1">
-          <p className="text-xs text-muted-foreground inline-flex items-center gap-1.5 flex-wrap">
+        <div className="adm-row-locked">
+          <p>
             Encrypted payload on Walrus:{" "}
             <WalrusBlobLink blobId={row.payloadBlobId} />
           </p>
-          <button
-            type="button"
+          <AdminButton
             onClick={() => void decrypt()}
             disabled={decrypting || !canDecrypt}
             title={decryptDisabledReason ?? undefined}
-            className={cn(
-              "border rounded px-3 py-1 text-xs w-fit",
-              canDecrypt && !decrypting
-                ? "hover:bg-accent"
-                : "opacity-60 cursor-not-allowed",
-            )}
+            variant={canDecrypt ? "primary" : "quiet"}
           >
             {decrypting
               ? "Decrypting…"
               : !canDecrypt
-                ? "🔒 No permission"
+                ? "No permission"
                 : demoMode
                   ? "Decrypt (server, demo mode)"
                   : "Decrypt with Seal"}
-          </button>
+          </AdminButton>
           {!canDecrypt && decryptDisabledReason && (
-            <p className="text-xs text-muted-foreground">
-              {decryptDisabledReason}
-            </p>
+            <p>{decryptDisabledReason}</p>
           )}
-          {decryptError && (
-            <p className="text-xs text-destructive">{decryptError}</p>
-          )}
+          {decryptError && <p className="adm-error">{decryptError}</p>}
         </div>
       ) : decrypted ? (
         <AnswerList payload={decrypted} schema={schema} />
       ) : row.payloadError ? (
-        <p className="text-xs text-destructive">
+        <p className="adm-error">
           Failed to read Walrus payload: {row.payloadError}
         </p>
       ) : row.payload ? (
         <AnswerList payload={row.payload} schema={schema} />
       ) : (
-        <p className="text-xs text-muted-foreground">No payload bytes.</p>
+        <p className="adm-empty">No payload bytes.</p>
       )}
     </li>
   );
@@ -1706,17 +1749,15 @@ function AnswerList({
 }) {
   const fields = schema?.fields ?? [];
   return (
-    <ul className="flex flex-col gap-2 text-sm">
+    <ul className="adm-answer-list">
       {Object.entries(payload.answers).map(([fieldId, ans]) => {
         const field = fields.find((f) => f.id === fieldId);
         const isRichText = field?.type === "rich_text" && ans.kind === "text";
         return (
-          <li key={fieldId} className="flex flex-col gap-0.5">
-            <strong className="text-muted-foreground text-xs">
-              {field?.label ?? fieldId}:
-            </strong>
+          <li key={fieldId}>
+            <strong>{field?.label ?? fieldId}:</strong>
             {isRichText && ans.kind === "text" ? (
-              <div className="border-l-2 border-border pl-3">
+              <div className="adm-answer-list__rich">
                 <MarkdownView source={ans.value} />
               </div>
             ) : (
@@ -1771,7 +1812,7 @@ async function jsonRpcQueryEvents(
 /**
  * Fetch SubmissionMade events scoped to a single form. Uses the All+
  * MoveEventField filter so the RPC returns only matching rows — much
- * faster than the global 200-event scan when testnet has many other
+ * faster than the global 200-event scan when mainnet has many other
  * forms emitting the same event type. Falls back to the global type-only
  * query if the RPC rejects the combined filter.
  */
@@ -1936,12 +1977,12 @@ function BrandedShareLink({ formId }: { formId: string }) {
             <li>
               Open{" "}
               <a
-                href="https://testnet.suins.io"
+                href="https://suins.io"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline"
               >
-                testnet.suins.io
+                suins.io
               </a>{" "}
               and register / select <code>{fullName || "<name>.sui"}</code>.
             </li>
@@ -1982,12 +2023,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        "border rounded-full px-2 py-0.5",
-        active
-          ? "bg-foreground text-background"
-          : "border-border text-muted-foreground hover:bg-accent",
-      )}
+      className={cn("adm-filter-chip", active && "adm-filter-chip--active")}
     >
       {label}
     </button>

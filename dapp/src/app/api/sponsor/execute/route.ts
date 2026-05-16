@@ -38,11 +38,27 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ digest: result.digest });
   } catch (err) {
-    return NextResponse.json(
+    const e = err as { status?: unknown; cause?: unknown };
+    let detail: string | undefined;
+    if (e?.cause != null) {
+      try {
+        detail =
+          typeof e.cause === "string" ? e.cause : JSON.stringify(e.cause);
+      } catch {
+        detail = String(e.cause);
+      }
+    } else if (e?.status != null) {
+      detail = `status ${String(e.status)}`;
+    }
+    const message =
+      err instanceof Error ? err.message : "Sponsor execution failed.";
+    console.error(
+      "[sponsor/execute] Enoki executeSponsoredTransaction failed",
       {
-        error: err instanceof Error ? err.message : "Sponsor execution failed.",
+        message,
+        detail,
       },
-      { status: 502 },
     );
+    return NextResponse.json({ error: message, detail }, { status: 502 });
   }
 }

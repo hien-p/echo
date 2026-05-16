@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { contentLengthExceeds, rateLimit } from "@/lib/server/rateLimit";
 
 // Edge runtime — required for Cloudflare Pages deploy via @cloudflare/
 // next-on-pages. Workerd's V8 supports AbortSignal.any() natively (used
@@ -18,6 +19,7 @@ const WALRUS_NETWORK = (process.env.NEXT_PUBLIC_WALRUS_NETWORK ?? "testnet") as
   | "testnet"
   | "mainnet";
 const DEMO_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_DEMO_ADMIN_ADDRESS ?? "";
+const MAX_BODY_BYTES = 16_384;
 
 const PRIVACY_PUBLIC = 0;
 const PRIVACY_ADMIN_ONLY = 1;
@@ -59,10 +61,82 @@ interface DecryptBody {
  * NEXT_PUBLIC_DEMO_ADMIN_ADDRESS are eligible — anything else is rejected
  * up front so we never expose decrypt for caps we shouldn't be holding.
  */
+const ALLOWED_ORIGINS = new Set<string>([
+  "https://echo-forms.wal.app",
+  "https://staging.echo-20u.pages.dev",
+]);
+
+function corsHeadersFor(origin: string | null): Record<string, string> {
+  const allowed =
+    origin &&
+    (ALLOWED_ORIGINS.has(origin) ||
+      /^https:\/\/[a-z0-9-]+\.echo-20u\.pages\.dev$/i.test(origin) ||
+      /\.wal\.app$/i.test(origin));
+  return {
+    "Access-Control-Allow-Origin": allowed
+      ? origin!
+      : "https://echo-forms.wal.app",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Max-Age": "600",
+    Vary: "Origin",
+  };
+}
+
+function withCors(resp: NextResponse, origin: string | null): NextResponse {
+  for (const [k, v] of Object.entries(corsHeadersFor(origin))) {
+    resp.headers.set(k, v);
+  }
+  return resp;
+}
+
+export function OPTIONS(request: Request) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeadersFor(request.headers.get("origin")),
+  });
+}
+
+// Cross-origin wrapper: the Walrus-hosted SPA (echo-forms.wal.app) calls
+// this CF Pages endpoint from a different origin, so every response —
+// including thrown errors — must carry CORS headers or the browser
+// blocks it at the preflight ("Failed to fetch", masking the real error).
 export async function POST(
   request: Request,
   ctx: { params: Promise<{ slug?: string[] }> },
 ) {
+  const origin = request.headers.get("origin");
+  try {
+    return withCors(await handlePost(request, ctx), origin);
+  } catch (e) {
+    return withCors(
+      NextResponse.json(
+        { error: e instanceof Error ? e.message : "Internal error" },
+        { status: 500 },
+      ),
+      origin,
+    );
+  }
+}
+
+async function handlePost(
+  request: Request,
+  ctx: { params: Promise<{ slug?: string[] }> },
+) {
+  const limited = rateLimit({
+    key: "demo-admin",
+    limit: 60,
+    request,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (limited) return limited;
+  if (contentLengthExceeds(request, MAX_BODY_BYTES)) {
+    return NextResponse.json(
+      { error: "Request body too large." },
+      { status: 413 },
+    );
+  }
+
   const { slug } = await ctx.params;
   const action = slug?.[0];
   if (action !== "list" && action !== "decrypt") {

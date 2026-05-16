@@ -16,7 +16,7 @@ const links = [
 export function MarketingHeader() {
   return (
     <motion.header
-      initial={{ opacity: 0, y: -20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       className="fixed left-0 right-0 top-0 z-50 px-4 py-6 sm:px-12 sm:py-8 lg:px-24"

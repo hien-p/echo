@@ -4,7 +4,7 @@ import { EchoReputationRedesign } from "./EchoReputationRedesign";
 export const metadata: Metadata = {
   title: "Reputation · Echo",
   description:
-    "Preview of the Soulbound reputation badges respondents earn on Echo — non-transferable, on-chain, queryable by other dapps.",
+    "Echo's tx-backed soulbound reputation surface: FormOwnerCap-gated credit tickets, claim events, and portable proof on Sui.",
 };
 
 export default function ReputationPage() {
