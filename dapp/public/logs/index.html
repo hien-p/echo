@@ -164,6 +164,24 @@
             <time datetime="2026-05-16">2026-05-16</time>
             <span class="log-tag" data-tag="fix">fix</span>
           </header>
+          <h3>Anonymous mode now requires a connected wallet</h3>
+          <p>
+            Closed a Sybil-resistance bypass: walletless submission mints a
+            fresh ephemeral keypair each time, so an anonymous submission's
+            nullifier was unique on every send and the on-chain
+            <code>commitments_used</code> one-per-person check never tripped.
+            The walletless path now refuses anonymous submissions, and the
+            "submit without wallet" button is disabled with an explanation while
+            "Submit anonymously" is on. Anonymous responses must anchor to a
+            persistent wallet identity.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-16">
+          <header>
+            <time datetime="2026-05-16">2026-05-16</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
           <h3>Audit patches land on staging; package re-pointed</h3>
           <p>
             Five Move audit findings patched and the testnet package re-pointed
