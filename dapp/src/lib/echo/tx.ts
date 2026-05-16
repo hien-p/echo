@@ -69,6 +69,7 @@ export function buildSubmitTx(args: SubmitArgs): Transaction {
     arguments: [
       tx.object(args.formId),
       tx.pure.string(args.payloadBlobId),
+      tx.pure.u8(args.tierHint),
       tx.object.clock(),
     ],
   });
@@ -88,6 +89,7 @@ export function buildSubmitAnonymousTx(args: SubmitAnonymousArgs): Transaction {
       tx.object(args.formId),
       tx.pure.string(args.payloadBlobId),
       tx.pure.vector("u8", Array.from(args.commitment)),
+      tx.pure.u8(args.tierHint),
       tx.object.clock(),
     ],
   });

@@ -39,8 +39,17 @@ const PACKAGE_ID =
 const API_BASE = (
   process.env.API_BASE ?? "https://staging.echo-20u.pages.dev"
 ).replace(/\/$/, "");
+const SEED_NETWORK = (process.env.SEED_NETWORK ?? "mainnet") as
+  | "mainnet"
+  | "testnet";
 const FULLNODE =
-  process.env.SUI_FULLNODE_URL ?? "https://fullnode.mainnet.sui.io:443";
+  process.env.SUI_FULLNODE_URL ??
+  (SEED_NETWORK === "testnet"
+    ? "https://fullnode.testnet.sui.io:443"
+    : "https://fullnode.mainnet.sui.io:443");
+// The deployed testnet package's submit/submit_anonymous still take a
+// u8 tierHint arg; the mainnet package dropped it. Match the target.
+const SUBMIT_TIER_HINT = SEED_NETWORK === "testnet";
 const SUBS_PER_FORM = Number(process.env.SUBS_PER_FORM ?? "4");
 const BOUNTY_MIST = BigInt(
   Math.round(Number(process.env.BOUNTY_SUI ?? "0.05") * 1e9),
@@ -489,7 +498,10 @@ async function main() {
   if (!PACKAGE_ID.startsWith("0x")) throw new Error("bad ECHO_PACKAGE_ID");
   const kp = loadKeypair(keyRaw);
   const addr = kp.toSuiAddress();
-  const client = new SuiGrpcClient({ network: "mainnet", baseUrl: FULLNODE });
+  const client = new SuiGrpcClient({
+    network: SEED_NETWORK,
+    baseUrl: FULLNODE,
+  });
   console.log(`◆ admin   ${addr}`);
   console.log(`◆ package ${PACKAGE_ID}`);
   console.log(`◆ walrus  ${API_BASE}\n`);
@@ -594,6 +606,7 @@ async function main() {
         arguments: [
           tx.object(f.formId),
           tx.pure.string(blob),
+          ...(SUBMIT_TIER_HINT ? [tx.pure.u8(f.tier)] : []),
           tx.object(SUI_CLOCK_OBJECT_ID),
         ],
       });
