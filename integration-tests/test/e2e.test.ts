@@ -145,6 +145,7 @@ describe("echo e2e flow", () => {
       arguments: [
         tx.object(formId),
         tx.pure.string("payload-blob-test"),
+        tx.pure.u8(0), // tier_hint = Public — matches form.privacy_tier
         tx.object(SUI_CLOCK_OBJECT_ID),
       ],
     });

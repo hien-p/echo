@@ -33,6 +33,8 @@ const EInsufficientApprovals: u64 = 8;
 const EWrongFormId: u64 = 9;
 const EWrongIdentity: u64 = 10;
 const EDuplicateSigner: u64 = 11;
+const EUnlockInPast: u64 = 12;
+const EFormArchived: u64 = 13;
 
 public struct Form has key {
   id: UID,
@@ -94,6 +96,9 @@ public fun create_form(
   assert!(privacy_tier <= PRIVACY_CONDITIONAL, EInvalidPrivacyTier);
   if (privacy_tier == PRIVACY_THRESHOLD) {
     assert!(threshold_n > 0 && threshold_n <= threshold_m, EThresholdInvalid);
+  };
+  if (privacy_tier == PRIVACY_TIME_LOCKED) {
+    assert!(unlock_ms > clock.timestamp_ms(), EUnlockInPast);
   };
 
   let form = Form {
@@ -192,6 +197,7 @@ public fun archive_form(cap: &FormOwnerCap, form: &mut Form) {
 /// submit_anonymous so that one wallet/form pair can submit at most once
 /// even when the wallet's address is hidden from the chain.
 public(package) fun record_commitment(form: &mut Form, c: vector<u8>) {
+  assert!(form.status == STATUS_OPEN, EFormNotOpen);
   assert!(!table::contains(&form.commitments_used, c), ECommitmentAlreadyUsed);
   table::add(&mut form.commitments_used, c, true);
 }
@@ -201,11 +207,19 @@ public fun commitment_used(form: &Form, c: vector<u8>): bool {
 }
 
 public(package) fun bump_submission_count(form: &mut Form) {
+  assert!(form.status == STATUS_OPEN, EFormNotOpen);
   form.submission_count = form.submission_count + 1;
 }
 
 public(package) fun assert_open(form: &Form) {
   assert!(form.status == STATUS_OPEN, EFormNotOpen);
+}
+
+/// Archived forms are sealed — Seal approvals must abort. Closed forms remain
+/// readable so admins can still triage submissions received before closure;
+/// archive is the "stop reading" signal. See F-03 in the security audit.
+fun assert_not_archived(form: &Form) {
+  assert!(form.status != STATUS_ARCHIVED, EFormArchived);
 }
 
 // ============================================================================
@@ -241,6 +255,7 @@ public fun seal_approve_admin_only(
   assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
   assert!(form.privacy_tier == PRIVACY_ADMIN_ONLY, EWrongTier);
   assert!(cap.form_id == object::id(form), EWrongOwnerCap);
+  assert_not_archived(form);
 }
 
 /// Threshold tier — OR-of-N path. Any single cap holder approves decryption.
@@ -253,7 +268,12 @@ public fun seal_approve_threshold(
 ) {
   assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
   assert!(form.privacy_tier == PRIVACY_THRESHOLD, EWrongTier);
+  // F-02: this entry is the 1-of-N (OR-of-N) path only. Real k>=2 forms must
+  // go through seal_approve_threshold_m_of_n with k witnesses. Without this
+  // assert, a single rogue cap holder bypasses the entire m-of-n policy.
+  assert!(form.threshold_n == 1, EThresholdInvalid);
   assert!(cap.form_id == object::id(form), EWrongOwnerCap);
+  assert_not_archived(form);
 }
 
 // ============================================================================
@@ -301,6 +321,7 @@ public fun post_approval(
   assert!(cap.form_id == object::id(form), EWrongOwnerCap);
   assert!(form.privacy_tier == PRIVACY_THRESHOLD, EWrongTier);
   assert!(seal_id_matches_form(&identity, form), ESealIdMismatch);
+  assert_not_archived(form);
 
   let signer = ctx.sender();
   let form_id_inner = object::id(form);
@@ -341,6 +362,7 @@ public fun seal_approve_threshold_m_of_n(
 ) {
   assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
   assert!(form.privacy_tier == PRIVACY_THRESHOLD, EWrongTier);
+  assert_not_archived(form);
 
   let required = (form.threshold_n as u64);
   let n = vector::length(&approvals);
@@ -380,6 +402,7 @@ public fun seal_approve_time_locked(
   assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
   assert!(form.privacy_tier == PRIVACY_TIME_LOCKED, EWrongTier);
   assert!(clock.timestamp_ms() >= form.unlock_ms, ENotYetUnlocked);
+  assert_not_archived(form);
 }
 
 /// Conditional tier: caller must hold the FormOwnerCap (the off-chain policy
@@ -393,6 +416,7 @@ public fun seal_approve_conditional(
   assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
   assert!(form.privacy_tier == PRIVACY_CONDITIONAL, EWrongTier);
   assert!(cap.form_id == object::id(form), EWrongOwnerCap);
+  assert_not_archived(form);
 }
 
 public fun id(form: &Form): ID { object::id(form) }
