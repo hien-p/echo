@@ -1168,6 +1168,12 @@ function Takeover({
         }
       }
 
+      // Submissions go through Enoki gas sponsorship (the backend
+      // ENOKI_PRIVATE_KEY is provisioned for this network). If the
+      // sponsor call fails for any reason, a connected wallet falls
+      // back to a normal self-paid tx so the submission still lands.
+      // A walletless ephemeral key has no SUI and no self-pay path,
+      // so it depends entirely on sponsorship.
       setStatus({
         kind: "submitting",
         step: "Submitting on chain (gas sponsored)…",
@@ -1187,19 +1193,43 @@ function Takeover({
             tierHint: privacyTier,
           });
 
-      const { digest } =
-        mode === "walletless" && ephemeralKeypair
-          ? await executeSponsoredWithKeypair({
-              tx,
-              keypair: ephemeralKeypair,
-              suiClient,
-            })
-          : await executeSponsored({
-              tx,
-              sender: accountAddress!,
-              suiClient,
-              dAppKit,
-            });
+      let digest: string;
+      if (mode === "walletless" && ephemeralKeypair) {
+        try {
+          ({ digest } = await executeSponsoredWithKeypair({
+            tx,
+            keypair: ephemeralKeypair,
+            suiClient,
+          }));
+        } catch {
+          throw new Error(
+            "Gas-free submission failed — the sponsor service is unavailable. Connect a wallet to submit (you'll pay ≈0.004 SUI in gas).",
+          );
+        }
+      } else {
+        try {
+          ({ digest } = await executeSponsored({
+            tx,
+            sender: accountAddress!,
+            suiClient,
+            dAppKit,
+          }));
+        } catch {
+          // Sponsorship unavailable — fall back to a normal self-paid
+          // tx so the submission still lands.
+          setStatus({
+            kind: "submitting",
+            step: "Submitting on chain (you pay ≈0.004 SUI gas)…",
+          });
+          const result = await dAppKit.signAndExecuteTransaction({
+            transaction: tx,
+          });
+          if (result.$kind === "FailedTransaction") {
+            throw new Error("Submission transaction failed on chain.");
+          }
+          digest = result.Transaction.digest;
+        }
+      }
       void ephemeralAddress;
       setStatus({ kind: "submitted", digest });
     } catch (e) {

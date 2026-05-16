@@ -881,6 +881,12 @@ export const InsightsConsole = ({
     return <ConnectGate />;
   }
 
+  const hasOutput =
+    !!expandedSnapshot ||
+    thread.length > 0 ||
+    !!streamingPartial ||
+    queryMutation.error instanceof Error;
+
   return (
     <div className="relative -mx-4 sm:-mx-8 lg:-mx-12">
       {/* Soft radial gradient backdrop — light-purple wash like Kraft */}
@@ -900,25 +906,43 @@ export const InsightsConsole = ({
         onRemove={onRemovePin}
       />
 
-      <section className="flex min-h-[calc(100vh-7rem)] flex-col px-6 pb-12 pt-12 sm:px-12 lg:px-20">
-        {/* Headline — bold left-aligned, italic-serif accent like Kraft's
-            "the future of creativity" */}
-        <motion.h1
-          initial={{ opacity: 0, y: 24, filter: "blur(8px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-          className="text-balance text-[clamp(2.5rem,7vw,6.5rem)] font-semibold leading-[1.05] tracking-tight text-foreground"
-        >
-          Ask Echo —
-          <br />
-          the <em className="font-serif italic text-foreground/60">
-            future
-          </em>{" "}
-          of feedback
-        </motion.h1>
+      <section
+        className={cn(
+          "flex flex-col px-6 sm:px-12 lg:px-20",
+          hasOutput
+            ? "min-h-0 pb-8 pt-28"
+            : "min-h-[calc(100vh-7rem)] pb-12 pt-12",
+        )}
+      >
+        {/* Headline — full hero before an ask, compact workspace title once
+            answers exist so controls never sit awkwardly under the nav. */}
+        {hasOutput ? (
+          <div className="mx-auto mb-5 w-full max-w-[1080px]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+              Insights workspace
+            </p>
+            <h1 className="mt-2 text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+              Ask Echo
+            </h1>
+          </div>
+        ) : (
+          <motion.h1
+            initial={{ opacity: 0, y: 24, filter: "blur(8px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+            className="text-balance text-[clamp(2.5rem,7vw,6.5rem)] font-semibold leading-[1.05] tracking-tight text-foreground"
+          >
+            Ask Echo —
+            <br />
+            the <em className="font-serif italic text-foreground/60">
+              future
+            </em>{" "}
+            of feedback
+          </motion.h1>
+        )}
 
         {/* Spacer pushes the input bar to roughly viewport center */}
-        <div className="min-h-12 flex-1" />
+        <div className={hasOutput ? "h-0" : "min-h-12 flex-1"} />
 
         {/* === The chat bar === */}
         <motion.div
@@ -928,7 +952,12 @@ export const InsightsConsole = ({
           className="mx-auto w-full max-w-[1080px]"
         >
           {/* Tall rounded input (single pill) */}
-          <div className="rounded-3xl border border-border/60 bg-card/70 px-7 py-6 shadow-2xl shadow-foreground/[0.04] backdrop-blur-md">
+          <div
+            className={cn(
+              "border border-border/60 bg-card/80 shadow-2xl shadow-foreground/[0.04] backdrop-blur-md",
+              hasOutput ? "rounded-2xl px-5 py-4" : "rounded-3xl px-7 py-6",
+            )}
+          >
             <textarea
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
@@ -939,18 +968,22 @@ export const InsightsConsole = ({
                 }
               }}
               placeholder="Ask Echo anything…"
-              rows={2}
-              className="w-full resize-none border-0 bg-transparent text-xl text-foreground placeholder:text-muted-foreground/70 outline-none sm:text-2xl"
+              rows={hasOutput ? 1 : 2}
+              className={cn(
+                "w-full resize-none border-0 bg-transparent text-foreground placeholder:text-muted-foreground/70 outline-none",
+                hasOutput ? "text-base sm:text-lg" : "text-xl sm:text-2xl",
+              )}
             />
           </div>
 
           {/* Goals rail — preset + custom user-defined goals per form.
               Click any goal to fire its prompt directly without retyping. */}
-          <div className="mt-5">
+          <div className={hasOutput ? "mt-3" : "mt-5"}>
             <InsightsGoals
               scopeKey={selectedFormId || "all"}
               onPick={pickGoalAndAsk}
               disabled={queryMutation.isPending || !selectedFormId}
+              compact={hasOutput}
             />
           </div>
 
@@ -958,7 +991,12 @@ export const InsightsConsole = ({
               decorative slots (paperclip/lightbulb/mic) — these were always
               disabled and added visual noise. The current set are all live:
               form picker, suggestions, history, re-index, send. */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div
+            className={cn(
+              "flex flex-wrap items-center gap-2",
+              hasOutput ? "mt-3" : "mt-4",
+            )}
+          >
             {/* Form selector — most important control, leftmost */}
             <FormSelectorChip
               forms={forms}
@@ -1040,7 +1078,12 @@ export const InsightsConsole = ({
             </button>
           </div>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground/70">
+          <p
+            className={cn(
+              "text-center text-xs text-muted-foreground/70",
+              hasOutput ? "mt-4" : "mt-6",
+            )}
+          >
             Echo can make mistakes — answers are synthesized from real
             submissions, but verify the source if it matters.
           </p>
@@ -1053,19 +1096,21 @@ export const InsightsConsole = ({
         </motion.div>
 
         {/* Bottom subhead + scroll affordance — Kraft footer copy slot */}
-        <div className="mt-auto flex flex-wrap items-end justify-between gap-6 pt-16">
-          <p className="max-w-[28rem] text-xs leading-relaxed text-muted-foreground">
-            Echo uses Memwal RAG over your form submissions. Pick a form, ask
-            anything, get a synthesized answer with the underlying responses as
-            context.
-          </p>
-          <ArrowDown
-            size={28}
-            strokeWidth={1.5}
-            className="text-foreground/40"
-            aria-hidden="true"
-          />
-        </div>
+        {!hasOutput && (
+          <div className="mt-auto flex flex-wrap items-end justify-between gap-6 pt-16">
+            <p className="max-w-[28rem] text-xs leading-relaxed text-muted-foreground">
+              Echo uses Memwal RAG over your form submissions. Pick a form, ask
+              anything, get a synthesized answer with the underlying responses
+              as context.
+            </p>
+            <ArrowDown
+              size={28}
+              strokeWidth={1.5}
+              className="text-foreground/40"
+              aria-hidden="true"
+            />
+          </div>
+        )}
       </section>
 
       {/* Auto-snapshot cards — visible only when no answer is on screen
