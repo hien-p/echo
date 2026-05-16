@@ -35,6 +35,13 @@ const EWrongIdentity: u64 = 10;
 const EDuplicateSigner: u64 = 11;
 const EUnlockInPast: u64 = 12;
 const EFormArchived: u64 = 13;
+const EApprovalExpired: u64 = 14;
+const EApprovalTtlInvalid: u64 = 15;
+
+/// Upper bound on an approval witness's lifetime: 7 days in ms. Bounds
+/// the F-01 blast radius — a k-of-n quorum's witnesses can re-pass the
+/// Seal dry-run only until they expire, after which admins must re-post.
+const MAX_APPROVAL_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
 
 public struct Form has key {
   id: UID,
@@ -282,9 +289,12 @@ public fun seal_approve_threshold(
 // Each admin posts an ApprovalWitness object (shared) approving a specific
 // Seal identity. seal_approve_threshold_m_of_n then takes a vector of those
 // witnesses and asserts that at least `threshold_n` unique signers (each
-// holding a cap) approved this exact identity. Once posted, witnesses live
-// on chain forever — semantics is "k of n voted to release this data" not
-// "k of n required for every read". UI must communicate this.
+// holding a cap) approved this exact identity. Witnesses carry an
+// `expires_ms`: a k-of-n quorum re-passes the Seal dry-run only until the
+// freshest-bounded witness expires (F-01 mitigation), after which admins
+// must re-post. Semantics is "k of n voted to release this data, valid
+// until expiry" not "k of n required for every read". UI must communicate
+// both the quorum and the expiry window.
 // ============================================================================
 
 public struct ApprovalWitness has key, store {
@@ -294,6 +304,9 @@ public struct ApprovalWitness has key, store {
   identity: vector<u8>,
   signer: address,
   created_ms: u64,
+  /// Witness no longer passes seal_approve_threshold_m_of_n once
+  /// clock.timestamp_ms() >= this. Set to created_ms + ttl_ms at post.
+  expires_ms: u64,
 }
 
 public struct ApprovalPosted has copy, drop {
@@ -304,6 +317,8 @@ public struct ApprovalPosted has copy, drop {
   signer: address,
   witness_id: ID,
   created_ms: u64,
+  /// Lets clients drop expired witnesses without an extra object read.
+  expires_ms: u64,
 }
 
 /// Mint a shared ApprovalWitness recording that this cap holder approves
@@ -315,6 +330,7 @@ public fun post_approval(
   cap: &FormOwnerCap,
   form: &Form,
   identity: vector<u8>,
+  ttl_ms: u64,
   clock: &sui::clock::Clock,
   ctx: &mut TxContext,
 ) {
@@ -322,10 +338,12 @@ public fun post_approval(
   assert!(form.privacy_tier == PRIVACY_THRESHOLD, EWrongTier);
   assert!(seal_id_matches_form(&identity, form), ESealIdMismatch);
   assert_not_archived(form);
+  assert!(ttl_ms > 0 && ttl_ms <= MAX_APPROVAL_TTL_MS, EApprovalTtlInvalid);
 
   let signer = ctx.sender();
   let form_id_inner = object::id(form);
   let now = clock.timestamp_ms();
+  let expires_ms = now + ttl_ms;
   let identity_hash = sui::hash::keccak256(&identity);
 
   let uid = object::new(ctx);
@@ -336,6 +354,7 @@ public fun post_approval(
     identity,
     signer,
     created_ms: now,
+    expires_ms,
   };
 
   event::emit(ApprovalPosted {
@@ -344,6 +363,7 @@ public fun post_approval(
     signer,
     witness_id,
     created_ms: now,
+    expires_ms,
   });
 
   transfer::share_object(w);
@@ -351,14 +371,16 @@ public fun post_approval(
 
 /// Real m-of-n: takes k+ ApprovalWitness objects. Asserts (a) at least
 /// `threshold_n` witnesses present, (b) every witness binds to this form,
-/// (c) every witness binds to the exact `id`, (d) signers are all distinct.
-/// Witnesses are consumed; in Seal's dry-run this is a no-op (state never
-/// persists), so witnesses remain on chain and the same set re-decrypts
-/// forever. That's the "voted to release once" semantics — see file header.
+/// (c) every witness binds to the exact `id`, (d) signers are all distinct,
+/// (e) no witness has expired (clock < expires_ms). Witnesses are consumed;
+/// in Seal's dry-run this is a no-op (state never persists), so the same
+/// set re-decrypts — but only until the soonest witness expiry. After that
+/// admins must re-post (F-01 mitigation — see file header).
 public fun seal_approve_threshold_m_of_n(
   id: vector<u8>,
   form: &Form,
   mut approvals: vector<ApprovalWitness>,
+  clock: &sui::clock::Clock,
 ) {
   assert!(seal_id_matches_form(&id, form), ESealIdMismatch);
   assert!(form.privacy_tier == PRIVACY_THRESHOLD, EWrongTier);
@@ -368,6 +390,7 @@ public fun seal_approve_threshold_m_of_n(
   let n = vector::length(&approvals);
   assert!(n >= required, EInsufficientApprovals);
 
+  let now = clock.timestamp_ms();
   let mut seen = sui::vec_set::empty<address>();
   let form_id_inner = object::id(form);
   let mut i = 0;
@@ -376,6 +399,7 @@ public fun seal_approve_threshold_m_of_n(
     assert!(w.form_id == form_id_inner, EWrongFormId);
     assert!(&w.identity == &id, EWrongIdentity);
     assert!(!sui::vec_set::contains(&seen, &w.signer), EDuplicateSigner);
+    assert!(now < w.expires_ms, EApprovalExpired);
     sui::vec_set::insert(&mut seen, w.signer);
     i = i + 1;
   };
@@ -387,6 +411,7 @@ public fun seal_approve_threshold_m_of_n(
       identity: _,
       signer: _,
       created_ms: _,
+      expires_ms: _,
     } = vector::pop_back(&mut approvals);
     object::delete(uid);
   };
@@ -446,6 +471,8 @@ public fun witness_signer(w: &ApprovalWitness): address { w.signer }
 public fun witness_form_id(w: &ApprovalWitness): ID { w.form_id }
 
 public fun witness_created_ms(w: &ApprovalWitness): u64 { w.created_ms }
+
+public fun witness_expires_ms(w: &ApprovalWitness): u64 { w.expires_ms }
 
 public fun privacy_public(): u8 { PRIVACY_PUBLIC }
 

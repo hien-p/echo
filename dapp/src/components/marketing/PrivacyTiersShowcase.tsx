@@ -64,7 +64,7 @@ const TIERS: ReadonlyArray<TierCard> = [
     title: "Threshold m-of-n",
     Icon: Users,
     short: "k unique cap holders post on-chain witnesses to decrypt.",
-    body: "Each admin posts a shared ApprovalWitness object via echo::form::post_approval. Once ≥ k unique-signer witnesses exist for the form's Seal identity, seal_approve_threshold_m_of_n takes the witness vector, asserts count ≥ k + binds-to-form + distinct-signers, and unlocks decrypt permanently. A votes-to-release primitive, not an ongoing access gate.",
+    body: "Each admin posts a shared ApprovalWitness object via echo::form::post_approval with a bounded TTL. Once ≥ k unique-signer witnesses exist for the form's Seal identity, seal_approve_threshold_m_of_n takes the witness vector, asserts count ≥ k + binds-to-form + distinct-signers + not-expired, and unlocks decrypt until the witnesses expire. A time-boxed votes-to-release primitive — re-approval is required after the window lapses.",
     accentText: "text-slate-300/90",
     accentHover: "hover:ring-slate-300/20",
   },

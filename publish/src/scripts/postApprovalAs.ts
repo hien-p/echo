@@ -189,6 +189,9 @@ async function main() {
       tx.object(cap.objectId),
       tx.object(FORM_ID),
       tx.pure.vector("u8", Array.from(identity)),
+      // ttl_ms: 24h. Move clamps to (0, 7d]. Witness stops passing
+      // seal_approve_threshold_m_of_n after this (F-01 mitigation).
+      tx.pure.u64(BigInt(24 * 60 * 60 * 1000)),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
   });

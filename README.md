@@ -228,23 +228,23 @@ cd integration-tests && pnpm test         # full e2e (needs Docker)
 
 ## 🛡️ Trust model
 
-| Tier              | On-chain guarantee                                                                   | Trusts                                       |
-| ----------------- | ------------------------------------------------------------------------------------ | -------------------------------------------- |
-| Public            | none — plaintext on Walrus                                                           | Walrus availability                          |
-| AdminOnly         | only the `FormOwnerCap` holder decrypts                                              | Cap-holder key custody, Seal key servers     |
-| Threshold OR-of-N | any one of N caps decrypts (`threshold_n == 1`)                                      | Any cap holder, Seal key servers             |
-| Threshold m-of-n  | k unique `ApprovalWitness` objects required (real cryptographic primitive)           | k cap holders coordinating, Seal key servers |
-| TimeLocked        | permissionless decrypt after `unlock_ms`; create-time guard against `unlock_ms == 0` | Sui clock, Seal time-lock servers            |
-| Conditional       | currently collapses to AdminOnly semantics — see "Known limitations"                 | Same as AdminOnly                            |
+| Tier              | On-chain guarantee                                                                      | Trusts                                       |
+| ----------------- | --------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Public            | none — plaintext on Walrus                                                              | Walrus availability                          |
+| AdminOnly         | only the `FormOwnerCap` holder decrypts                                                 | Cap-holder key custody, Seal key servers     |
+| Threshold OR-of-N | any one of N caps decrypts (`threshold_n == 1`)                                         | Any cap holder, Seal key servers             |
+| Threshold m-of-n  | k unique `ApprovalWitness` objects required, each TTL-bounded (re-approve after expiry) | k cap holders coordinating, Seal key servers |
+| TimeLocked        | permissionless decrypt after `unlock_ms`; create-time guard against `unlock_ms == 0`    | Sui clock, Seal time-lock servers            |
+| Conditional       | currently collapses to AdminOnly semantics — see "Known limitations"                    | Same as AdminOnly                            |
 
 Walletless respondents: ephemeral Ed25519 keypair held in browser, gas sponsored by Enoki. Trust set = the dapp origin + Enoki. Submission ciphertext is content-addressed on Walrus; chain stores the blob id + a `tier_hint` (audit fix F-04) so a misbehaving client can't claim a tier they didn't encrypt under.
 
 ## ⚠️ Known limitations (v1 disclosures)
 
-This package was hardened after a third-pass security audit on 2026-05-15 (see `plans/reports/security-audit-260515-move-contracts.md`). The audit's must-fix and should-fix patches all landed in package `0x3df32d4a…0c7754a`. **Two items intentionally deferred to v1.1:**
+This package was hardened after a third-pass security audit on 2026-05-15 (see `plans/reports/security-audit-260515-move-contracts.md`). The audit's must-fix and should-fix patches all landed in package `0x3df32d4a…0c7754a`.
 
-- **F-01 — Threshold m-of-n witnesses authorize one Seal identity permanently.** `seal_approve_threshold_m_of_n` consumes a `vector<ApprovalWitness>` inside Seal's dry-run, so `object::delete` never actually persists. The shared witnesses remain on chain and the same set re-decrypts forever. Semantics is "k of n voted to release this Seal identity once" — not "k of n per read". v1.1 will bind each witness set to a single `SubmissionRef.id` (or add `expires_ms` with a `Clock` check) so a quorum decrypts exactly one submission.
-- **F-08 — Conditional tier policy is a stub.** `seal_approve_conditional` enforces the same predicate as `seal_approve_admin_only`; `conditional_policy_id` is stored but unread. v1.1 will ship a `ConditionalPolicyWitness` pattern mirroring `ApprovalWitness` so an off-chain oracle posts a witness when conditions are met.
+- **F-01 — Threshold m-of-n witness reuse (MITIGATED in v1.1, pending redeploy).** `seal_approve_threshold_m_of_n` consumes a `vector<ApprovalWitness>` inside Seal's dry-run, so `object::delete` never persists and the same witness set would otherwise re-decrypt forever. v1.1 adds an `expires_ms` to each `ApprovalWitness` (set from a caller-chosen `ttl_ms`, clamped to ≤ 7 days) and a `Clock` expiry assert inside `seal_approve_threshold_m_of_n`: a quorum re-decrypts only until its soonest-expiring witness lapses, after which admins must re-post. This bounds the blast radius from "forever" to the approval window. **Requires a package redeploy** — `ApprovalWitness` gains a field and `post_approval` / `seal_approve_threshold_m_of_n` signatures change; objects under `0x3df3…0c7754a` keep the old layout. The code + 3 regression tests (`seal_approve_m_of_n_passes_within_ttl`, `seal_approve_m_of_n_aborts_after_expiry`, `post_approval_aborts_on_zero_ttl`) are merged ahead of the deploy.
+- **F-08 — Conditional tier policy is a stub (deferred to v1.2).** `seal_approve_conditional` enforces the same predicate as `seal_approve_admin_only`; `conditional_policy_id` is stored but unread. A `ConditionalPolicyWitness` pattern mirroring `ApprovalWitness` (off-chain oracle posts a witness when conditions are met) is the planned fix.
 
 The audit's full finding list and per-tier threat model are in the audit report. Highlighted regressions are covered by 4 new Move tests:
 
