@@ -21,11 +21,17 @@ import type { ClientWithExtensions, CoreClient } from "@mysten/sui/client";
 
 type SealCompatibleSuiClient = ClientWithExtensions<{ core: CoreClient }>;
 
+/** Default approval witness lifetime: 24h in ms. Bounds F-01 — a quorum
+ *  re-decrypts only until its witnesses expire, then admins must re-post. */
+export const DEFAULT_APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
+
 export interface BuildPostApprovalArgs {
   packageId: string;
   formOwnerCapId: string;
   formId: string;
   identity: Uint8Array;
+  /** Witness lifetime in ms. Move clamps to (0, 7d]. */
+  ttlMs?: number;
 }
 
 /** Real-tx PTB an admin signs to post one ApprovalWitness for `identity`. */
@@ -37,6 +43,7 @@ export function buildPostApprovalTx(args: BuildPostApprovalArgs): Transaction {
       tx.object(args.formOwnerCapId),
       tx.object(args.formId),
       tx.pure.vector("u8", Array.from(args.identity)),
+      tx.pure.u64(BigInt(args.ttlMs ?? DEFAULT_APPROVAL_TTL_MS)),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
   });
@@ -48,6 +55,7 @@ export interface ApprovalRecord {
   signer: string;
   identityHash: string; // hex
   createdMs: number;
+  expiresMs: number;
 }
 
 /**
@@ -73,12 +81,18 @@ export async function listApprovals(args: {
     eventType,
     args.formId,
   );
-  const matched: ApprovalRecord[] = events.map((e) => ({
-    witnessId: e.witness_id,
-    signer: e.signer,
-    identityHash: bytesArrayToHex(e.identity_hash),
-    createdMs: Number(e.created_ms),
-  }));
+  const now = Date.now();
+  const matched: ApprovalRecord[] = events
+    .map((e) => ({
+      witnessId: e.witness_id,
+      signer: e.signer,
+      identityHash: bytesArrayToHex(e.identity_hash),
+      createdMs: Number(e.created_ms),
+      expiresMs: Number(e.expires_ms),
+    }))
+    // Drop expired witnesses so the k/n count and the built PTB only
+    // ever include witnesses that still pass the on-chain expiry check.
+    .filter((r) => r.expiresMs > now);
   // Dedupe by signer — keep latest.
   matched.sort((a, b) => b.createdMs - a.createdMs);
   const seen = new Set<string>();
@@ -124,7 +138,12 @@ export async function buildSealApproveThresholdMofNTxBytes(
   });
   tx.moveCall({
     target: `${args.packageId}::form::seal_approve_threshold_m_of_n`,
-    arguments: [idArg, tx.object(args.formId), approvalsArg],
+    arguments: [
+      idArg,
+      tx.object(args.formId),
+      approvalsArg,
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
   });
   tx.setSender(args.senderAddress);
   return tx.build({ client: args.suiClient, onlyTransactionKind: true });
@@ -138,6 +157,7 @@ interface ApprovalPostedEvent {
   signer: string;
   witness_id: string;
   created_ms: string;
+  expires_ms: string;
 }
 
 async function queryEventsByFormId(

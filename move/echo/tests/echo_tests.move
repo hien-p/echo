@@ -10,6 +10,8 @@ use sui::{clock, test_scenario as ts};
 
 const ADMIN: address = @0xA1;
 const USER: address = @0xB2;
+/// Default approval witness TTL used across m-of-n tests: 24h in ms.
+const APPROVAL_TTL: u64 = 86_400_000;
 
 fun new_public_form_in_scenario(scenario: &mut ts::Scenario) {
   let ctx = ts::ctx(scenario);
@@ -475,7 +477,7 @@ fun post_approval_mints_witness_with_signer() {
   let id = threshold_identity(&form_obj);
   let ctx = ts::ctx(&mut scenario);
   let clock = clock::create_for_testing(ctx);
-  form::post_approval(&cap_b, &form_obj, id, &clock, ctx);
+  form::post_approval(&cap_b, &form_obj, id, APPROVAL_TTL, &clock, ctx);
   clock::destroy_for_testing(clock);
   ts::return_to_sender(&scenario, cap_b);
   ts::return_shared(form_obj);
@@ -483,6 +485,11 @@ fun post_approval_mints_witness_with_signer() {
   ts::next_tx(&mut scenario, ADMIN);
   let w = ts::take_shared<ApprovalWitness>(&scenario);
   assert!(form::witness_signer(&w) == ADMIN_B, 0);
+  // test clock starts at 0, so expires_ms == 0 + APPROVAL_TTL.
+  assert!(
+    form::witness_expires_ms(&w) == form::witness_created_ms(&w) + APPROVAL_TTL,
+    1,
+  );
   ts::return_shared(w);
   ts::end(scenario);
 }
@@ -500,7 +507,7 @@ fun seal_approve_m_of_n_passes_with_k_unique_witnesses() {
   {
     let ctx = ts::ctx(&mut scenario);
     let clock = clock::create_for_testing(ctx);
-    form::post_approval(&cap_a, &form_obj, id, &clock, ctx);
+    form::post_approval(&cap_a, &form_obj, id, APPROVAL_TTL, &clock, ctx);
     clock::destroy_for_testing(clock);
   };
   ts::return_to_sender(&scenario, cap_a);
@@ -514,7 +521,7 @@ fun seal_approve_m_of_n_passes_with_k_unique_witnesses() {
   {
     let ctx = ts::ctx(&mut scenario);
     let clock = clock::create_for_testing(ctx);
-    form::post_approval(&cap_b, &form_obj, id, &clock, ctx);
+    form::post_approval(&cap_b, &form_obj, id, APPROVAL_TTL, &clock, ctx);
     clock::destroy_for_testing(clock);
   };
   ts::return_to_sender(&scenario, cap_b);
@@ -529,7 +536,9 @@ fun seal_approve_m_of_n_passes_with_k_unique_witnesses() {
   let mut approvals = vector::empty<ApprovalWitness>();
   vector::push_back(&mut approvals, w1);
   vector::push_back(&mut approvals, w2);
-  form::seal_approve_threshold_m_of_n(id, &form_obj, approvals);
+  let mofn_clock = clock::create_for_testing(ts::ctx(&mut scenario));
+  form::seal_approve_threshold_m_of_n(id, &form_obj, approvals, &mofn_clock);
+  clock::destroy_for_testing(mofn_clock);
   ts::return_shared(form_obj);
   ts::end(scenario);
 }
@@ -547,7 +556,7 @@ fun seal_approve_m_of_n_aborts_when_below_threshold() {
   {
     let ctx = ts::ctx(&mut scenario);
     let clock = clock::create_for_testing(ctx);
-    form::post_approval(&cap_a, &form_obj, id, &clock, ctx);
+    form::post_approval(&cap_a, &form_obj, id, APPROVAL_TTL, &clock, ctx);
     clock::destroy_for_testing(clock);
   };
   ts::return_to_sender(&scenario, cap_a);
@@ -560,7 +569,9 @@ fun seal_approve_m_of_n_aborts_when_below_threshold() {
   let mut approvals = vector::empty<ApprovalWitness>();
   vector::push_back(&mut approvals, w1);
   // Aborts with EInsufficientApprovals (8) — only 1 witness, need 2.
-  form::seal_approve_threshold_m_of_n(id, &form_obj, approvals);
+  let mofn_clock = clock::create_for_testing(ts::ctx(&mut scenario));
+  form::seal_approve_threshold_m_of_n(id, &form_obj, approvals, &mofn_clock);
+  clock::destroy_for_testing(mofn_clock);
   ts::return_shared(form_obj);
   ts::end(scenario);
 }
@@ -578,7 +589,7 @@ fun seal_approve_m_of_n_aborts_on_duplicate_signer() {
   {
     let ctx = ts::ctx(&mut scenario);
     let clock = clock::create_for_testing(ctx);
-    form::post_approval(&cap_a, &form_obj, id, &clock, ctx);
+    form::post_approval(&cap_a, &form_obj, id, APPROVAL_TTL, &clock, ctx);
     clock::destroy_for_testing(clock);
   };
   ts::return_shared(form_obj);
@@ -589,7 +600,7 @@ fun seal_approve_m_of_n_aborts_on_duplicate_signer() {
   {
     let ctx = ts::ctx(&mut scenario);
     let clock = clock::create_for_testing(ctx);
-    form::post_approval(&cap_a, &form_obj, id, &clock, ctx);
+    form::post_approval(&cap_a, &form_obj, id, APPROVAL_TTL, &clock, ctx);
     clock::destroy_for_testing(clock);
   };
   ts::return_to_sender(&scenario, cap_a);
@@ -604,7 +615,127 @@ fun seal_approve_m_of_n_aborts_on_duplicate_signer() {
   vector::push_back(&mut approvals, w1);
   vector::push_back(&mut approvals, w2);
   // Aborts with EDuplicateSigner (11) — both witnesses signed by ADMIN.
-  form::seal_approve_threshold_m_of_n(id, &form_obj, approvals);
+  let mofn_clock = clock::create_for_testing(ts::ctx(&mut scenario));
+  form::seal_approve_threshold_m_of_n(id, &form_obj, approvals, &mofn_clock);
+  clock::destroy_for_testing(mofn_clock);
+  ts::return_shared(form_obj);
+  ts::end(scenario);
+}
+
+// F-01 mitigation regression tests: a k-of-n quorum's witnesses must
+// stop passing the dry-run once they expire.
+
+#[test]
+fun seal_approve_m_of_n_passes_within_ttl() {
+  let mut scenario = ts::begin(ADMIN);
+  new_threshold_form(&mut scenario, 2);
+
+  ts::next_tx(&mut scenario, ADMIN);
+  let cap_a = ts::take_from_sender<FormOwnerCap>(&scenario);
+  let form_obj = ts::take_shared<form::Form>(&scenario);
+  let id = threshold_identity(&form_obj);
+  {
+    let ctx = ts::ctx(&mut scenario);
+    let clock = clock::create_for_testing(ctx);
+    form::post_approval(&cap_a, &form_obj, id, APPROVAL_TTL, &clock, ctx);
+    clock::destroy_for_testing(clock);
+  };
+  ts::return_to_sender(&scenario, cap_a);
+  ts::return_shared(form_obj);
+
+  ts::next_tx(&mut scenario, ADMIN_B);
+  let cap_b = ts::take_from_sender<FormOwnerCap>(&scenario);
+  let form_obj = ts::take_shared<form::Form>(&scenario);
+  let id = threshold_identity(&form_obj);
+  {
+    let ctx = ts::ctx(&mut scenario);
+    let clock = clock::create_for_testing(ctx);
+    form::post_approval(&cap_b, &form_obj, id, APPROVAL_TTL, &clock, ctx);
+    clock::destroy_for_testing(clock);
+  };
+  ts::return_to_sender(&scenario, cap_b);
+  ts::return_shared(form_obj);
+
+  ts::next_tx(&mut scenario, USER);
+  let w1 = ts::take_shared<ApprovalWitness>(&scenario);
+  let w2 = ts::take_shared<ApprovalWitness>(&scenario);
+  let form_obj = ts::take_shared<form::Form>(&scenario);
+  let id = threshold_identity(&form_obj);
+  let mut approvals = vector::empty<ApprovalWitness>();
+  vector::push_back(&mut approvals, w1);
+  vector::push_back(&mut approvals, w2);
+  // Clock at APPROVAL_TTL/2 — still inside both witnesses' window.
+  let mut mofn_clock = clock::create_for_testing(ts::ctx(&mut scenario));
+  clock::set_for_testing(&mut mofn_clock, APPROVAL_TTL / 2);
+  form::seal_approve_threshold_m_of_n(id, &form_obj, approvals, &mofn_clock);
+  clock::destroy_for_testing(mofn_clock);
+  ts::return_shared(form_obj);
+  ts::end(scenario);
+}
+
+#[test, expected_failure(abort_code = 14, location = echo::form)]
+fun seal_approve_m_of_n_aborts_after_expiry() {
+  let mut scenario = ts::begin(ADMIN);
+  new_threshold_form(&mut scenario, 2);
+
+  ts::next_tx(&mut scenario, ADMIN);
+  let cap_a = ts::take_from_sender<FormOwnerCap>(&scenario);
+  let form_obj = ts::take_shared<form::Form>(&scenario);
+  let id = threshold_identity(&form_obj);
+  {
+    let ctx = ts::ctx(&mut scenario);
+    let clock = clock::create_for_testing(ctx);
+    form::post_approval(&cap_a, &form_obj, id, APPROVAL_TTL, &clock, ctx);
+    clock::destroy_for_testing(clock);
+  };
+  ts::return_to_sender(&scenario, cap_a);
+  ts::return_shared(form_obj);
+
+  ts::next_tx(&mut scenario, ADMIN_B);
+  let cap_b = ts::take_from_sender<FormOwnerCap>(&scenario);
+  let form_obj = ts::take_shared<form::Form>(&scenario);
+  let id = threshold_identity(&form_obj);
+  {
+    let ctx = ts::ctx(&mut scenario);
+    let clock = clock::create_for_testing(ctx);
+    form::post_approval(&cap_b, &form_obj, id, APPROVAL_TTL, &clock, ctx);
+    clock::destroy_for_testing(clock);
+  };
+  ts::return_to_sender(&scenario, cap_b);
+  ts::return_shared(form_obj);
+
+  ts::next_tx(&mut scenario, USER);
+  let w1 = ts::take_shared<ApprovalWitness>(&scenario);
+  let w2 = ts::take_shared<ApprovalWitness>(&scenario);
+  let form_obj = ts::take_shared<form::Form>(&scenario);
+  let id = threshold_identity(&form_obj);
+  let mut approvals = vector::empty<ApprovalWitness>();
+  vector::push_back(&mut approvals, w1);
+  vector::push_back(&mut approvals, w2);
+  // Clock at exactly expires_ms (now < expires is false) → EApprovalExpired.
+  let mut mofn_clock = clock::create_for_testing(ts::ctx(&mut scenario));
+  clock::set_for_testing(&mut mofn_clock, APPROVAL_TTL);
+  form::seal_approve_threshold_m_of_n(id, &form_obj, approvals, &mofn_clock);
+  clock::destroy_for_testing(mofn_clock);
+  ts::return_shared(form_obj);
+  ts::end(scenario);
+}
+
+#[test, expected_failure(abort_code = 15, location = echo::form)]
+fun post_approval_aborts_on_zero_ttl() {
+  let mut scenario = ts::begin(ADMIN);
+  new_threshold_form(&mut scenario, 2);
+
+  ts::next_tx(&mut scenario, ADMIN);
+  let cap_a = ts::take_from_sender<FormOwnerCap>(&scenario);
+  let form_obj = ts::take_shared<form::Form>(&scenario);
+  let id = threshold_identity(&form_obj);
+  let ctx = ts::ctx(&mut scenario);
+  let clock = clock::create_for_testing(ctx);
+  // ttl_ms == 0 is rejected with EApprovalTtlInvalid (15).
+  form::post_approval(&cap_a, &form_obj, id, 0, &clock, ctx);
+  clock::destroy_for_testing(clock);
+  ts::return_to_sender(&scenario, cap_a);
   ts::return_shared(form_obj);
   ts::end(scenario);
 }

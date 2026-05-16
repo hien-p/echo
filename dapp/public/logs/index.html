@@ -164,6 +164,26 @@
             <time datetime="2026-05-16">2026-05-16</time>
             <span class="log-tag" data-tag="fix">fix</span>
           </header>
+          <h3>F-01 mitigated: approval witnesses now expire</h3>
+          <p>
+            Threshold m-of-n decryption witnesses were re-usable forever (Seal's
+            dry-run never persists the <code>object::delete</code>), so one
+            k-of-n quorum could re-decrypt the tier indefinitely.
+            <code>ApprovalWitness</code> now carries an
+            <code>expires_ms</code> (caller-set <code>ttl_ms</code>, clamped to
+            ≤ 7 days) and <code>seal_approve_threshold_m_of_n</code>
+            asserts every witness is unexpired against a
+            <code>Clock</code>. The quorum re-decrypts only until its soonest
+            witness lapses, then admins must re-approve. 3 new Move regression
+            tests; 29/29 green. Lands ahead of the package redeploy it requires.
+          </p>
+        </article>
+
+        <article class="log-card" data-date="2026-05-16">
+          <header>
+            <time datetime="2026-05-16">2026-05-16</time>
+            <span class="log-tag" data-tag="fix">fix</span>
+          </header>
           <h3>Anonymous mode now requires a connected wallet</h3>
           <p>
             Closed a Sybil-resistance bypass: walletless submission mints a
